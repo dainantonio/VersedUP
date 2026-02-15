@@ -1,18 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { toPng } from 'html-to-image';
 import { 
   Plus, Sparkles, Share2, Library, Settings, 
   ChevronLeft, Save, Copy, Download, Trash2, 
-  MoreVertical, Check, RefreshCw, Smartphone, 
-  Mail, Video, Hash, FileText, LayoutTemplate,
-  Search, Filter, X, Menu, SlidersHorizontal,
-  MoveUp, MoveDown, AlertTriangle, Sun, Moon, 
-  BookOpen, Camera, FileDown, Volume2, Key, Globe, Mic, StopCircle,
-  PenTool, MessageSquare, Heart, ChevronRight,
-  Smile, CloudRain, Coffee, Zap, User, Send, Heart as HeartIcon, MessageCircle
+  MoreVertical, Check, RefreshCw, Smartphone, Mail, Video, Hash, FileText, LayoutTemplate, Search, Filter, X, Menu, SlidersHorizontal, MoveUp, MoveDown, AlertTriangle, Sun, Moon, BookOpen, Camera, FileDown, Volume2, Key, Globe, Mic, StopCircle, PenTool, MessageSquare, Heart, ChevronRight, Smile, CloudRain, Coffee, Zap, User, Send, Heart as HeartIcon, MessageCircle 
 } from 'lucide-react';
 
-/**
- * UTILITIES & CONFIGURATION
+/** 
+ * UTILITIES & CONFIGURATION 
  */
 
 const APP_ID = 'versed_up_v1';
@@ -92,6 +87,16 @@ const THEMES = {
 
 // Default Settings
 const DEFAULT_SETTINGS = {
+  username: '',
+  defaultBibleVersion: 'KJV',
+  exportPrefs: {
+    tiktokTemplate: 'minimalLight',
+    includeTitle: true,
+    includeDate: true,
+    includeScripture: true,
+    includeUsername: true,
+    includeLogo: false,
+  },
   theme: 'classic',
   preferredTone: 'encouraging',
   preferredLength: 'medium',
@@ -119,9 +124,13 @@ const createDevotional = () => ({
   updatedAt: new Date().toISOString(),
   verseRef: '',
   verseText: '',
+  bibleVersion: '',
+  scriptureEnabled: false,
+  verseTextLocked: false,
+  verseTextEdited: false,
   title: '',
-  rawText: '', 
-  prayer: '', 
+  rawText: '',
+  prayer: '',
   reflectionQuestions: '',
   mood: null, // New field
   versions: [],
@@ -148,10 +157,19 @@ const getFullContent = (devotional) => {
   return text;
 };
 
+const isKjv = (version) => String(version || '').toUpperCase() === 'KJV';
+
+const openYouVersion = (passage) => {
+  const query = encodeURIComponent(String(passage || '').trim());
+  const url = `https://www.bible.com/search/bible?q=${query}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+};
+
 // AI Engine
 const runLLM = async ({ task, inputs, settings, platformLimit }) => {
   const { aiProvider, openaiKey, geminiKey } = settings;
   const { rawText, verseText, verseRef, title, prayer, reflectionQuestions, mood } = inputs;
+
   const tone = settings.preferredTone || 'encouraging';
   const components = settings.enabledComponents || DEFAULT_SETTINGS.enabledComponents;
 
@@ -160,15 +178,16 @@ const runLLM = async ({ task, inputs, settings, platformLimit }) => {
   if (components.prayer) structureReq += ", Prayer";
   if (components.reflectionQuestions) structureReq += ", 2-3 Reflection Questions";
 
-  const moodContext = mood ? `Context: User is feeling ${mood}. Adjust tone to be helpful for this emotion.` : "";
+  const moodContext = mood ? `Context: User is feeling ${mood}.\nAdjust tone to be helpful for this emotion.` : "";
 
   let prompt = "";
+
   if (task === 'fix') prompt = `Fix grammar. Tone: ${tone}. ${moodContext} Text: "${rawText}"`;
-  else if (task === 'structure') prompt = `Format as a devotional (${structureReq}). Verse: ${verseRef}. ${moodContext}. Content: ${rawText} ${prayer || ''} ${reflectionQuestions || ''}`;
+  else if (task === 'structure') prompt = `Format as a devotional (${structureReq}). Verse: ${verseRef}. ${moodContext}.\nContent: ${rawText} ${prayer || ''} ${reflectionQuestions || ''}`;
   else if (task === 'shorten') prompt = `Shorten this content: "${rawText}"`;
   else if (task === 'expand') prompt = `Expand deeper: "${rawText}"`;
   else if (task === 'tiktok') prompt = `Write a viral TikTok script. Verse: ${verseRef}. Content: ${rawText}`;
-  else if (task === 'autoFit') prompt = `Rewrite to be under ${platformLimit} chars. Text: ${rawText}. Return valid JSON: { "body": "...", "verseText": "..." }`;
+  else if (task === 'autoFit') prompt = `Rewrite to be under ${platformLimit} chars. Text: ${rawText}.\nReturn valid JSON: { "body": "...", "verseText": "..." }`;
   else if (task.startsWith('ocr')) prompt = `Simulate OCR for ${task}. Return realistic text.`;
 
   // 1. OpenAI
@@ -177,13 +196,21 @@ const runLLM = async ({ task, inputs, settings, platformLimit }) => {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openaiKey}` },
-        body: JSON.stringify({ model: "gpt-3.5-turbo", messages: [{ role: "user", content: prompt }] })
+        body: JSON.stringify({
+          model: "gpt-3.5-turbo",
+          messages: [{ role: "user", content: prompt }]
+        })
       });
       const data = await response.json();
       const content = data.choices[0].message.content;
-      if (task === 'autoFit') { try { return JSON.parse(content); } catch(e) { return { body: content, verseText: verseText.substring(0, 50) + '...' }; } }
+      if (task === 'autoFit') {
+        try { return JSON.parse(content); }
+        catch (e) { return { body: content, verseText: verseText.substring(0, 50) + '...' }; }
+      }
       return content;
-    } catch (e) { console.error("OpenAI Error", e); }
+    } catch (e) {
+      console.error("OpenAI Error", e);
+    }
   }
 
   // 2. Gemini
@@ -196,44 +223,63 @@ const runLLM = async ({ task, inputs, settings, platformLimit }) => {
       });
       const data = await response.json();
       const content = data.candidates[0].content.parts[0].text;
-      if (task === 'autoFit') { 
-         const cleanJson = content.replace(/```json/g, '').replace(/```/g, '').trim();
-         try { return JSON.parse(cleanJson); } catch(e) { return { body: content, verseText: verseText.substring(0, 50) + '...' }; }
+      if (task === 'autoFit') {
+        const cleanJson = content.replace(/```json/g, '').replace(/```/g, '').trim();
+        try { return JSON.parse(cleanJson); }
+        catch (e) { return { body: content, verseText: verseText.substring(0, 50) + '...' }; }
       }
       return content;
-    } catch (e) { console.error("Gemini Error", e); }
+    } catch (e) {
+      console.error("Gemini Error", e);
+    }
   }
 
   // 3. Mock (Context Aware)
   return new Promise((resolve) => {
     setTimeout(() => {
       let result = '';
-      
+
       // Mood-aware mock text
-      const moodIntro = mood === 'anxious' ? "In times of worry, remember this truth: " : 
-                        mood === 'grateful' ? "My heart overflows with gratitude because " : 
-                        mood === 'weary' ? "Even when strength fails, " : "";
+      const moodIntro =
+        mood === 'anxious' ? "In times of worry, remember this truth: " :
+        mood === 'grateful' ? "My heart overflows with gratitude because " :
+        mood === 'weary' ? "Even when strength fails, " :
+        "";
 
       switch (task) {
-        case 'fix': result = `${moodIntro}${rawText}`.trim() + ` (Polished)`; break;
-        case 'structure': 
-           result = `**Title: ${title || 'Untitled'}**\n\n**Scripture:**\n"${verseText}" - ${verseRef}\n\n**Reflection:**\n${moodIntro}${rawText}\n\n`;
-           if (components.reflectionQuestions) result += `**Questions:**\n${reflectionQuestions || '1. How does this apply today?\n2. What does this say about God?'}\n\n`;
-           if (components.prayer) result += `**Prayer:**\n${prayer || 'Lord, help me apply this word today. Amen.'}`;
-           break;
-        case 'shorten': result = rawText.substring(0, Math.floor(rawText.length * 0.7)) + '...'; break;
-        case 'expand': result = `${moodIntro}${rawText}\n\nMoreover, when we look deeper at ${verseRef}, we see that this truth applies to every season of life.`; break;
-        case 'tiktok': result = `POV: You need to hear this ✨\n\n"${verseText}"\n\n${moodIntro}${rawText}\n\n#ChristianTikTok #DailyDevotional`; break;
-        case 'autoFit':
+        case 'fix':
+          result = `${moodIntro}${rawText}`.trim() + ` (Polished)`;
+          break;
+        case 'structure':
+          result = `**Title: ${title || 'Untitled'}**\n\n**Scripture:**\n"${verseText}" - ${verseRef}\n\n**Reflection:**\n${moodIntro}${rawText}\n\n`;
+          if (components.reflectionQuestions) result += `**Questions:**\n${reflectionQuestions || '1. How does this apply today?\n2. What does this say about God?'}\n\n`;
+          if (components.prayer) result += `**Prayer:**\n${prayer || 'Lord, help me apply this word today. Amen.'}`;
+          break;
+        case 'shorten':
+          result = rawText.substring(0, Math.floor(rawText.length * 0.7)) + '...';
+          break;
+        case 'expand':
+          result = `${moodIntro}${rawText}\n\nMoreover, when we look deeper at ${verseRef}, we see that this truth applies to every season of life.`;
+          break;
+        case 'tiktok':
+          result = `POV: You need to hear this ✨\n\n"${verseText}"\n\n${moodIntro}${rawText}\n\n#ChristianTikTok #DailyDevotional`;
+          break;
+        case 'autoFit': {
           let fittedBody = rawText;
           let fittedVerse = verseText;
           if (rawText.length > (platformLimit * 0.6)) fittedBody = rawText.substring(0, Math.floor(platformLimit * 0.5)) + "...";
           if ((fittedBody.length + fittedVerse.length) > platformLimit) fittedVerse = verseText.substring(0, 100) + "...";
-          result = { body: fittedBody, verseText: fittedVerse }; 
+          result = { body: fittedBody, verseText: fittedVerse };
           break;
-        case 'ocr_verse': result = "For God so loved the world that he gave his one and only Son..."; break;
-        case 'ocr_notes': result = "I felt really moved by this verse today. Love is about giving."; break;
-        default: result = rawText;
+        }
+        case 'ocr_verse':
+          result = "For God so loved the world that he gave his one and only Son...";
+          break;
+        case 'ocr_notes':
+          result = "I felt really moved by this verse today. Love is about giving.";
+          break;
+        default:
+          result = rawText;
       }
       resolve(result);
     }, GENERATE_DELAY_MS);
@@ -244,22 +290,31 @@ const compilePost = (platform, content, settings) => {
   const { verseRef, verseText, title, body } = content;
   const isCustom = settings.postFormatMode === 'custom';
   const components = settings.enabledComponents;
+
   const buildSection = (type, text) => (isCustom && !components[type]) ? '' : text;
   const hashtags = settings.hashtagStyle === 'minimal' ? '#Faith' : '#Faith #Devotional #Jesus #Bible';
   const hashSection = buildSection('hashtags', hashtags);
+
   let compiled = '';
 
   switch (platform) {
-    case 'tiktok': compiled = `📖 ${verseRef}\n\n${body}\n\n👇 Thoughts?\n\n${hashSection} #fyp`; break;
-    case 'instagram':
+    case 'tiktok':
+      compiled = ` ${verseRef}\n\n${body}\n\n Thoughts?\n\n${hashSection} #fyp`;
+      break;
+    case 'instagram': {
       const titlePart = buildSection('title', title ? `TITLE: ${title}\n\n` : '');
       const scripturePart = buildSection('scripture', `“${verseText}”\n— ${verseRef}\n`);
       const bodyPart = buildSection('body', body);
-      compiled = `${titlePart}${scripturePart}.\n.\n${bodyPart}\n.\n.\nSave this for later 📌\n${hashSection}`;
+      compiled = `${titlePart}${scripturePart}.\n.\n${bodyPart}\n.\n.\nSave this for later \n${hashSection}`;
       break;
-    case 'youtube': compiled = `${title || 'Daily Devotional'} | ${verseRef}\n\n${body}\n\nSUBSCRIBE for more encouragement!`; break;
-    case 'email': compiled = `Subject: Encouragement for you: ${verseRef}\n\nHi Friend,\n\nI was reading ${verseRef} today:\n\n"${verseText}"\n\n${body}\n\nBlessings,\n[Your Name]`; break;
-    default:
+    }
+    case 'youtube':
+      compiled = `${title || 'Daily Devotional'} | ${verseRef}\n\n${body}\n\nSUBSCRIBE for more encouragement!`;
+      break;
+    case 'email':
+      compiled = `Subject: Encouragement for you: ${verseRef}\n\nHi Friend,\n\nI was reading ${verseRef} today:\n\n"${verseText}"\n\n${body}\n\nBlessings,\n[Your Name]`;
+      break;
+    default: {
       const parts = [];
       if (!isCustom || components.title) parts.push(title ? title.toUpperCase() : '');
       if (!isCustom || components.scripture) parts.push(`"${verseText}" (${verseRef})`);
@@ -267,59 +322,68 @@ const compilePost = (platform, content, settings) => {
       if (!isCustom || components.hashtags) parts.push(hashSection);
       compiled = parts.filter(p => p).join('\n\n');
       break;
+    }
   }
   return compiled;
 };
 
 const exportToDocument = (devotional) => {
-  const content = `
-    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-    <head><meta charset='utf-8'><title>${devotional.title || 'Devotional'}</title></head>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6;">
-      <h1 style="color: #059669;">${devotional.title || 'Untitled Devotional'}</h1>
-      <p style="color: #666; font-size: 0.9em;">Created with VersedUP on ${new Date(devotional.createdAt).toLocaleDateString()}</p>
-      <hr /><h3>Scripture</h3><p><strong>${devotional.verseRef}</strong></p><p><em>"${devotional.verseText}"</em></p>
-      <h3>Reflection</h3><p>${devotional.versions.length > 0 ? devotional.versions[0].text : getFullContent(devotional)}</p>
-      <br/><p style="text-align: center; color: #999; font-size: 0.8em;">Generated by VersedUP</p>
-    </body></html>`;
-  const blob = new Blob(['\ufeff', content], { type: 'application/msword' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url; link.download = `${devotional.title || 'devotional'}.doc`;
-  document.body.appendChild(link); link.click(); document.body.removeChild(link);
-};
+  const content = ` ${devotional.title || 'Devotional'}
+# ${devotional.title || 'Untitled Devotional'}
 
-const speakText = (text) => {
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9;
-    window.speechSynthesis.speak(utterance);
-  } else { alert("Text-to-speech not supported."); }
+Created with VersedUP on ${new Date(devotional.createdAt).toLocaleDateString()}
+
+* * *
+
+### Scripture
+
+${devotional.verseRef}
+
+"${devotional.verseText}"
+### Reflection
+
+${devotional.versions.length > 0 ? devotional.versions[0].text : getFullContent(devotional)}
+
+Generated by VersedUP
+`;
+
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${(devotional.title || 'Devotional').replace(/\s/g, '_')}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
 };
 
 /**
- * COMPONENTS
+ * COMPONENTS 
  */
 
-const Button = ({ children, onClick, variant = 'primary', className = '', icon: Icon, disabled = false, loading = false, themeKey = 'classic' }) => {
+const Card = ({ children, themeKey }) => {
   const theme = THEMES[themeKey];
-  const baseStyle = "flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl font-bold tracking-wide transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 shadow-md hover:shadow-xl hover:-translate-y-0.5 duration-200";
-  const variants = {
-    primary: `${theme.primary} text-white shadow-${theme.accent}-500/20 ${theme.primaryHover}`,
-    secondary: `${theme.cardBg} ${theme.textColor} border ${theme.border} hover:${theme.primaryLight}`,
-    ghost: `bg-transparent ${theme.subTextColor} hover:${theme.primaryLight}`,
-    danger: "bg-red-50 text-red-600 hover:bg-red-100",
-  };
   return (
-    <button onClick={onClick} disabled={disabled || loading} className={`${baseStyle} ${variants[variant]} ${className} ${theme.font}`}>
-      {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : Icon && <Icon className="w-5 h-5" />}
+    <div className={`${theme.cardBg} rounded-3xl shadow-sm border ${theme.border} p-6`}>
+      {children}
+    </div>
+  );
+};
+
+const Button = ({ children, onClick, icon: Icon, className = '', themeKey, disabled = false }) => {
+  const theme = THEMES[themeKey];
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`w-full flex items-center justify-center gap-2 p-4 rounded-2xl text-white font-bold ${theme.primary} ${theme.primaryHover} transition-all ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
+    >
+      {Icon && <Icon className="w-5 h-5" />}
       {children}
     </button>
   );
 };
 
-const InputGroup = ({ label, value, onChange, placeholder, multiline = false, className = '', themeKey = 'classic', enableOCR = false, onOCR, icon: FieldIcon }) => {
+const InputGroup = ({ label, value, onChange, placeholder, multiline = false, readOnly = false, className = '', themeKey = 'classic', enableOCR = false, onOCR, icon: FieldIcon }) => {
   const theme = THEMES[themeKey];
   const fileInputRef = useRef(null);
   const [scanning, setScanning] = useState(false);
@@ -329,322 +393,102 @@ const InputGroup = ({ label, value, onChange, placeholder, multiline = false, cl
   const handleMicClick = () => {
     if (listening) { recognitionRef.current?.stop(); setListening(false); return; }
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) { alert("Speech recognition not supported."); return; }
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true; recognition.interimResults = true; recognition.lang = 'en-US';
-    recognition.onstart = () => setListening(true);
-    recognition.onend = () => setListening(false);
-    let finalTranscript = value ? value + " " : "";
-    recognition.onresult = (event) => {
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) { finalTranscript += event.results[i][0].transcript; onChange(finalTranscript); }
-      }
+    if (!SpeechRecognition) { alert("Speech recognition not supported in this browser."); return; }
+
+    recognitionRef.current = new SpeechRecognition();
+    recognitionRef.current.lang = 'en-US';
+    recognitionRef.current.interimResults = false;
+    recognitionRef.current.maxAlternatives = 1;
+    recognitionRef.current.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      onChange((value ? value + " " : "") + transcript);
+      setListening(false);
     };
-    recognition.start(); recognitionRef.current = recognition;
+    recognitionRef.current.onerror = () => setListening(false);
+    recognitionRef.current.start();
+    setListening(true);
   };
 
-  const handleFileChange = async (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setScanning(true); await onOCR(); setScanning(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+  const handleOCRClick = async () => {
+    if (!enableOCR) return;
+    setScanning(true);
+    try {
+      const res = await runLLM({ task: onOCR, inputs: {}, settings: DEFAULT_SETTINGS, platformLimit: 99999 });
+      onChange(res);
+    } finally {
+      setScanning(false);
     }
   };
 
   return (
-    <div className={`flex flex-col gap-2 group ${className}`}>
-      <div className="flex justify-between items-end">
-        <label className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${theme.subTextColor} ${theme.font} group-focus-within:${theme.primaryText} transition-colors`}>
-          {FieldIcon && <FieldIcon className="w-3.5 h-3.5" />}
-          {label}
-        </label>
-        <div className="flex gap-1">
-          <button onClick={handleMicClick} className={`p-1.5 rounded-full transition-all ${listening ? 'bg-red-100 text-red-600 animate-pulse scale-110' : `hover:${theme.primaryLight} ${theme.subTextColor} hover:text-${theme.accent}-600`}`} title="Dictate">
-             {listening ? <StopCircle className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+    <div className={`space-y-2 ${className}`}>
+      <label className={`block text-xs font-bold ${theme.subTextColor}`}>{label}</label>
+      <div className={`flex items-center gap-2 border ${theme.border} rounded-xl p-3 ${theme.primaryLight}`}>
+        {FieldIcon && <FieldIcon className={`w-4 h-4 ${theme.subTextColor}`} />}
+        {multiline ? (
+          <textarea
+            className={`w-full bg-transparent outline-none ${theme.textColor} text-sm font-medium resize-none`}
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => { if (!readOnly) onChange(e.target.value); }}
+            readOnly={readOnly}
+            rows={4}
+          />
+        ) : (
+          <input
+            className={`w-full bg-transparent outline-none ${theme.textColor} text-sm font-medium`}
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => { if (!readOnly) onChange(e.target.value); }}
+            readOnly={readOnly}
+          />
+        )}
+
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={handleMicClick} className={`p-2 rounded-lg ${theme.cardBg} border ${theme.border}`} title="Voice input">
+            {listening ? <StopCircle className="w-4 h-4 text-red-500" /> : <Mic className="w-4 h-4" />}
           </button>
+
           {enableOCR && (
             <>
-               <input type="file" accept="image/*" capture="environment" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
-               <button onClick={() => fileInputRef.current?.click()} className={`p-1.5 rounded-full transition-all hover:${theme.primaryLight} ${theme.subTextColor} hover:text-${theme.accent}-600`} disabled={scanning} title="Scan Text">
-                 {scanning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
-               </button>
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" />
+              <button type="button" onClick={handleOCRClick} disabled={scanning} className={`p-2 rounded-lg ${theme.cardBg} border ${theme.border}`} title="Scan image">
+                {scanning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+              </button>
             </>
           )}
         </div>
       </div>
-      {multiline ? (
-        <textarea className={`w-full p-4 ${theme.appBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 ${theme.ring} transition-all ${theme.textColor} leading-relaxed resize-none ${theme.font} shadow-sm group-focus-within:shadow-md`} rows={5} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
-      ) : (
-        <input className={`w-full p-4 ${theme.appBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 ${theme.ring} transition-all ${theme.textColor} font-medium ${theme.font} shadow-sm group-focus-within:shadow-md`} type="text" placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
-      )}
     </div>
   );
 };
 
-const Card = ({ children, className = '', onClick, themeKey = 'classic' }) => {
+/**
+ * VIEWS
+ */
+
+const WriteView = ({ devotional, settings, onNext, themeKey }) => {
   const theme = THEMES[themeKey];
-  return (
-    <div onClick={onClick} className={`${theme.cardBg} backdrop-blur-sm border ${theme.border} shadow-lg shadow-slate-200/40 rounded-[24px] p-5 ${onClick ? 'cursor-pointer hover:scale-[1.01] hover:shadow-xl transition-all duration-300' : ''} ${className}`}>
-      {children}
-    </div>
-  );
-};
+  const [currentText, setCurrentText] = useState(devotional.rawText || '');
 
-// NEW: Social Preview Component
-const SocialPreview = ({ platform, content, themeKey }) => {
-  const theme = THEMES[themeKey];
-  // Parsing content for display
-  const lines = content.split('\n');
-  const caption = lines.slice(2).join('\n'); // Rough heuristic
-
-  if (platform === 'instagram') {
-    return (
-      <div className="w-full aspect-[4/5] bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col shadow-xl">
-        {/* Header */}
-        <div className="p-3 flex items-center justify-between border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-fuchsia-600 p-[2px]">
-              <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-[10px] font-bold">V</div>
-            </div>
-            <span className="text-xs font-bold text-slate-800">versed_up_user</span>
-          </div>
-          <MoreVertical className="w-4 h-4 text-slate-400" />
-        </div>
-        {/* Content Area */}
-        <div className={`flex-1 ${theme.heroGradient} flex items-center justify-center p-6 text-center`}>
-          <div className="text-white">
-            <p className="font-serif text-lg leading-relaxed">{lines[0] || "Scripture"}</p>
-            <p className="text-xs mt-2 font-medium opacity-80 uppercase tracking-widest">Devotional</p>
-          </div>
-        </div>
-        {/* Actions */}
-        <div className="p-3">
-          <div className="flex gap-3 mb-2">
-            <HeartIcon className="w-5 h-5 text-slate-800" />
-            <MessageCircle className="w-5 h-5 text-slate-800" />
-            <Send className="w-5 h-5 text-slate-800" />
-          </div>
-          <p className="text-xs text-slate-500 line-clamp-2"><span className="font-bold text-slate-800">versed_up_user</span> {caption}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (platform === 'tiktok') {
-    return (
-      <div className="w-full aspect-[9/16] bg-black rounded-2xl overflow-hidden relative shadow-xl text-white">
-        {/* Background Placeholder */}
-        <div className={`absolute inset-0 opacity-50 ${theme.heroGradient}`}></div>
-        <div className="absolute inset-0 flex flex-col justify-end p-4 pb-12 bg-gradient-to-t from-black/80 to-transparent">
-          <div className="mb-4">
-             <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-lg inline-block mb-2 text-xs font-bold">Verse of the Day</div>
-             <p className="font-bold text-xl drop-shadow-md leading-tight mb-2">{lines[0]}</p>
-             <p className="text-sm opacity-90 leading-snug">{caption.substring(0, 100)}...</p>
-          </div>
-        </div>
-        {/* Right Sidebar */}
-        <div className="absolute right-2 bottom-20 flex flex-col gap-4 items-center">
-           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"><User className="w-5 h-5" /></div>
-           <div className="flex flex-col items-center gap-1"><HeartIcon className="w-6 h-6 fill-white" /><span className="text-[10px] font-bold">8.2k</span></div>
-           <div className="flex flex-col items-center gap-1"><MessageCircle className="w-6 h-6 fill-white" /><span className="text-[10px] font-bold">142</span></div>
-           <div className="flex flex-col items-center gap-1"><Share2 className="w-6 h-6 fill-white" /><span className="text-[10px] font-bold">Share</span></div>
-        </div>
-      </div>
-    );
-  }
-
-  // Default / Email / Generic
-  return (
-    <div className={`w-full min-h-[300px] ${theme.cardBg} border ${theme.border} rounded-2xl p-6 shadow-sm`}>
-      <div className="border-b border-dashed border-slate-200 pb-4 mb-4">
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Subject: {platform === 'email' ? 'Encouragement for you' : 'Draft'}</p>
-      </div>
-      <div className={`whitespace-pre-wrap ${theme.font} text-sm ${theme.textColor} leading-relaxed`}>{content}</div>
-    </div>
-  );
-}
-
-const Toast = ({ message, type = 'success', onClose, themeKey = 'classic' }) => {
-  const theme = THEMES[themeKey];
-  useEffect(() => { const timer = setTimeout(onClose, 3000); return () => clearTimeout(timer); }, [onClose]);
-  return (
-    <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 z-50 animate-in fade-in slide-in-from-bottom-4 zoom-in-95 ${type === 'error' ? 'bg-red-600 text-white' : `${theme.primary} text-white`}`}>
-      {type === 'success' ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-      <span className="font-bold text-sm tracking-wide">{message}</span>
-    </div>
-  );
-};
-
-// --- Views ---
-
-const CreateView = ({ activeDevotional, updateDevotional, onSave, themeKey, settings }) => {
-  const theme = THEMES[themeKey];
-  const [fetchingVerse, setFetchingVerse] = useState(false);
-
-  const handleOCR = async (field) => {
-    const task = field === 'verse' ? 'ocr_verse' : 'ocr_notes';
-    const result = await runLLM({ task, inputs: {}, settings: {} });
-    if (field === 'verse') {
-       updateDevotional('verseText', (activeDevotional.verseText || '') + ' ' + result);
-    } else {
-       updateDevotional('rawText', (activeDevotional.rawText || '') + '\n' + result);
-    }
-  };
-
-  const handleGetDailyVerse = () => {
-    const verses = [
-      { ref: "Lamentations 3:22-23", text: "The steadfast love of the Lord never ceases..." },
-      { ref: "Philippians 4:13", text: "I can do all things through him who strengthens me." },
-      { ref: "Psalm 23:1", text: "The Lord is my shepherd; I shall not want." }
-    ];
-    const dayIndex = new Date().getDate() % verses.length;
-    const verse = verses[dayIndex];
-    updateDevotional('verseRef', verse.ref);
-    updateDevotional('verseText', verse.text);
-  };
-
-  const handleVerseLookup = async () => {
-    if (!activeDevotional.verseRef) return;
-    setFetchingVerse(true);
-    try {
-      const response = await fetch(`https://bible-api.com/${encodeURIComponent(activeDevotional.verseRef)}`);
-      const data = await response.json();
-      if (data.text) updateDevotional('verseText', data.text.trim());
-    } catch (e) { console.error("Verse lookup failed"); } finally { setFetchingVerse(false); }
-  };
-
-  const components = settings.enabledComponents || DEFAULT_SETTINGS.enabledComponents;
+  useEffect(() => setCurrentText(devotional.rawText || ''), [devotional.rawText]);
 
   return (
-    <div className="space-y-6 pb-32 animate-in fade-in duration-500">
-      <div className="space-y-2">
-        <h1 className={`text-4xl font-black ${theme.textColor} ${theme.font} tracking-tight`}>New Entry</h1>
-        <p className={`${theme.subTextColor} ${theme.font} text-sm font-medium`}>Capture today's inspiration.</p>
-      </div>
-
-      <div className={`w-full ${theme.heroGradient} p-5 rounded-3xl shadow-lg text-white relative overflow-hidden group transition-all`}>
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full blur-3xl -translate-y-10 translate-x-10 group-hover:scale-150 transition-transform duration-700"></div>
-        <div className="relative z-10 flex justify-between items-center">
-          <div>
-            <div className="text-xs font-bold uppercase tracking-widest opacity-80 mb-1">Daily Inspiration</div>
-            <div className="font-bold text-lg">Verse of the Day</div>
-          </div>
-          <button onClick={handleGetDailyVerse} className="bg-white/20 backdrop-blur-md p-2 rounded-full hover:bg-white/30 transition-colors"><Sparkles className="w-5 h-5" /></button>
-        </div>
-      </div>
-
-      {/* Mood Selector */}
-      <div className="space-y-2">
-        <label className={`text-xs font-bold uppercase tracking-wider ${theme.subTextColor} ${theme.font}`}>How is your heart?</label>
-        <div className="grid grid-cols-4 gap-2">
-          {MOODS.map(m => {
-            const Icon = m.icon;
-            const isSelected = activeDevotional.mood === m.id;
-            return (
-              <button 
-                key={m.id}
-                onClick={() => updateDevotional('mood', m.id)}
-                className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all duration-300 ${isSelected ? `${m.color} ring-2 ring-offset-2 ring-${theme.accent}-200 scale-105 shadow-md` : `${theme.cardBg} border-slate-100 text-slate-400 hover:border-slate-300`}`}
-              >
-                <Icon className="w-6 h-6 mb-1" />
-                <span className="text-[10px] font-bold">{m.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
+    <div className="space-y-6 pb-32 animate-in slide-in-from-left duration-500">
       <Card themeKey={themeKey}>
-        <div className="space-y-6">
-          <div className="relative">
-            <InputGroup themeKey={themeKey} label="Verse Reference" placeholder="e.g. John 3:16" value={activeDevotional.verseRef} onChange={(val) => updateDevotional('verseRef', val)} icon={BookOpen} />
-            {activeDevotional.verseRef && <button onClick={handleVerseLookup} disabled={fetchingVerse} className={`absolute right-3 top-9 p-1.5 px-3 rounded-lg text-xs font-bold ${theme.primary} text-white shadow-md`}>{fetchingVerse ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Lookup'}</button>}
-          </div>
-          <InputGroup themeKey={themeKey} label="Verse Text" placeholder="Paste scripture or Scan..." value={activeDevotional.verseText} onChange={(val) => updateDevotional('verseText', val)} multiline enableOCR={true} onOCR={() => handleOCR('verse')} />
-        </div>
+        <h2 className={`text-xl font-extrabold ${theme.textColor} mb-1`}>{getGreeting()}</h2>
+        <p className={`${theme.subTextColor} text-sm font-medium`}>Write what’s on your heart. Then compile it for socials.</p>
       </Card>
 
       <Card themeKey={themeKey}>
-        <div className="space-y-6">
-          <InputGroup themeKey={themeKey} label="Title (Optional)" placeholder="Give it a hooky title..." value={activeDevotional.title} onChange={(val) => updateDevotional('title', val)} icon={PenTool} />
-          <InputGroup themeKey={themeKey} label="Reflection / Body" placeholder="What is God speaking?" value={activeDevotional.rawText} onChange={(val) => updateDevotional('rawText', val)} multiline enableOCR={true} onOCR={() => handleOCR('notes')} icon={FileText} />
-          
-          {components.reflectionQuestions && (
-            <div className="pt-2 animate-in fade-in slide-in-from-top-2 border-t border-dashed border-slate-200 mt-4">
-              <InputGroup themeKey={themeKey} label="Reflection Questions" placeholder="Q1... Q2... (Auto-generated if empty)" value={activeDevotional.reflectionQuestions} onChange={(val) => updateDevotional('reflectionQuestions', val)} multiline icon={MessageSquare} className="mt-4" />
-            </div>
-          )}
-          
-          {components.prayer && (
-            <div className="pt-2 animate-in fade-in slide-in-from-top-2">
-              <InputGroup themeKey={themeKey} label="Prayer" placeholder="Lord, help me... (Auto-generated if empty)" value={activeDevotional.prayer} onChange={(val) => updateDevotional('prayer', val)} multiline icon={Heart} />
-            </div>
-          )}
-        </div>
+        <textarea
+          className={`w-full h-full min-h-[350px] resize-none focus:outline-none ${theme.textColor} leading-relaxed bg-transparent ${theme.font} text-base`}
+          value={currentText}
+          onChange={(e) => setCurrentText(e.target.value)}
+          placeholder="Start typing your devotional reflection..."
+        />
       </Card>
 
-      <Button onClick={onSave} className="w-full shadow-2xl" icon={Sparkles} themeKey={themeKey}>Save & Polish</Button>
-    </div>
-  );
-};
-
-const PolishView = ({ devotional, updateDevotional, onNext, themeKey }) => {
-  const theme = THEMES[themeKey];
-  const [generating, setGenerating] = useState(false);
-  const [selectedVersionId, setSelectedVersionId] = useState('raw');
-
-  const handleAIAction = async (task) => {
-    setGenerating(true);
-    const currentSettings = JSON.parse(localStorage.getItem(`${APP_ID}_settings`) || JSON.stringify(DEFAULT_SETTINGS));
-    const inputs = { 
-      rawText: devotional.rawText, 
-      verseRef: devotional.verseRef, 
-      verseText: devotional.verseText, 
-      title: devotional.title,
-      prayer: devotional.prayer,
-      reflectionQuestions: devotional.reflectionQuestions,
-      mood: devotional.mood
-    };
-    const result = await runLLM({ task, inputs, settings: currentSettings });
-    const newVersion = { id: generateId(), type: task, text: result, createdAt: new Date().toISOString() };
-    updateDevotional('versions', [newVersion, ...devotional.versions]);
-    setSelectedVersionId(newVersion.id);
-    setGenerating(false);
-  };
-
-  const currentText = useMemo(() => {
-    if (selectedVersionId === 'raw') return getFullContent(devotional);
-    return devotional.versions.find(v => v.id === selectedVersionId)?.text || '';
-  }, [selectedVersionId, devotional]);
-
-  return (
-    <div className="space-y-6 pb-32 animate-in slide-in-from-right duration-500">
-      <div className="flex items-center justify-between">
-        <h1 className={`text-2xl font-extrabold ${theme.textColor} ${theme.font}`}>Polish Content</h1>
-        <div className="flex items-center gap-2">
-           <button onClick={() => speakText(currentText)} className={`p-2.5 ${theme.cardBg} shadow-sm border ${theme.border} ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-full transition-colors`} title="Read Aloud"><Volume2 className="w-5 h-5" /></button>
-           <div className={`px-3 py-1 bg-white rounded-full border ${theme.border} text-xs font-bold ${theme.subTextColor} uppercase tracking-wider shadow-sm`}>{devotional.verseRef}</div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Button variant="secondary" onClick={() => handleAIAction('fix')} loading={generating} icon={Check} className="text-sm shadow-sm" themeKey={themeKey}>Fix Grammar</Button>
-        <Button variant="secondary" onClick={() => handleAIAction('structure')} loading={generating} icon={LayoutTemplate} className="text-sm shadow-sm" themeKey={themeKey}>Structure</Button>
-        <Button variant="secondary" onClick={() => handleAIAction('shorten')} loading={generating} className="text-sm shadow-sm" themeKey={themeKey}>Shorten</Button>
-        <Button variant="secondary" onClick={() => handleAIAction('expand')} loading={generating} className="text-sm shadow-sm" themeKey={themeKey}>Expand</Button>
-      </div>
-
-      <div className="flex gap-2 overflow-x-auto pb-4 pt-1 no-scrollbar">
-        <button onClick={() => setSelectedVersionId('raw')} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all shadow-sm ${selectedVersionId === 'raw' ? `${theme.primary} text-white shadow-md scale-105` : `${theme.cardBg} ${theme.subTextColor} border ${theme.border}`}`}>Original</button>
-        {devotional.versions.map((v, idx) => (
-          <button key={v.id} onClick={() => setSelectedVersionId(v.id)} className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all shadow-sm ${selectedVersionId === v.id ? `${theme.primary} text-white shadow-md scale-105` : `${theme.cardBg} ${theme.subTextColor} border ${theme.border}`}`}>
-            {v.type.charAt(0).toUpperCase() + v.type.slice(1)} #{devotional.versions.length - idx}
-          </button>
-        ))}
-      </div>
-
-      <Card className="min-h-[350px]" themeKey={themeKey}>
-        <textarea className={`w-full h-full min-h-[350px] resize-none focus:outline-none ${theme.textColor} leading-relaxed bg-transparent ${theme.font} text-base`} value={currentText} onChange={() => {}} readOnly />
-      </Card>
       <Button onClick={() => onNext(currentText)} className="w-full shadow-xl" icon={Share2} themeKey={themeKey}>Compile for Socials</Button>
     </div>
   );
@@ -657,6 +501,47 @@ const CompileView = ({ devotional, settings, baseText, onBack, themeKey }) => {
   const [autoFitContent, setAutoFitContent] = useState(null);
   const [isFixing, setIsFixing] = useState(false);
   const [viewMode, setViewMode] = useState('preview'); // 'text' or 'preview'
+  const [tiktokModalOpen, setTiktokModalOpen] = useState(false);
+  const [tiktokTemplate, setTiktokTemplate] = useState(settings.exportPrefs?.tiktokTemplate || 'minimalLight');
+  const [tiktokIncludeTitle, setTiktokIncludeTitle] = useState(settings.exportPrefs?.includeTitle ?? true);
+  const [tiktokIncludeDate, setTiktokIncludeDate] = useState(settings.exportPrefs?.includeDate ?? true);
+  const [tiktokIncludeScripture, setTiktokIncludeScripture] = useState(
+    settings.exportPrefs?.includeScripture ?? Boolean(devotional?.scriptureEnabled && (devotional?.verseRef || devotional?.verseText))
+  );
+  const [tiktokIncludeUsername, setTiktokIncludeUsername] = useState(settings.exportPrefs?.includeUsername ?? true);
+  const [tiktokIncludeLogo, setTiktokIncludeLogo] = useState(settings.exportPrefs?.includeLogo ?? false);
+  const tiktokExportRef = useRef(null);
+
+  const tiktokTemplateClasses = useMemo(() => {
+    switch (tiktokTemplate) {
+      case 'paper':
+        return { bg: 'bg-[#FAF7F2]', text: 'text-slate-900', sub: 'text-slate-600', border: 'border-slate-200' };
+      case 'minimalDark':
+        return { bg: 'bg-[#0B1220]', text: 'text-slate-100', sub: 'text-slate-300', border: 'border-slate-700' };
+      default:
+        return { bg: 'bg-white', text: 'text-slate-900', sub: 'text-slate-600', border: 'border-slate-200' };
+    }
+  }, [tiktokTemplate]);
+
+  const downloadDataUrl = (dataUrl, filename) => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    a.click();
+  };
+
+  const exportTikTokPng = async () => {
+    if (!tiktokExportRef.current) return;
+    try {
+      const dataUrl = await toPng(tiktokExportRef.current, { cacheBust: true, pixelRatio: 2 });
+      const safeTitle = (devotional.title || 'devotional').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      downloadDataUrl(dataUrl, `tiktok-${safeTitle || 'devotional'}.png`);
+      setTiktokModalOpen(false);
+    } catch (e) {
+      console.error('TikTok export failed', e);
+      alert('Export failed. Try again.');
+    }
+  };
 
   const platforms = [
     { id: 'instagram', label: 'Instagram', icon: Smartphone },
@@ -670,327 +555,547 @@ const CompileView = ({ devotional, settings, baseText, onBack, themeKey }) => {
   const charCount = compiledContent.length;
   const isOverLimit = charCount > currentLimit;
 
-  useEffect(() => { setAutoFitContent(null); }, [activePlatform]);
-  useEffect(() => {
-    const content = {
+  const compiled = useMemo(() => {
+    const body = devotional.versions?.[0]?.text || devotional.rawText || baseText || '';
+    return compilePost(activePlatform, {
       verseRef: devotional.verseRef,
-      verseText: autoFitContent?.verseText || devotional.verseText,
+      verseText: devotional.verseText,
       title: devotional.title,
-      body: autoFitContent?.body || baseText
-    };
-    setCompiledContent(compilePost(activePlatform, content, settings));
-  }, [activePlatform, devotional, baseText, settings, autoFitContent]);
+      body
+    }, settings);
+  }, [activePlatform, devotional, baseText, settings]);
 
-  const handleCopy = async () => { try { await navigator.clipboard.writeText(compiledContent); return true; } catch (err) { return false; } };
-  const handleShare = async () => { if (navigator.share) { try { await navigator.share({ title: devotional.title || 'Devotional', text: compiledContent }); } catch (err) { } } else { handleCopy(); } };
+  useEffect(() => {
+    setCompiledContent(compiled);
+    setAutoFitContent(null);
+  }, [compiled]);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(compiledContent);
+    alert("Copied!");
+  };
+
   const handleAutoFit = async () => {
     setIsFixing(true);
-    const inputs = { rawText: baseText, verseRef: devotional.verseRef, verseText: devotional.verseText, title: devotional.title };
-    const result = await runLLM({ task: 'autoFit', inputs, settings, platformLimit: currentLimit });
-    setAutoFitContent(result);
-    setIsFixing(false);
+    try {
+      const limit = PLATFORM_LIMITS[activePlatform] || 2200;
+      const body = devotional.versions?.[0]?.text || devotional.rawText || baseText || '';
+      const fitted = await runLLM({
+        task: 'autoFit',
+        inputs: { rawText: body, verseText: devotional.verseText, verseRef: devotional.verseRef },
+        settings,
+        platformLimit: limit
+      });
+      setAutoFitContent(fitted);
+      const next = compilePost(activePlatform, {
+        verseRef: devotional.verseRef,
+        verseText: fitted.verseText || devotional.verseText,
+        title: devotional.title,
+        body: fitted.body || body,
+      }, settings);
+      setCompiledContent(next);
+    } finally {
+      setIsFixing(false);
+    }
   };
 
   return (
     <div className="space-y-6 pb-32 animate-in slide-in-from-right duration-500">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className={`p-2.5 ${theme.cardBg} shadow-sm border ${theme.border} hover:${theme.primaryLight} rounded-full`}><ChevronLeft className={`w-6 h-6 ${theme.subTextColor}`} /></button>
-          <h1 className={`text-2xl font-extrabold ${theme.textColor} ${theme.font}`}>Compile</h1>
+          <button onClick={onBack} className={`p-2 rounded-full border ${theme.border} ${theme.cardBg} ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} transition-colors`}><ChevronLeft className="w-5 h-5" /></button>
+          <div>
+            <h2 className={`text-lg font-extrabold ${theme.textColor}`}>Compile</h2>
+            <p className={`text-xs ${theme.subTextColor}`}>Pick a platform and export.</p>
+          </div>
         </div>
-        <div className="flex gap-2">
-            <button onClick={() => speakText(compiledContent)} className={`p-2.5 ${theme.cardBg} shadow-sm border ${theme.border} ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-full transition-colors`} title="Read Aloud"><Volume2 className="w-5 h-5" /></button>
-            <button onClick={() => exportToDocument(devotional)} className={`p-2.5 ${theme.cardBg} shadow-sm border ${theme.border} ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-full transition-colors`} title="Export to Word"><FileDown className="w-5 h-5" /></button>
+
+        <div className="flex items-center gap-2">
+          <button onClick={handleCopy} className={`p-2.5 ${theme.cardBg} shadow-sm border ${theme.border} ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-full transition-colors`} title="Copy"><Copy className="w-5 h-5" /></button>
+          <button onClick={handleAutoFit} disabled={isFixing} className={`p-2.5 ${theme.cardBg} shadow-sm border ${theme.border} ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-full transition-colors`} title="Auto Fit">{isFixing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}</button>
+          <button onClick={() => exportToDocument(devotional)} className={`p-2.5 ${theme.cardBg} shadow-sm border ${theme.border} ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-full transition-colors`} title="Export to Word"><FileDown className="w-5 h-5" /></button>
+          <button onClick={() => setTiktokModalOpen(true)} className={`p-2.5 ${theme.cardBg} shadow-sm border ${theme.border} ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-full transition-colors`} title="Export TikTok Image (PNG)"><Camera className="w-5 h-5" /></button>
         </div>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-        {platforms.filter(p => settings.enabledPlatforms.includes(p.id)).map(p => {
-          const Icon = p.icon;
-          const isActive = activePlatform === p.id;
-          return (
-            <button key={p.id} onClick={() => setActivePlatform(p.id)} className={`flex items-center gap-2 px-5 py-2.5 rounded-full whitespace-nowrap text-sm font-bold transition-all shadow-sm ${isActive ? `${theme.primary} text-white shadow-md scale-105` : `${theme.cardBg} border ${theme.border} ${theme.subTextColor}`}`}>
-              <Icon className="w-4 h-4" />{p.label}
-            </button>
-          )
-        })}
+        {platforms.filter(p => settings.enabledPlatforms.includes(p.id)).map(p => (
+          <button
+            key={p.id}
+            onClick={() => setActivePlatform(p.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full border font-bold text-sm transition-all ${activePlatform === p.id ? `${theme.primary} text-white border-transparent` : `${theme.cardBg} ${theme.border} ${theme.subTextColor} hover:${theme.primaryLight}`}`}
+          >
+            <p.icon className="w-4 h-4" />
+            {p.label}
+          </button>
+        ))}
       </div>
 
-      <div className="px-1">
-        <div className={`flex justify-between text-xs font-bold ${theme.subTextColor} mb-1.5`}><span>{charCount} chars</span><span>Limit: {currentLimit}</span></div>
-        <div className={`w-full h-2.5 ${theme.appBg} border ${theme.border} rounded-full overflow-hidden shadow-inner`}><div className={`h-full transition-all duration-500 ${isOverLimit ? 'bg-red-500' : theme.primary}`} style={{ width: `${Math.min((charCount / currentLimit) * 100, 100)}%` }} /></div>
-        {isOverLimit && (
-          <div className="mt-4 bg-red-50 border border-red-100 p-4 rounded-2xl flex items-start gap-3 animate-in slide-in-from-top-1 shadow-sm">
-             <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-             <div className="flex-1"><p className="text-sm text-red-800 font-bold mb-1">Content too long.</p><button onClick={handleAutoFit} disabled={isFixing} className="text-xs bg-white border border-red-200 hover:bg-red-50 text-red-700 px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1.5 mt-2 shadow-sm">{isFixing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />} Fix with AI</button></div>
+      {isOverLimit && (
+        <Card themeKey={themeKey}>
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 mt-1" />
+            <div>
+              <p className={`font-bold ${theme.textColor}`}>Over character limit</p>
+              <p className={`text-sm ${theme.subTextColor}`}>This post is {charCount} characters. Limit is {currentLimit}. Tap “Auto Fit” to rewrite.</p>
+            </div>
           </div>
-        )}
-      </div>
-
-      <div className="flex justify-center mb-4 bg-white/50 p-1 rounded-xl w-fit mx-auto border border-slate-200">
-        <button onClick={() => setViewMode('preview')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'preview' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Visual Preview</button>
-        <button onClick={() => setViewMode('text')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'text' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Text Only</button>
-      </div>
-
-      {viewMode === 'preview' ? (
-        <div className="flex justify-center">
-          <div className="w-full max-w-[320px] transition-all duration-500 animate-in fade-in zoom-in-95">
-            <SocialPreview platform={activePlatform} content={compiledContent} themeKey={themeKey} />
-          </div>
-        </div>
-      ) : (
-        <Card className={`${isOverLimit ? 'border-red-200 ring-2 ring-red-100' : ''}`} themeKey={themeKey}>
-          <div className={`flex justify-between items-center mb-4 border-b ${theme.border} pb-3`}>
-            <span className={`text-xs font-bold ${theme.subTextColor} uppercase tracking-wider`}>Raw Text</span>
-            <button onClick={handleCopy} className={`p-1.5 ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-md transition-colors`}><Copy className="w-4 h-4" /></button>
-          </div>
-          <div className={`whitespace-pre-wrap ${theme.font} text-sm ${theme.textColor} leading-relaxed`}>{compiledContent}</div>
         </Card>
       )}
 
-      <div className="grid grid-cols-2 gap-4 mt-6"><Button variant="secondary" onClick={handleCopy} icon={Copy} themeKey={themeKey}>Copy Text</Button><Button variant="primary" onClick={handleShare} icon={Share2} disabled={isOverLimit} themeKey={themeKey}>Share / Post</Button></div>
+      {/* Scripture (Optional) */}
+      <Card themeKey={themeKey}>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <BookOpen className={`w-4 h-4 ${theme.subTextColor}`} />
+              <h3 className={`font-bold ${theme.textColor}`}>Scripture</h3>
+            </div>
+            <button
+              onClick={() => {
+                devotional.scriptureEnabled = !devotional.scriptureEnabled;
+              }}
+              className={`text-xs font-bold px-3 py-1.5 rounded-full border ${theme.border} ${theme.subTextColor} hover:${theme.primaryLight}`}
+            >
+              {devotional.scriptureEnabled ? 'Hide' : 'Add Scripture'}
+            </button>
+          </div>
+
+          {devotional.scriptureEnabled && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-3">
+                <InputGroup
+                  themeKey={themeKey}
+                  label="Passage"
+                  placeholder="e.g. John 3:16-18 or Psalm 23"
+                  value={devotional.verseRef}
+                  onChange={() => {}}
+                  icon={BookOpen}
+                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={`block text-xs font-bold mb-2 ${theme.subTextColor}`}>Bible Version</label>
+                    <select
+                      className={`w-full p-3 rounded-xl border ${theme.border} ${theme.cardBg} ${theme.textColor} text-sm font-bold outline-none`}
+                      value={(devotional.bibleVersion || settings.defaultBibleVersion || 'KJV')}
+                      onChange={() => {}}
+                    >
+                      <option value="KJV">KJV (Full text)</option>
+                      <option value="NLT">NLT (Link only)</option>
+                      <option value="ESV">ESV (Link only)</option>
+                      <option value="NKJV">NKJV (Link only)</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-end gap-2">
+                    <button
+                      onClick={() => openYouVersion(devotional.verseRef)}
+                      disabled={!devotional.verseRef}
+                      className={`flex-1 p-3 rounded-xl text-sm font-bold border ${theme.border} ${theme.cardBg} ${theme.textColor} hover:${theme.primaryLight} disabled:opacity-50`}
+                    >
+                      Open in YouVersion
+                    </button>
+                    <button
+                      onClick={() => {}}
+                      disabled={!devotional.verseRef || !isKjv(devotional.bibleVersion || settings.defaultBibleVersion)}
+                      className={`p-3 px-4 rounded-xl text-sm font-bold ${theme.primary} text-white shadow-md disabled:opacity-50`}
+                      title={isKjv(devotional.bibleVersion || settings.defaultBibleVersion) ? 'Fetch KJV text' : 'KJV only'}
+                    >
+                      Fetch
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <p className={`text-xs ${theme.subTextColor}`}>
+                    {isKjv(devotional.bibleVersion || settings.defaultBibleVersion)
+                      ? 'KJV text is fetched from bible-api.com.'
+                      : 'Full text for this version opens in YouVersion (free-for-now).'}
+                  </p>
+                </div>
+
+                <InputGroup
+                  themeKey={themeKey}
+                  label="Scripture Text"
+                  placeholder="KJV will appear here after fetch. You can also paste text you have rights to use."
+                  value={devotional.verseText}
+                  onChange={() => {}}
+                  multiline
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card themeKey={themeKey}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className={`font-bold ${theme.textColor}`}>Preview</h3>
+          <div className="flex gap-2">
+            <button onClick={() => setViewMode('preview')} className={`px-3 py-1.5 rounded-full text-xs font-bold border ${theme.border} ${viewMode === 'preview' ? `${theme.primary} text-white border-transparent` : `${theme.cardBg} ${theme.subTextColor}`}`}>Preview</button>
+            <button onClick={() => setViewMode('text')} className={`px-3 py-1.5 rounded-full text-xs font-bold border ${theme.border} ${viewMode === 'text' ? `${theme.primary} text-white border-transparent` : `${theme.cardBg} ${theme.subTextColor}`}`}>Text</button>
+          </div>
+        </div>
+
+        {viewMode === 'text' ? (
+          <textarea className={`w-full h-[420px] resize-none bg-transparent focus:outline-none ${theme.textColor} leading-relaxed text-sm`} value={compiledContent} readOnly />
+        ) : (
+          <div className={`${theme.textColor} text-sm leading-relaxed whitespace-pre-wrap`}>
+            {compiledContent}
+          </div>
+        )}
+      </Card>
+
+      {tiktokModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className={`w-full max-w-lg rounded-2xl border ${theme.border} ${theme.cardBg} shadow-2xl`}>
+            <div className={`flex items-center justify-between px-4 py-3 border-b ${theme.border}`}>
+              <div className="flex items-center gap-2">
+                <Camera className={`w-5 h-5 ${theme.subTextColor}`} />
+                <h3 className={`font-bold ${theme.textColor}`}>TikTok Export (One Screen)</h3>
+              </div>
+              <button onClick={() => setTiktokModalOpen(false)} className={`p-2 rounded-full ${theme.subTextColor} hover:${theme.primaryText}`}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={`block text-xs font-bold mb-2 ${theme.subTextColor}`}>Template</label>
+                  <select
+                    className={`w-full p-3 rounded-xl border ${theme.border} ${theme.cardBg} ${theme.textColor} text-sm font-bold outline-none`}
+                    value={tiktokTemplate}
+                    onChange={(e) => setTiktokTemplate(e.target.value)}
+                  >
+                    <option value="minimalLight">Minimal (Light)</option>
+                    <option value="paper">Paper</option>
+                    <option value="minimalDark">Minimal (Dark)</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <label className={`flex items-center gap-2 text-xs font-bold ${theme.subTextColor} border ${theme.border} rounded-xl px-3 py-2`}>
+                    <input type="checkbox" checked={tiktokIncludeTitle} onChange={(e) => setTiktokIncludeTitle(e.target.checked)} />
+                    Title
+                  </label>
+                  <label className={`flex items-center gap-2 text-xs font-bold ${theme.subTextColor} border ${theme.border} rounded-xl px-3 py-2`}>
+                    <input type="checkbox" checked={tiktokIncludeDate} onChange={(e) => setTiktokIncludeDate(e.target.checked)} />
+                    Date
+                  </label>
+                  <label className={`flex items-center gap-2 text-xs font-bold ${theme.subTextColor} border ${theme.border} rounded-xl px-3 py-2`}>
+                    <input type="checkbox" checked={tiktokIncludeScripture} onChange={(e) => setTiktokIncludeScripture(e.target.checked)} />
+                    Scripture
+                  </label>
+                  <label className={`flex items-center gap-2 text-xs font-bold ${theme.subTextColor} border ${theme.border} rounded-xl px-3 py-2`}>
+                    <input type="checkbox" checked={tiktokIncludeUsername} onChange={(e) => setTiktokIncludeUsername(e.target.checked)} />
+                    Username
+                  </label>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border overflow-hidden">
+                <div className="w-full bg-black/5 p-3 flex justify-center">
+                  <div className="origin-top" style={{ transform: 'scale(0.22)' }}>
+                    <div
+                      ref={tiktokExportRef}
+                      className={`w-[1080px] h-[1920px] ${tiktokTemplateClasses.bg} ${tiktokTemplateClasses.text} p-24 flex flex-col justify-between`}
+                      style={{ fontFamily: 'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial' }}
+                    >
+                      <div className="space-y-10">
+                        {(tiktokIncludeTitle || tiktokIncludeDate) && (
+                          <div className="space-y-2">
+                            {tiktokIncludeTitle && (
+                              <h1 className="text-6xl font-extrabold tracking-tight leading-tight">
+                                {devotional.title || 'Untitled Devotional'}
+                              </h1>
+                            )}
+                            {tiktokIncludeDate && (
+                              <p className={`${tiktokTemplateClasses.sub} text-2xl font-semibold`}>
+                                {new Date(devotional.updatedAt || devotional.createdAt || Date.now()).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {tiktokIncludeScripture && (devotional.verseRef || devotional.verseText) && (
+                          <div className={`rounded-3xl border ${tiktokTemplateClasses.border} p-10`}>
+                            <div className="flex items-center justify-between gap-4">
+                              <p className="text-2xl font-bold">{devotional.verseRef || 'Scripture'}</p>
+                              <p className={`${tiktokTemplateClasses.sub} text-xl font-semibold`}>
+                                {(devotional.bibleVersion || settings.defaultBibleVersion || 'KJV')}
+                              </p>
+                            </div>
+                            {Boolean(devotional.verseText) && (
+                              <p className={`${tiktokTemplateClasses.sub} text-3xl leading-snug mt-6 whitespace-pre-wrap`}>
+                                {devotional.verseText}
+                              </p>
+                            )}
+                            {!Boolean(devotional.verseText) && !isKjv(devotional.bibleVersion || settings.defaultBibleVersion) && (
+                              <p className={`${tiktokTemplateClasses.sub} text-2xl mt-6`}>
+                                Full text opens in YouVersion.
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="space-y-4">
+                          <p className="text-3xl leading-snug whitespace-pre-wrap">
+                            {devotional.versions?.[0]?.text || devotional.rawText || baseText || ''}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <p className={`${tiktokTemplateClasses.sub} text-2xl font-semibold`}>
+                          {tiktokIncludeUsername && settings.username ? settings.username : ''}
+                        </p>
+                        <p className={`${tiktokTemplateClasses.sub} text-2xl font-semibold`}>
+                          {settings.showWatermark ? 'VersedUP' : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={() => setTiktokModalOpen(false)} className={`flex-1 p-3 rounded-xl text-sm font-bold border ${theme.border} ${theme.cardBg} ${theme.textColor} hover:${theme.primaryLight}`}>
+                  Cancel
+                </button>
+                <button onClick={exportTikTokPng} className={`flex-1 p-3 rounded-xl text-sm font-bold ${theme.primary} text-white shadow-md`}>
+                  Download PNG
+                </button>
+              </div>
+
+              <p className={`text-xs ${theme.subTextColor}`}>
+                Tip: TikTok UI covers edges. This export uses generous margins for safety.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-const LibraryView = ({ devotionals, onSelect, onDelete, themeKey }) => {
+const SettingsView = ({ settings, updateSetting, themeKey, onReset }) => {
   const theme = THEMES[themeKey];
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [showFilter, setShowFilter] = useState(false);
-  const filtered = devotionals.filter(d => {
-    const matchesSearch = d.title.toLowerCase().includes(searchTerm.toLowerCase()) || d.verseRef.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || d.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
 
   return (
     <div className="space-y-6 pb-32 animate-in fade-in duration-500">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className={`text-sm font-bold ${theme.primaryText} uppercase tracking-wide mb-1`}>{getGreeting()}, Creator</h2>
-          <h1 className={`text-3xl font-extrabold ${theme.textColor} ${theme.font} tracking-tight`}>Library</h1>
-        </div>
-        <div className={`p-2 rounded-full ${theme.cardBg} border ${theme.border} shadow-sm`}>
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-emerald-500 flex items-center justify-center text-white font-bold text-xs">V</div>
-        </div>
-      </div>
+      <Card themeKey={themeKey}>
+        <h2 className={`text-lg font-extrabold ${theme.textColor} mb-2`}>Settings</h2>
+        <p className={`${theme.subTextColor} text-sm font-medium`}>Customize your writing and integrations.</p>
+      </Card>
 
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className={`absolute left-3.5 top-3.5 w-5 h-5 ${theme.subTextColor}`} />
-          <input type="text" placeholder="Search..." className={`w-full pl-11 pr-4 py-3.5 ${theme.cardBg} border ${theme.border} rounded-2xl focus:outline-none focus:ring-2 ${theme.ring} ${theme.textColor} ${theme.font} shadow-sm`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-        </div>
-        <button onClick={() => setShowFilter(!showFilter)} className={`p-3.5 rounded-2xl border transition-all active:scale-95 ${statusFilter !== 'all' ? `${theme.primaryLight} ${theme.border} ${theme.primaryText}` : `${theme.cardBg} ${theme.border} ${theme.subTextColor} shadow-sm`}`}><Filter className="w-5 h-5" /></button>
-      </div>
-      {showFilter && (
-        <div className={`flex gap-2 p-2 ${theme.appBg} rounded-2xl overflow-x-auto no-scrollbar animate-in slide-in-from-top-2 border ${theme.border}`}>
-          {['all', 'draft', 'polished', 'compiled'].map(status => (
-            <button key={status} onClick={() => setStatusFilter(status)} className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${statusFilter === status ? `${theme.cardBg} ${theme.primaryText} shadow-md` : `${theme.subTextColor} hover:${theme.textColor}`}`}>{status}</button>
-          ))}
-        </div>
-      )}
-      <div className="grid gap-3">
-        {filtered.length === 0 ? (
-          <div className={`text-center py-20 ${theme.subTextColor}`}>
-            <Library className="w-16 h-16 mx-auto mb-4 opacity-10" />
-            <p className="font-medium">No devotionals found.</p>
-            <p className="text-xs opacity-60 mt-1">Tap the + button to start.</p>
+      <Card themeKey={themeKey}>
+        <div className="space-y-4">
+          <div className={`flex justify-between items-center p-3 rounded-xl border ${theme.border}`}>
+            <span className={`text-sm font-medium ${theme.textColor}`}>Theme</span>
+            <select className={`p-2 bg-transparent text-sm font-bold ${theme.textColor} outline-none`} value={settings.theme} onChange={(e) => updateSetting('theme', e.target.value)}>
+              {Object.keys(THEMES).map(key => (
+                <option key={key} value={key}>{THEMES[key].label}</option>
+              ))}
+            </select>
           </div>
-        ) : filtered.map(d => (
-            <Card key={d.id} className="relative group hover:border-slate-300" onClick={() => onSelect(d)} themeKey={themeKey}>
-              <div className="flex justify-between items-start mb-2">
-                <div><h3 className={`font-bold text-lg ${theme.textColor} ${theme.font} leading-tight`}>{d.title || 'Untitled Devotional'}</h3><p className={`text-sm ${theme.primaryText} font-bold mt-1`}>{d.verseRef}</p></div>
-                <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${d.status === 'compiled' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{d.status}</span>
-              </div>
-              <p className={`text-sm ${theme.subTextColor} line-clamp-2 leading-relaxed mb-4`}>{d.rawText}</p>
-              <div className={`flex justify-between items-center pt-3 border-t ${theme.border}`}>
-                <span className={`text-xs font-medium ${theme.subTextColor}`}>{new Date(d.createdAt).toLocaleDateString()}</span>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <InputGroup themeKey={themeKey} label="Username / Handle" placeholder="@yourname" value={settings.username || ''} onChange={(val) => updateSetting('username', val)} />
+            <div>
+              <label className={`block text-xs font-bold mb-2 ${theme.subTextColor}`}>Default Bible Version</label>
+              <select className={`w-full p-3 rounded-xl border ${theme.border} ${theme.cardBg} ${theme.textColor} text-sm font-bold outline-none`} value={settings.defaultBibleVersion || 'KJV'} onChange={(e) => updateSetting('defaultBibleVersion', e.target.value)}>
+                <option value="KJV">KJV</option>
+                <option value="NLT">NLT</option>
+                <option value="ESV">ESV</option>
+                <option value="NKJV">NKJV</option>
+              </select>
+            </div>
+          </div>
+
+          <div className={`flex justify-between items-center p-3 rounded-xl border ${theme.border}`}>
+            <span className={`text-sm font-medium ${theme.textColor}`}>AI Provider</span>
+            <select className={`p-2 bg-transparent text-sm font-bold ${theme.textColor} outline-none`} value={settings.aiProvider} onChange={(e) => updateSetting('aiProvider', e.target.value)}>
+              <option value="mock">Built-in (Free/Mock)</option>
+              <option value="openai">OpenAI (GPT-3.5)</option>
+              <option value="gemini">Google Gemini</option>
+            </select>
+          </div>
+
+          {settings.aiProvider === 'openai' && (
+            <InputGroup themeKey={themeKey} label="OpenAI API Key" placeholder="sk-..." value={settings.openaiKey} onChange={(val) => updateSetting('openaiKey', val)} />
+          )}
+
+          {settings.aiProvider === 'gemini' && (
+            <InputGroup themeKey={themeKey} label="Gemini API Key" placeholder="AIza..." value={settings.geminiKey} onChange={(val) => updateSetting('geminiKey', val)} />
+          )}
+
+          <p className={`text-xs ${theme.subTextColor}`}>Keys are stored locally on your device only.</p>
+        </div>
+      </Card>
+
+      <Button onClick={onReset} themeKey={themeKey} icon={Trash2} className="bg-red-500 hover:bg-red-600">Reset All Data</Button>
+    </div>
+  );
+};
+
+const LibraryView = ({ devotionals, onOpen, onDelete, themeKey }) => {
+  const theme = THEMES[themeKey];
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    if (!query) return devotionals;
+    const q = query.toLowerCase();
+    return devotionals.filter(d =>
+      (d.title || '').toLowerCase().includes(q) ||
+      (d.rawText || '').toLowerCase().includes(q) ||
+      (d.verseRef || '').toLowerCase().includes(q)
+    );
+  }, [query, devotionals]);
+
+  return (
+    <div className="space-y-6 pb-32 animate-in fade-in duration-500">
+      <Card themeKey={themeKey}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className={`text-lg font-extrabold ${theme.textColor}`}>Library</h2>
+            <p className={`${theme.subTextColor} text-sm font-medium`}>Your saved devotionals.</p>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <InputGroup themeKey={themeKey} label="Search" placeholder="Search by title, verse, or text..." value={query} onChange={setQuery} icon={Search} />
+        </div>
+      </Card>
+
+      <div className="space-y-4">
+        {filtered.length === 0 && (
+          <Card themeKey={themeKey}>
+            <p className={`${theme.subTextColor} text-sm`}>No devotionals yet.</p>
+          </Card>
+        )}
+
+        {filtered.map(d => (
+          <div key={d.id} onClick={() => onOpen(d.id)} className="cursor-pointer">
+            <Card themeKey={themeKey}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <h3 className={`font-extrabold ${theme.textColor}`}>{d.title || 'Untitled'}</h3>
+                  <p className={`${theme.subTextColor} text-xs font-bold`}>{d.verseRef || 'No scripture'}</p>
+                </div>
                 <div className="flex gap-2">
                   <button onClick={(e) => { e.stopPropagation(); exportToDocument(d); }} className={`p-2 rounded-full hover:bg-slate-50 ${theme.subTextColor} hover:${theme.primaryText} transition-colors`} title="Export"><FileDown className="w-4 h-4" /></button>
                   <button onClick={(e) => { e.stopPropagation(); onDelete(d.id); }} className={`p-2 rounded-full hover:bg-red-50 ${theme.subTextColor} hover:text-red-500 transition-colors`}><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
+              <p className={`text-sm ${theme.subTextColor} line-clamp-2 leading-relaxed mb-4`}>{d.rawText}</p>
+              <div className={`flex justify-between items-center pt-3 border-t ${theme.border}`}>
+                <span className={`text-xs font-medium ${theme.subTextColor}`}>{new Date(d.createdAt).toLocaleDateString()}</span>
+                <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${d.status === 'compiled' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{d.status}</span>
+              </div>
             </Card>
-          ))}
+          </div>
+        ))}
       </div>
     </div>
   );
 };
-
-const SettingsView = ({ settings, updateSetting, themeKey }) => {
-  const theme = THEMES[themeKey];
-  return (
-    <div className="space-y-6 pb-32 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
-        <h1 className={`text-3xl font-extrabold ${theme.textColor} ${theme.font} tracking-tight`}>Settings</h1>
-        <div className={`flex items-center gap-1.5 text-xs font-bold ${theme.primaryText} bg-${theme.accent}-50 px-3 py-1.5 rounded-full border border-${theme.accent}-100`}>
-          <Check className="w-3.5 h-3.5" /> Auto-saved
-        </div>
-      </div>
-
-      <Card themeKey={themeKey}>
-        <h3 className={`font-bold ${theme.textColor} mb-4 flex items-center gap-2`}><Sun className={`w-4 h-4 ${theme.primaryText}`} /> App Theme</h3>
-        <div className="grid grid-cols-3 gap-3">
-          {['classic', 'sunrise', 'sunset'].map((key) => {
-            const t = THEMES[key];
-            return (
-              <button key={key} onClick={() => updateSetting('theme', key)} className={`p-3 rounded-2xl border text-center transition-all ${settings.theme === key ? `${t.primaryLight} ${t.primaryText} border-${t.accent}-200 ring-2 ring-${t.accent}-200 shadow-sm` : `${theme.appBg} ${theme.border} ${theme.subTextColor}`}`}>
-                <span className={`block text-xs font-bold ${t.font}`}>{t.label}</span>
-              </button>
-            )
-          })}
-        </div>
-      </Card>
-
-      <Card themeKey={themeKey}>
-        <h3 className={`font-bold ${theme.textColor} mb-4 flex items-center gap-2`}><Key className={`w-4 h-4 ${theme.primaryText}`} /> AI Configuration</h3>
-        <div className="space-y-4">
-           <div className={`flex items-center justify-between p-3 ${theme.appBg} rounded-xl border ${theme.border}`}>
-             <span className={`text-sm font-medium ${theme.textColor}`}>AI Provider</span>
-             <select className={`p-2 bg-transparent text-sm font-bold ${theme.textColor} outline-none`} value={settings.aiProvider} onChange={(e) => updateSetting('aiProvider', e.target.value)}>
-               <option value="mock">Built-in (Free/Mock)</option>
-               <option value="openai">OpenAI (GPT-3.5)</option>
-               <option value="gemini">Google Gemini</option>
-             </select>
-           </div>
-           {settings.aiProvider === 'openai' && (
-             <InputGroup themeKey={themeKey} label="OpenAI API Key" placeholder="sk-..." value={settings.openaiKey} onChange={(val) => updateSetting('openaiKey', val)} />
-           )}
-           {settings.aiProvider === 'gemini' && (
-             <InputGroup themeKey={themeKey} label="Gemini API Key" placeholder="AIza..." value={settings.geminiKey} onChange={(val) => updateSetting('geminiKey', val)} />
-           )}
-           <p className={`text-xs ${theme.subTextColor}`}>Keys are stored locally on your device only.</p>
-        </div>
-      </Card>
-
-      <Card themeKey={themeKey}>
-        <h3 className={`font-bold ${theme.textColor} mb-4 flex items-center gap-2`}><LayoutTemplate className={`w-4 h-4 ${theme.primaryText}`} /> Post Template</h3>
-        <div className="space-y-3">
-             <p className={`text-xs ${theme.subTextColor}`}>Enable components to show them in the Create screen:</p>
-             {['title', 'scripture', 'body', 'prayer', 'reflectionQuestions', 'hashtags'].map(component => (
-               <label key={component} className={`flex items-center justify-between p-3 rounded-xl cursor-pointer hover:${theme.primaryLight} transition-colors border border-transparent hover:border-${theme.accent}-100`}>
-                 <span className={`capitalize ${theme.textColor} font-bold text-sm`}>{component.replace(/([A-Z])/g, ' $1').trim()}</span>
-                 <input 
-                   type="checkbox"
-                   checked={settings.enabledComponents?.[component] ?? true}
-                   onChange={(e) => {
-                     const current = settings.enabledComponents || DEFAULT_SETTINGS.enabledComponents;
-                     updateSetting('enabledComponents', { ...current, [component]: e.target.checked });
-                   }}
-                   className={`w-5 h-5 ${theme.primaryText} rounded focus:ring-${theme.accent}-500 border-gray-300`}
-                 />
-               </label>
-             ))}
-        </div>
-      </Card>
-
-      <div className="text-center pt-8">
-        <p className={`text-xs ${theme.subTextColor} mb-2`}>VersedUP v2.1.0 (Stand Out Edition)</p>
-        <Button variant="danger" className="w-full text-sm py-3 shadow-md" onClick={() => localStorage.clear() || window.location.reload()} themeKey={themeKey}>Reset App Data</Button>
-      </div>
-    </div>
-  );
-};
-
-const NavBar = ({ currentView, onChangeView, themeKey }) => {
-  const theme = THEMES[themeKey];
-  const items = [{ id: 'library', icon: Library, label: 'Library' }, { id: 'create', icon: Plus, label: 'New', prominent: true }, { id: 'settings', icon: Settings, label: 'Settings' }];
-  return (
-    <div className={`fixed bottom-0 left-0 right-0 ${theme.navBg} backdrop-blur-xl border-t ${theme.border} pb-safe pt-2 px-6 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-40 transition-colors duration-300`}>
-      <div className="flex justify-between items-end max-w-md mx-auto">
-        {items.map(item => {
-          const Icon = item.icon;
-          const isActive = currentView === item.id || (item.id === 'create' && ['polish', 'compile'].includes(currentView));
-          
-          if (item.prominent) {
-            return (
-              <button 
-                key={item.id}
-                onClick={() => onChangeView(item.id)}
-                className={`relative -top-6 ${theme.primary} text-white p-4 rounded-full shadow-xl shadow-${theme.accent}-500/40 hover:scale-110 hover:-translate-y-1 transition-all duration-300 active:scale-95 group`}
-              >
-                <Icon className="w-7 h-7 group-hover:rotate-90 transition-transform duration-300" strokeWidth={2.5} />
-              </button>
-            );
-          }
-
-          return (
-            <button 
-              key={item.id}
-              onClick={() => onChangeView(item.id)}
-              className={`flex flex-col items-center gap-1.5 p-2 min-w-[64px] transition-all duration-300 group ${isActive ? theme.primaryText : `${theme.subTextColor} hover:${theme.textColor}`}`}
-            >
-              <Icon className={`w-6 h-6 ${isActive ? 'scale-110 drop-shadow-sm' : 'group-hover:scale-105'}`} strokeWidth={isActive ? 2.5 : 2} />
-              <span className={`text-[10px] font-bold tracking-wide ${theme.font} ${isActive ? 'opacity-100' : 'opacity-70'}`}>{item.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-// --- Main App Orchestrator ---
 
 export default function App() {
-  const [view, setView] = useState('library');
-  const [devotionals, setDevotionals] = useState([]);
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-  const [activeId, setActiveId] = useState(null);
-  const [toast, setToast] = useState(null);
+  const [settings, setSettings] = useState(() => {
+    try {
+      const raw = localStorage.getItem(`${APP_ID}_settings`);
+      return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  });
 
-  useEffect(() => {
-    const loadedDevos = localStorage.getItem(`${APP_ID}_data`);
-    const loadedSettings = localStorage.getItem(`${APP_ID}_settings`);
-    if (loadedDevos) setDevotionals(JSON.parse(loadedDevos));
-    if (loadedSettings) setSettings({...DEFAULT_SETTINGS, ...JSON.parse(loadedSettings)});
-  }, []);
+  const [devotionals, setDevotionals] = useState(() => {
+    try {
+      const raw = localStorage.getItem(`${APP_ID}_devotionals`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
 
-  useEffect(() => { document.title = "VersedUP"; }, []);
-  useEffect(() => { localStorage.setItem(`${APP_ID}_data`, JSON.stringify(devotionals)); }, [devotionals]);
-  useEffect(() => { localStorage.setItem(`${APP_ID}_settings`, JSON.stringify(settings)); }, [settings]);
+  const [activeId, setActiveId] = useState(() => devotionals?.[0]?.id || null);
+  const [view, setView] = useState('write'); // write | compile | library | settings
 
-  const activeDevotional = useMemo(() => devotionals.find(d => d.id === activeId) || createDevotional(), [devotionals, activeId]);
+  const activeDevotional = useMemo(() => {
+    return devotionals.find(d => d.id === activeId) || null;
+  }, [devotionals, activeId]);
+
   const themeKey = settings.theme || 'classic';
   const theme = THEMES[themeKey];
 
-  const handleUpdateActive = (field, value) => {
-    setDevotionals(prev => {
-      const exists = prev.find(d => d.id === activeId);
-      if (exists) return prev.map(d => d.id === activeId ? { ...d, [field]: value, updatedAt: new Date().toISOString() } : d);
-      const newDevo = { ...createDevotional(), id: activeId || generateId(), [field]: value };
-      setActiveId(newDevo.id);
-      return [newDevo, ...prev];
-    });
+  useEffect(() => {
+    localStorage.setItem(`${APP_ID}_settings`, JSON.stringify(settings));
+  }, [settings]);
+
+  useEffect(() => {
+    localStorage.setItem(`${APP_ID}_devotionals`, JSON.stringify(devotionals));
+  }, [devotionals]);
+
+  const updateSetting = (key, value) => setSettings(prev => ({ ...prev, [key]: value }));
+
+  const updateDevotional = (key, value) => {
+    setDevotionals(prev => prev.map(d => d.id === activeId ? { ...d, [key]: value, updatedAt: new Date().toISOString() } : d));
   };
 
-  const handleStartNew = () => {
-    const newId = generateId();
-    setDevotionals(prev => [{ ...createDevotional(), id: newId }, ...prev]);
-    setActiveId(newId);
-    setView('create');
-  };
-
-  const handleOpen = (devo) => {
-    setActiveId(devo.id);
-    setView(devo.status === 'draft' ? 'create' : 'polish');
+  const handleNew = () => {
+    const d = createDevotional();
+    setDevotionals(prev => [d, ...prev]);
+    setActiveId(d.id);
+    setView('write');
   };
 
   const handleDelete = (id) => {
     setDevotionals(prev => prev.filter(d => d.id !== id));
     if (activeId === id) setActiveId(null);
-    setToast({ message: 'Devotional deleted', type: 'success' });
   };
 
+  const handleReset = () => {
+    if (!confirm("Reset all data?")) return;
+    localStorage.removeItem(`${APP_ID}_settings`);
+    localStorage.removeItem(`${APP_ID}_devotionals`);
+    setSettings(DEFAULT_SETTINGS);
+    setDevotionals([]);
+    setActiveId(null);
+    setView('write');
+  };
+
+  const handleVerseLookup = async () => {
+    if (!activeDevotional?.verseRef) return;
+    updateDevotional('scriptureEnabled', true);
+    updateDevotional('bibleVersion', activeDevotional.bibleVersion || settings.defaultBibleVersion || 'KJV');
+
+    try {
+      const response = await fetch(`https://bible-api.com/${encodeURIComponent(activeDevotional.verseRef)}?translation=kjv`);
+      const data = await response.json();
+      if (data.text) {
+        updateDevotional('verseText', data.text.trim());
+        updateDevotional('verseTextLocked', true);
+        updateDevotional('verseTextEdited', false);
+      }
+    } catch {
+      alert("Verse lookup failed. Check the reference format.");
+    }
+  };
+
+  const navItems = [
+    { id: 'write', label: 'Write', icon: PenTool },
+    { id: 'compile', label: 'Compile', icon: Share2 },
+    { id: 'library', label: 'Library', icon: Library },
+    { id: 'settings', label: 'Settings', icon: Settings },
+  ];
+
   return (
-    <div className={`min-h-screen ${theme.appBg} ${theme.font} transition-colors duration-500 pb-20 selection:bg-${theme.accent}-100 selection:text-${theme.accent}-900`}>
-      {/* Header */}
+    <div className={`${theme.appBg} min-h-screen ${theme.font}`}>
       <div className={`sticky top-0 z-30 ${theme.navBg} backdrop-blur-xl border-b ${theme.border} px-4 py-3 transition-colors duration-300`}>
-        <div
-          onClick={() => setView('library')}
-          className="flex items-center justify-center relative max-w-md mx-auto cursor-pointer hover:opacity-80 transition-opacity"
-        >
+        <div className="flex items-center justify-center relative max-w-md mx-auto">
           <img
             src={`${import.meta.env.BASE_URL}logo.png`}
             alt="VersedUP"
@@ -999,15 +1104,86 @@ export default function App() {
           />
         </div>
       </div>
-      <main className="max-w-md mx-auto p-4 animate-in fade-in duration-500">
-        {view === 'library' && <LibraryView devotionals={devotionals} onSelect={handleOpen} onDelete={handleDelete} themeKey={themeKey} />}
-        {view === 'create' && <CreateView activeDevotional={activeDevotional} updateDevotional={handleUpdateActive} onSave={() => { handleUpdateActive('status', 'draft'); setView('polish'); setToast({message:'Saved', type:'success'}); }} themeKey={themeKey} settings={settings} />}
-        {view === 'polish' && <PolishView devotional={activeDevotional} updateDevotional={handleUpdateActive} onNext={() => { handleUpdateActive('status', 'polished'); setView('compile'); }} themeKey={themeKey} />}
-        {view === 'compile' && <CompileView devotional={activeDevotional} settings={settings} baseText={activeDevotional.versions[0]?.text || getFullContent(activeDevotional)} onBack={() => setView('polish')} themeKey={themeKey} />}
-        {view === 'settings' && <SettingsView settings={settings} updateSetting={(k, v) => setSettings(p => ({ ...p, [k]: v }))} themeKey={themeKey} />}
+
+      <main className="max-w-md mx-auto px-4 pt-6">
+        {!activeDevotional && view !== 'settings' && view !== 'library' && (
+          <Card themeKey={themeKey}>
+            <p className={`${theme.subTextColor} text-sm font-medium`}>No devotional selected. Create a new one.</p>
+            <div className="mt-4">
+              <Button themeKey={themeKey} icon={Plus} onClick={handleNew}>New Devotional</Button>
+            </div>
+          </Card>
+        )}
+
+        {view === 'write' && activeDevotional && (
+          <WriteView
+            devotional={activeDevotional}
+            settings={settings}
+            themeKey={themeKey}
+            onNext={(text) => {
+              updateDevotional('rawText', text);
+              setView('compile');
+            }}
+          />
+        )}
+
+        {view === 'compile' && activeDevotional && (
+          <CompileView
+            devotional={activeDevotional}
+            settings={settings}
+            themeKey={themeKey}
+            baseText={activeDevotional.rawText}
+            onBack={() => setView('write')}
+          />
+        )}
+
+        {view === 'library' && (
+          <LibraryView
+            devotionals={devotionals}
+            themeKey={themeKey}
+            onOpen={(id) => { setActiveId(id); setView('write'); }}
+            onDelete={handleDelete}
+          />
+        )}
+
+        {view === 'settings' && (
+          <SettingsView
+            settings={settings}
+            updateSetting={updateSetting}
+            themeKey={themeKey}
+            onReset={handleReset}
+          />
+        )}
       </main>
-      <NavBar currentView={view} onChangeView={(v) => v === 'create' ? handleStartNew() : setView(v)} themeKey={themeKey} />
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} themeKey={themeKey} />}
+
+      {/* Bottom Nav */}
+      <div className="fixed bottom-0 left-0 right-0 z-40">
+        <div className={`max-w-md mx-auto ${theme.navBg} backdrop-blur-xl border-t ${theme.border} px-4 py-3`}>
+          <div className="grid grid-cols-4 gap-2">
+            {navItems.map(item => (
+              <button
+                key={item.id}
+                onClick={() => setView(item.id)}
+                className={`flex flex-col items-center justify-center gap-1 rounded-2xl p-2 transition-all ${
+                  view === item.id ? `${theme.primaryLight} ${theme.primaryText}` : `${theme.subTextColor} hover:${theme.primaryText}`
+                }`}
+              >
+                <item.icon className="w-5 h-5" />
+                <span className="text-[10px] font-extrabold">{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Floating New Button */}
+      <button
+        onClick={handleNew}
+        className={`fixed bottom-20 right-5 z-50 w-14 h-14 rounded-full ${theme.primary} text-white shadow-2xl flex items-center justify-center ${theme.primaryHover}`}
+        title="New Devotional"
+      >
+        <Plus className="w-7 h-7" />
+      </button>
     </div>
   );
 }
