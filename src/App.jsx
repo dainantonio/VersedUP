@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import logoUrl from "./assets/logo.jpg";
 import { 
   Plus, Sparkles, Share2, Library, Settings, 
   ChevronLeft, Save, Copy, Download, Trash2, 
