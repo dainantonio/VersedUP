@@ -988,20 +988,16 @@ export default function App() {
     <div className={`min-h-screen ${theme.appBg} ${theme.font} transition-colors duration-500 pb-20 selection:bg-${theme.accent}-100 selection:text-${theme.accent}-900`}>
       {/* Header */}
       <div className={`sticky top-0 z-30 ${theme.navBg} backdrop-blur-xl border-b ${theme.border} px-4 py-3 transition-colors duration-300`}>
-        <div onClick={() => setView('library')} className="flex flex-col items-center justify-center relative max-w-md mx-auto cursor-pointer hover:opacity-80 transition-opacity">
-          <div className="flex items-center gap-3">
-             
-            <img
-              src={`${import.meta.env.BASE_URL}logo.png`}
-              alt="VersedUP"
-              className="h-16 md:h-20 w-auto object-contain"
-              draggable="false"
-             />
-                       
-            <div className={`hidden w-10 h-10 ${theme.primary} rounded-full items-center justify-center text-white font-bold text-xl shadow-lg shadow-${theme.accent}-500/30`}>V</div>
-            <span className={`font-bold text-xl tracking-tight ${theme.textColor}`}>VersedUP</span>
-          </div>
-          <p className={`text-[10px] font-bold uppercase tracking-wider ${theme.subTextColor} mt-1`}>Content Creator OS</p>
+        <div
+          onClick={() => setView('library')}
+          className="flex items-center justify-center relative max-w-md mx-auto cursor-pointer hover:opacity-80 transition-opacity"
+        >
+          <img
+            src={`${import.meta.env.BASE_URL}logo.png`}
+            alt="VersedUP"
+            className="h-16 md:h-20 w-auto object-contain"
+            draggable="false"
+          />
         </div>
       </div>
       <main className="max-w-md mx-auto p-4 animate-in fade-in duration-500">
