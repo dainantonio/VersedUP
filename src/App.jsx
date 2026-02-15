@@ -83,12 +83,12 @@ const DEFAULT_SETTINGS = {
     scripture: true,
     body: true,
     prayer: true,
-    reflectionQuestions: true, // NEW
+    reflectionQuestions: true,
     hashtags: true
   },
   enabledPlatforms: ['instagram', 'tiktok', 'youtube', 'email', 'generic'],
   showWatermark: true,
-  aiProvider: 'mock', // 'mock', 'openai', 'gemini'
+  aiProvider: 'mock',
   openaiKey: '',
   geminiKey: ''
 };
@@ -101,7 +101,9 @@ const createDevotional = () => ({
   verseRef: '',
   verseText: '',
   title: '',
-  rawText: '',
+  rawText: '', // This acts as the "Body"
+  prayer: '', // New field
+  reflectionQuestions: '', // New field
   versions: [],
   compiledPosts: {},
   tags: [],
@@ -110,51 +112,58 @@ const createDevotional = () => ({
 
 const generateId = () => crypto.randomUUID();
 
+// Helper to construct full text from raw fields if no AI version exists
+const getFullContent = (devotional) => {
+  let text = devotional.rawText || "";
+  if (devotional.reflectionQuestions) text += `\n\n**Questions:**\n${devotional.reflectionQuestions}`;
+  if (devotional.prayer) text += `\n\n**Prayer:**\n${devotional.prayer}`;
+  return text;
+};
+
 // AI Engine
 const runLLM = async ({ task, inputs, settings, platformLimit }) => {
   const { aiProvider, openaiKey, geminiKey } = settings;
-  const { rawText, verseText, verseRef, title } = inputs;
+  const { rawText, verseText, verseRef, title, prayer, reflectionQuestions } = inputs;
   const tone = settings.preferredTone || 'encouraging';
   const components = settings.enabledComponents || DEFAULT_SETTINGS.enabledComponents;
 
-  // Build Structure Request based on components
-  let structureReq = "Title, Scripture, Reflection";
+  // Build Structure Request
+  let structureReq = "Title, Scripture, Reflection/Body";
   if (components.prayer) structureReq += ", Prayer";
   if (components.reflectionQuestions) structureReq += ", 2-3 Reflection Questions";
 
-  // Construct Prompt based on task
+  // Context for manual inputs
+  const manualContext = `
+    User's Manual Prayer: "${prayer || 'None provided, please generate if needed'}".
+    User's Manual Questions: "${reflectionQuestions || 'None provided, please generate if needed'}".
+    Reflect/Body: "${rawText}".
+  `;
+
   let prompt = "";
-  if (task === 'fix') prompt = `Fix grammar and improve flow of this devotional thought. Tone: ${tone}. Text: "${rawText}"`;
-  else if (task === 'structure') prompt = `Format this as a devotional with these sections: ${structureReq}. Verse: ${verseRef} - ${verseText}. Thoughts: ${rawText}`;
-  else if (task === 'shorten') prompt = `Shorten this text significantly while keeping the core message: "${rawText}"`;
-  else if (task === 'expand') prompt = `Expand on this devotional thought deeper theologically: "${rawText}"`;
-  else if (task === 'tiktok') prompt = `Write a viral TikTok caption/script for this devotional. Use hashtags. Verse: ${verseRef}. Text: ${rawText}`;
-  else if (task === 'autoFit') prompt = `Rewrite this text to be under ${platformLimit} characters combined. Text: ${rawText}. Return valid JSON: { "body": "...", "verseText": "..." }`;
+  if (task === 'fix') prompt = `Fix grammar and improve flow. Tone: ${tone}. Text: "${rawText}"`;
+  else if (task === 'structure') prompt = `Format as a devotional (${structureReq}). Verse: ${verseRef}. ${manualContext}. If manual prayer/questions provided, USE THEM, do not invent new ones.`;
+  else if (task === 'shorten') prompt = `Shorten this content significantly: "${rawText} ${prayer} ${reflectionQuestions}"`;
+  else if (task === 'expand') prompt = `Expand deeper theologically: "${rawText}"`;
+  else if (task === 'tiktok') prompt = `Write a viral TikTok script. Verse: ${verseRef}. Content: ${rawText}`;
+  else if (task === 'autoFit') prompt = `Rewrite to be under ${platformLimit} chars. Text: ${rawText}. Return valid JSON: { "body": "...", "verseText": "..." }`;
   else if (task.startsWith('ocr')) prompt = `Simulate OCR for ${task}. Return realistic text.`;
 
-  // 1. OpenAI Integration
+  // 1. OpenAI
   if (aiProvider === 'openai' && openaiKey) {
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openaiKey}` },
-        body: JSON.stringify({
-          model: "gpt-3.5-turbo",
-          messages: [{ role: "user", content: prompt }]
-        })
+        body: JSON.stringify({ model: "gpt-3.5-turbo", messages: [{ role: "user", content: prompt }] })
       });
       const data = await response.json();
       const content = data.choices[0].message.content;
-      if (task === 'autoFit') {
-         try { return JSON.parse(content); } catch(e) { return { body: content, verseText: verseText.substring(0, 50) + '...' }; }
-      }
+      if (task === 'autoFit') { try { return JSON.parse(content); } catch(e) { return { body: content, verseText: verseText.substring(0, 50) + '...' }; } }
       return content;
-    } catch (e) {
-      console.error("OpenAI Error, falling back to mock", e);
-    }
+    } catch (e) { console.error("OpenAI Error", e); }
   }
 
-  // 2. Gemini Integration
+  // 2. Gemini
   if (aiProvider === 'gemini' && geminiKey) {
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiKey}`, {
@@ -164,31 +173,28 @@ const runLLM = async ({ task, inputs, settings, platformLimit }) => {
       });
       const data = await response.json();
       const content = data.candidates[0].content.parts[0].text;
-      if (task === 'autoFit') {
-         // Gemini often returns markdown JSON blocks
+      if (task === 'autoFit') { 
          const cleanJson = content.replace(/```json/g, '').replace(/```/g, '').trim();
          try { return JSON.parse(cleanJson); } catch(e) { return { body: content, verseText: verseText.substring(0, 50) + '...' }; }
       }
       return content;
-    } catch (e) {
-      console.error("Gemini Error, falling back to mock", e);
-    }
+    } catch (e) { console.error("Gemini Error", e); }
   }
 
-  // 3. Mock Fallback (Default)
+  // 3. Mock
   return new Promise((resolve) => {
     setTimeout(() => {
       let result = '';
       switch (task) {
-        case 'fix': result = rawText.replace(/\s+/g, ' ').trim() + ` (Refined for ${tone} clarity)`; break;
+        case 'fix': result = rawText.replace(/\s+/g, ' ').trim() + ` (Refined for ${tone})`; break;
         case 'structure': 
            result = `**Title: ${title || 'Untitled'}**\n\n**Scripture:**\n"${verseText}" - ${verseRef}\n\n**Reflection:**\n${rawText}\n\n`;
-           if (components.reflectionQuestions) result += `**Questions to Ponder:**\n1. How does this apply to my life today?\n2. What is God revealing about His character?\n\n`;
-           if (components.prayer) result += `**Prayer:**\nLord, help me apply this word today. Amen.`;
+           if (components.reflectionQuestions) result += `**Questions:**\n${reflectionQuestions || '1. How does this apply today?\n2. What does this say about God?'}\n\n`;
+           if (components.prayer) result += `**Prayer:**\n${prayer || 'Lord, help me apply this word today. Amen.'}`;
            break;
         case 'shorten': result = rawText.split(' ').slice(0, Math.floor(rawText.split(' ').length * 0.7)).join(' ') + '...'; break;
-        case 'expand': result = `${rawText}\n\nMoreover, when we look deeper at ${verseRef}, we see that this truth applies to every season of life. It invites us to trust deeper and walk closer.`; break;
-        case 'tiktok': result = `POV: You need to hear this today ✨\n\n"${verseText}"\n\n${rawText}\n\n#ChristianTikTok #DailyDevotional #${verseRef.replace(/\s/g, '')}`; break;
+        case 'expand': result = `${rawText}\n\nMoreover, when we look deeper at ${verseRef}, we see that this truth applies to every season of life.`; break;
+        case 'tiktok': result = `POV: You need to hear this ✨\n\n"${verseText}"\n\n${rawText}\n\n#ChristianTikTok #DailyDevotional`; break;
         case 'autoFit':
           let fittedBody = rawText;
           let fittedVerse = verseText;
@@ -197,7 +203,7 @@ const runLLM = async ({ task, inputs, settings, platformLimit }) => {
           result = { body: fittedBody, verseText: fittedVerse }; 
           break;
         case 'ocr_verse': result = "For God so loved the world that he gave his one and only Son..."; break;
-        case 'ocr_notes': result = "I felt really moved by this verse today. It reminds me that love is about giving..."; break;
+        case 'ocr_notes': result = "I felt really moved by this verse today. Love is about giving."; break;
         default: result = rawText;
       }
       resolve(result);
@@ -210,7 +216,7 @@ const compilePost = (platform, content, settings) => {
   const isCustom = settings.postFormatMode === 'custom';
   const components = settings.enabledComponents;
   const buildSection = (type, text) => (isCustom && !components[type]) ? '' : text;
-  const hashtags = settings.hashtagStyle === 'minimal' ? '#Faith' : '#Faith #Devotional #Jesus #Bible #ChristianLiving';
+  const hashtags = settings.hashtagStyle === 'minimal' ? '#Faith' : '#Faith #Devotional #Jesus #Bible';
   const hashSection = buildSection('hashtags', hashtags);
   let compiled = '';
 
@@ -244,7 +250,7 @@ const exportToDocument = (devotional) => {
       <h1 style="color: #059669;">${devotional.title || 'Untitled Devotional'}</h1>
       <p style="color: #666; font-size: 0.9em;">Created with VersedUP on ${new Date(devotional.createdAt).toLocaleDateString()}</p>
       <hr /><h3>Scripture</h3><p><strong>${devotional.verseRef}</strong></p><p><em>"${devotional.verseText}"</em></p>
-      <h3>Reflection</h3><p>${devotional.versions.length > 0 ? devotional.versions[0].text : devotional.rawText}</p>
+      <h3>Reflection</h3><p>${devotional.versions.length > 0 ? devotional.versions[0].text : getFullContent(devotional)}</p>
       <br/><p style="text-align: center; color: #999; font-size: 0.8em;">Generated by VersedUP</p>
     </body></html>`;
   const blob = new Blob(['\ufeff', content], { type: 'application/msword' });
@@ -254,16 +260,13 @@ const exportToDocument = (devotional) => {
   document.body.appendChild(link); link.click(); document.body.removeChild(link);
 };
 
-// Text to Speech
 const speakText = (text) => {
   if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel(); // Stop previous
+    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 0.9;
     window.speechSynthesis.speak(utterance);
-  } else {
-    alert("Text-to-speech not supported in this browser.");
-  }
+  } else { alert("Text-to-speech not supported."); }
 };
 
 /**
@@ -294,45 +297,21 @@ const InputGroup = ({ label, value, onChange, placeholder, multiline = false, cl
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef(null);
 
-  // Speech to Text Handler
   const handleMicClick = () => {
-    if (listening) {
-      recognitionRef.current?.stop();
-      setListening(false);
-      return;
-    }
-
+    if (listening) { recognitionRef.current?.stop(); setListening(false); return; }
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Speech recognition is not supported in this browser. Try Chrome or Safari.");
-      return;
-    }
-
+    if (!SpeechRecognition) { alert("Speech recognition not supported."); return; }
     const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-
+    recognition.continuous = true; recognition.interimResults = true; recognition.lang = 'en-US';
     recognition.onstart = () => setListening(true);
     recognition.onend = () => setListening(false);
-    
-    // We maintain a buffer of the current value to append to
     let finalTranscript = value ? value + " " : "";
-
     recognition.onresult = (event) => {
-      let interimTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-          onChange(finalTranscript); // Update the parent state
-        } else {
-          interimTranscript += event.results[i][0].transcript;
-        }
+        if (event.results[i].isFinal) { finalTranscript += event.results[i][0].transcript; onChange(finalTranscript); }
       }
     };
-
-    recognition.start();
-    recognitionRef.current = recognition;
+    recognition.start(); recognitionRef.current = recognition;
   };
 
   const handleFileChange = async (e) => {
@@ -347,22 +326,14 @@ const InputGroup = ({ label, value, onChange, placeholder, multiline = false, cl
       <div className="flex justify-between items-center">
         <label className={`text-xs font-semibold uppercase tracking-wider ${theme.subTextColor} ${theme.font}`}>{label}</label>
         <div className="flex gap-3">
-          {/* Microphone Button */}
-          <button 
-             onClick={handleMicClick}
-             className={`text-xs flex items-center gap-1 ${listening ? 'text-red-500 font-bold animate-pulse' : theme.primaryText} hover:underline`}
-          >
-             {listening ? <StopCircle className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
-             {listening ? 'Stop' : 'Dictate'}
+          <button onClick={handleMicClick} className={`text-xs flex items-center gap-1 ${listening ? 'text-red-500 font-bold animate-pulse' : theme.primaryText} hover:underline`}>
+             {listening ? <StopCircle className="w-3 h-3" /> : <Mic className="w-3 h-3" />} {listening ? 'Stop' : 'Dictate'}
           </button>
-
-          {/* OCR/Scan Button */}
           {enableOCR && (
             <>
                <input type="file" accept="image/*" capture="environment" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
                <button onClick={() => fileInputRef.current?.click()} className={`text-xs flex items-center gap-1 ${theme.primaryText} hover:underline`} disabled={scanning}>
-                 {scanning ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
-                 {scanning ? 'Scanning...' : 'Scan'}
+                 {scanning ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />} {scanning ? 'Scanning...' : 'Scan'}
                </button>
             </>
           )}
@@ -399,7 +370,7 @@ const Toast = ({ message, type = 'success', onClose, themeKey = 'classic' }) => 
 
 // --- Views ---
 
-const CreateView = ({ activeDevotional, updateDevotional, onSave, themeKey }) => {
+const CreateView = ({ activeDevotional, updateDevotional, onSave, themeKey, settings }) => {
   const theme = THEMES[themeKey];
   const [fetchingVerse, setFetchingVerse] = useState(false);
 
@@ -407,19 +378,16 @@ const CreateView = ({ activeDevotional, updateDevotional, onSave, themeKey }) =>
     const task = field === 'verse' ? 'ocr_verse' : 'ocr_notes';
     const result = await runLLM({ task, inputs: {}, settings: {} });
     if (field === 'verse') {
-       const current = activeDevotional.verseText;
-       updateDevotional('verseText', current ? current + ' ' + result : result);
+       updateDevotional('verseText', (activeDevotional.verseText || '') + ' ' + result);
     } else {
-       const current = activeDevotional.rawText;
-       updateDevotional('rawText', current ? current + '\n' + result : result);
+       updateDevotional('rawText', (activeDevotional.rawText || '') + '\n' + result);
     }
   };
 
   const handleGetDailyVerse = () => {
     const verses = [
-      { ref: "Lamentations 3:22-23", text: "The steadfast love of the Lord never ceases; his mercies never come to an end; they are new every morning; great is your faithfulness." },
+      { ref: "Lamentations 3:22-23", text: "The steadfast love of the Lord never ceases..." },
       { ref: "Philippians 4:13", text: "I can do all things through him who strengthens me." },
-      { ref: "Jeremiah 29:11", text: "For I know the plans I have for you, declares the Lord, plans for welfare and not for evil, to give you a future and a hope." },
       { ref: "Psalm 23:1", text: "The Lord is my shepherd; I shall not want." }
     ];
     const dayIndex = new Date().getDate() % verses.length;
@@ -434,27 +402,23 @@ const CreateView = ({ activeDevotional, updateDevotional, onSave, themeKey }) =>
     try {
       const response = await fetch(`https://bible-api.com/${encodeURIComponent(activeDevotional.verseRef)}`);
       const data = await response.json();
-      if (data.text) {
-        updateDevotional('verseText', data.text.trim());
-      }
-    } catch (e) {
-      console.error("Verse lookup failed");
-    } finally {
-      setFetchingVerse(false);
-    }
+      if (data.text) updateDevotional('verseText', data.text.trim());
+    } catch (e) { console.error("Verse lookup failed"); } finally { setFetchingVerse(false); }
   };
+
+  const components = settings.enabledComponents || DEFAULT_SETTINGS.enabledComponents;
 
   return (
     <div className="space-y-6 pb-24">
       <div className="space-y-4">
         <h1 className={`text-2xl font-bold ${theme.textColor} ${theme.font}`}>New Devotional</h1>
-        <p className={`${theme.subTextColor} ${theme.font}`}>Capture the verse and your raw thoughts. We'll handle the polish later.</p>
+        <p className={`${theme.subTextColor} ${theme.font}`}>Capture your thoughts. Fields appear based on your template settings.</p>
       </div>
 
       <button onClick={handleGetDailyVerse} className={`w-full ${theme.cardBg} border ${theme.border} p-4 rounded-xl flex items-center justify-between group shadow-sm hover:shadow-md hover:border-${theme.accent}-300 transition-all active:scale-[0.98]`}>
         <div className="flex items-center gap-4">
             <div className={`w-10 h-10 ${theme.primaryLight} rounded-full flex items-center justify-center ${theme.primaryText}`}><Sparkles className="w-5 h-5" /></div>
-            <div className="text-left"><div className={`text-sm font-bold ${theme.textColor}`}>Verse of the Day</div><div className={`text-xs ${theme.subTextColor}`}>Tap to load today's scripture</div></div>
+            <div className="text-left"><div className={`text-sm font-bold ${theme.textColor}`}>Verse of the Day</div><div className={`text-xs ${theme.subTextColor}`}>Tap to load</div></div>
         </div>
         <div className={`${theme.appBg} p-2 rounded-full ${theme.subTextColor} group-hover:${theme.primaryLight} group-hover:${theme.primaryText} transition-colors`}><ChevronLeft className="w-4 h-4 rotate-180" /></div>
       </button>
@@ -468,24 +432,29 @@ const CreateView = ({ activeDevotional, updateDevotional, onSave, themeKey }) =>
         <div className="space-y-4">
           <div className="relative">
             <InputGroup themeKey={themeKey} label="Verse Reference" placeholder="e.g. John 3:16" value={activeDevotional.verseRef} onChange={(val) => updateDevotional('verseRef', val)} />
-            {activeDevotional.verseRef && (
-              <button 
-                onClick={handleVerseLookup}
-                disabled={fetchingVerse}
-                className={`absolute right-2 top-8 p-1.5 rounded-lg text-xs font-bold ${theme.primary} text-white`}
-              >
-                {fetchingVerse ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Lookup'}
-              </button>
-            )}
+            {activeDevotional.verseRef && <button onClick={handleVerseLookup} disabled={fetchingVerse} className={`absolute right-2 top-8 p-1.5 rounded-lg text-xs font-bold ${theme.primary} text-white`}>{fetchingVerse ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Lookup'}</button>}
           </div>
-          <InputGroup themeKey={themeKey} label="Verse Text" placeholder="Paste scripture or Scan..." value={activeDevotional.verseText} onChange={(val) => updateDevotional('verseText', val)} multiline enableOCR={true} onOCR={() => handleOCR('verse')} />
+          <InputGroup themeKey={themeKey} label="Verse Text" placeholder="Paste or Scan..." value={activeDevotional.verseText} onChange={(val) => updateDevotional('verseText', val)} multiline enableOCR={true} onOCR={() => handleOCR('verse')} />
         </div>
       </Card>
 
       <Card themeKey={themeKey}>
-        <InputGroup themeKey={themeKey} label="Title (Optional)" placeholder="Give it a hooky title..." value={activeDevotional.title} onChange={(val) => updateDevotional('title', val)} />
-        <div className="mt-4">
-          <InputGroup themeKey={themeKey} label="Your Thoughts" placeholder="What is God speaking through this?" value={activeDevotional.rawText} onChange={(val) => updateDevotional('rawText', val)} multiline enableOCR={true} onOCR={() => handleOCR('notes')} />
+        <div className="space-y-4">
+          <InputGroup themeKey={themeKey} label="Title (Optional)" placeholder="Give it a hooky title..." value={activeDevotional.title} onChange={(val) => updateDevotional('title', val)} />
+          <InputGroup themeKey={themeKey} label="Reflection / Body" placeholder="What is God speaking?" value={activeDevotional.rawText} onChange={(val) => updateDevotional('rawText', val)} multiline enableOCR={true} onOCR={() => handleOCR('notes')} />
+          
+          {/* Dynamic Components based on Settings */}
+          {components.reflectionQuestions && (
+            <div className="pt-2 animate-in fade-in slide-in-from-top-2">
+              <InputGroup themeKey={themeKey} label="Reflection Questions" placeholder="Q1... Q2... (Leave empty to auto-generate)" value={activeDevotional.reflectionQuestions} onChange={(val) => updateDevotional('reflectionQuestions', val)} multiline />
+            </div>
+          )}
+          
+          {components.prayer && (
+            <div className="pt-2 animate-in fade-in slide-in-from-top-2">
+              <InputGroup themeKey={themeKey} label="Prayer" placeholder="Lord, help me... (Leave empty to auto-generate)" value={activeDevotional.prayer} onChange={(val) => updateDevotional('prayer', val)} multiline />
+            </div>
+          )}
         </div>
       </Card>
 
@@ -502,7 +471,14 @@ const PolishView = ({ devotional, updateDevotional, onNext, themeKey }) => {
   const handleAIAction = async (task) => {
     setGenerating(true);
     const currentSettings = JSON.parse(localStorage.getItem(`${APP_ID}_settings`) || JSON.stringify(DEFAULT_SETTINGS));
-    const inputs = { rawText: devotional.rawText, verseRef: devotional.verseRef, verseText: devotional.verseText, title: devotional.title };
+    const inputs = { 
+      rawText: devotional.rawText, 
+      verseRef: devotional.verseRef, 
+      verseText: devotional.verseText, 
+      title: devotional.title,
+      prayer: devotional.prayer,
+      reflectionQuestions: devotional.reflectionQuestions
+    };
     const result = await runLLM({ task, inputs, settings: currentSettings });
     const newVersion = { id: generateId(), type: task, text: result, createdAt: new Date().toISOString() };
     updateDevotional('versions', [newVersion, ...devotional.versions]);
@@ -511,7 +487,7 @@ const PolishView = ({ devotional, updateDevotional, onNext, themeKey }) => {
   };
 
   const currentText = useMemo(() => {
-    if (selectedVersionId === 'raw') return devotional.rawText;
+    if (selectedVersionId === 'raw') return getFullContent(devotional);
     return devotional.versions.find(v => v.id === selectedVersionId)?.text || '';
   }, [selectedVersionId, devotional]);
 
@@ -520,9 +496,7 @@ const PolishView = ({ devotional, updateDevotional, onNext, themeKey }) => {
       <div className="flex items-center justify-between">
         <h1 className={`text-2xl font-bold ${theme.textColor} ${theme.font}`}>Polish</h1>
         <div className="flex items-center gap-2">
-           <button onClick={() => speakText(currentText)} className={`p-2 ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-full transition-colors`} title="Read Aloud">
-             <Volume2 className="w-5 h-5" />
-           </button>
+           <button onClick={() => speakText(currentText)} className={`p-2 ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-full transition-colors`} title="Read Aloud"><Volume2 className="w-5 h-5" /></button>
            <div className={`text-xs font-medium ${theme.subTextColor} uppercase tracking-wider`}>{devotional.verseRef}</div>
         </div>
       </div>
@@ -599,12 +573,8 @@ const CompileView = ({ devotional, settings, baseText, onBack, themeKey }) => {
           <h1 className={`text-2xl font-bold ${theme.textColor} ${theme.font}`}>Compile</h1>
         </div>
         <div className="flex gap-2">
-            <button onClick={() => speakText(compiledContent)} className={`p-2 ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-full transition-colors`} title="Read Aloud">
-                <Volume2 className="w-6 h-6" />
-            </button>
-            <button onClick={() => exportToDocument(devotional)} className={`p-2 ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-full transition-colors`} title="Export to Word">
-                <FileDown className="w-6 h-6" />
-            </button>
+            <button onClick={() => speakText(compiledContent)} className={`p-2 ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-full transition-colors`} title="Read Aloud"><Volume2 className="w-6 h-6" /></button>
+            <button onClick={() => exportToDocument(devotional)} className={`p-2 ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-full transition-colors`} title="Export to Word"><FileDown className="w-6 h-6" /></button>
         </div>
       </div>
 
@@ -688,7 +658,12 @@ const SettingsView = ({ settings, updateSetting, themeKey }) => {
   const theme = THEMES[themeKey];
   return (
     <div className="space-y-6 pb-24">
-      <h1 className={`text-2xl font-bold ${theme.textColor} ${theme.font}`}>Settings</h1>
+      <div className="flex items-center justify-between">
+        <h1 className={`text-2xl font-bold ${theme.textColor} ${theme.font}`}>Settings</h1>
+        <div className={`flex items-center gap-1.5 text-xs font-bold ${theme.primaryText} bg-${theme.accent}-50 px-3 py-1.5 rounded-full`}>
+          <Check className="w-3.5 h-3.5" /> Auto-saved
+        </div>
+      </div>
 
       <Card themeKey={themeKey}>
         <h3 className={`font-bold ${theme.textColor} mb-4 flex items-center gap-2`}><Sun className={`w-4 h-4 ${theme.primaryText}`} /> App Theme</h3>
@@ -728,7 +703,7 @@ const SettingsView = ({ settings, updateSetting, themeKey }) => {
       <Card themeKey={themeKey}>
         <h3 className={`font-bold ${theme.textColor} mb-4 flex items-center gap-2`}><LayoutTemplate className={`w-4 h-4 ${theme.primaryText}`} /> Post Template</h3>
         <div className="space-y-3">
-             <p className={`text-xs ${theme.subTextColor}`}>Select components to include in your structure:</p>
+             <p className={`text-xs ${theme.subTextColor}`}>Enable components to show them in the Create screen:</p>
              {['title', 'scripture', 'body', 'prayer', 'reflectionQuestions', 'hashtags'].map(component => (
                <label key={component} className={`flex items-center justify-between p-2 rounded-lg cursor-pointer hover:${theme.primaryLight}`}>
                  <span className={`capitalize ${theme.textColor} font-medium`}>{component.replace(/([A-Z])/g, ' $1').trim()}</span>
@@ -747,7 +722,7 @@ const SettingsView = ({ settings, updateSetting, themeKey }) => {
       </Card>
 
       <div className="text-center pt-8">
-        <p className={`text-xs ${theme.subTextColor} mb-2`}>VersedUP v1.5.0 (Mic + Custom)</p>
+        <p className={`text-xs ${theme.subTextColor} mb-2`}>VersedUP v1.6.0 (Polish & Flow)</p>
         <Button variant="danger" className="w-full text-sm py-2" onClick={() => localStorage.clear() || window.location.reload()} themeKey={themeKey}>Reset App Data</Button>
       </div>
     </div>
@@ -838,9 +813,9 @@ export default function App() {
       </div>
       <main className="max-w-md mx-auto p-4 animate-in fade-in duration-300">
         {view === 'library' && <LibraryView devotionals={devotionals} onSelect={handleOpen} onDelete={handleDelete} themeKey={themeKey} />}
-        {view === 'create' && <CreateView activeDevotional={activeDevotional} updateDevotional={handleUpdateActive} onSave={() => { handleUpdateActive('status', 'draft'); setView('polish'); setToast({message:'Saved', type:'success'}); }} themeKey={themeKey} />}
+        {view === 'create' && <CreateView activeDevotional={activeDevotional} updateDevotional={handleUpdateActive} onSave={() => { handleUpdateActive('status', 'draft'); setView('polish'); setToast({message:'Saved', type:'success'}); }} themeKey={themeKey} settings={settings} />}
         {view === 'polish' && <PolishView devotional={activeDevotional} updateDevotional={handleUpdateActive} onNext={() => { handleUpdateActive('status', 'polished'); setView('compile'); }} themeKey={themeKey} />}
-        {view === 'compile' && <CompileView devotional={activeDevotional} settings={settings} baseText={activeDevotional.versions[0]?.text || activeDevotional.rawText} onBack={() => setView('polish')} themeKey={themeKey} />}
+        {view === 'compile' && <CompileView devotional={activeDevotional} settings={settings} baseText={activeDevotional.versions[0]?.text || getFullContent(activeDevotional)} onBack={() => setView('polish')} themeKey={themeKey} />}
         {view === 'settings' && <SettingsView settings={settings} updateSetting={(k, v) => setSettings(p => ({ ...p, [k]: v }))} themeKey={themeKey} />}
       </main>
       <NavBar currentView={view} onChangeView={(v) => v === 'create' ? handleStartNew() : setView(v)} themeKey={themeKey} />
