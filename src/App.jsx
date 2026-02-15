@@ -6,7 +6,7 @@ import {
   Mail, Video, Hash, FileText, LayoutTemplate,
   Search, Filter, X, Menu, SlidersHorizontal,
   MoveUp, MoveDown, AlertTriangle, Sun, Moon, 
-  BookOpen, Camera, FileDown, Volume2, Key, Globe, Mic, StopCircle, CloudCheck,
+  BookOpen, Camera, FileDown, Volume2, Key, Globe, Mic, StopCircle,
   PenTool, MessageSquare, Heart, ChevronRight,
   Smile, CloudRain, Coffee, Zap, User, Send, Heart as HeartIcon, MessageCircle
 } from 'lucide-react';
@@ -989,7 +989,7 @@ export default function App() {
       <div className={`sticky top-0 z-30 ${theme.navBg} backdrop-blur-xl border-b ${theme.border} px-4 py-3 transition-colors duration-300`}>
         <div onClick={() => setView('library')} className="flex flex-col items-center justify-center relative max-w-md mx-auto cursor-pointer hover:opacity-80 transition-opacity">
           <div className="flex items-center gap-3">
-             <img src="Versedup logo 2.jpg" alt="VersedUP" className="w-10 h-10 object-contain rounded-full shadow-lg bg-white ring-2 ring-white" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+             <img src="/logo.jpg" alt="VersedUP" className="w-10 h-10 object-contain rounded-full shadow-lg bg-white ring-2 ring-white" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
             <div className={`hidden w-10 h-10 ${theme.primary} rounded-full items-center justify-center text-white font-bold text-xl shadow-lg shadow-${theme.accent}-500/30`}>V</div>
             <span className={`font-bold text-xl tracking-tight ${theme.textColor}`}>VersedUP</span>
           </div>
