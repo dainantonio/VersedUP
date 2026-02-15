@@ -68,20 +68,6 @@ const THEMES = {
     border: 'border-slate-700',
     accent: 'indigo',
     font: 'font-sans'
-  },
-  bible: {
-    label: 'Open Bible',
-    appBg: 'bg-stone-100',
-    cardBg: 'bg-[#fdfbf7]', // Warm paper
-    textColor: 'text-stone-900',
-    subTextColor: 'text-stone-500',
-    primary: 'bg-stone-700',
-    primaryHover: 'hover:bg-stone-800',
-    primaryLight: 'bg-stone-200',
-    primaryText: 'text-stone-800',
-    border: 'border-stone-200',
-    accent: 'stone',
-    font: 'font-serif'
   }
 };
 
@@ -120,9 +106,21 @@ const createDevotional = () => ({
 
 const generateId = () => crypto.randomUUID();
 
-// Mock AI Engine
+/**
+ * AI ENGINE (MOCK STUB)
+ * * To make this real:
+ * 1. Get an API Key from OpenAI (platform.openai.com) or Google Gemini (aistudio.google.com).
+ * 2. Replace the setTimeout below with a fetch() call.
+ * * Example for Gemini:
+ * const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=YOUR_API_KEY', {
+ * method: 'POST',
+ * headers: { 'Content-Type': 'application/json' },
+ * body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+ * });
+ */
 const runLLM = async ({ task, inputs, settings, platformLimit }) => {
   return new Promise((resolve) => {
+    // This simulates network delay. Replace this entire block with your API call.
     setTimeout(() => {
       let result = '';
       const { rawText, verseText, verseRef, title } = inputs;
@@ -211,7 +209,7 @@ const compilePost = (platform, content, settings) => {
  */
 
 const Button = ({ children, onClick, variant = 'primary', className = '', icon: Icon, disabled = false, loading = false, themeKey = 'classic' }) => {
-  const theme = THEMES[themeKey];
+  const theme = THEMES[themeKey] || THEMES.classic;
   const baseStyle = "flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100";
   
   const variants = {
@@ -234,7 +232,7 @@ const Button = ({ children, onClick, variant = 'primary', className = '', icon: 
 };
 
 const InputGroup = ({ label, value, onChange, placeholder, multiline = false, className = '', themeKey = 'classic' }) => {
-  const theme = THEMES[themeKey];
+  const theme = THEMES[themeKey] || THEMES.classic;
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
       <label className={`text-xs font-semibold uppercase tracking-wider ${theme.subTextColor} ${theme.font}`}>{label}</label>
@@ -260,7 +258,7 @@ const InputGroup = ({ label, value, onChange, placeholder, multiline = false, cl
 };
 
 const Card = ({ children, className = '', onClick, themeKey = 'classic' }) => {
-  const theme = THEMES[themeKey];
+  const theme = THEMES[themeKey] || THEMES.classic;
   return (
     <div onClick={onClick} className={`${theme.cardBg} border ${theme.border} shadow-sm rounded-2xl p-4 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''} ${className}`}>
       {children}
@@ -269,7 +267,7 @@ const Card = ({ children, className = '', onClick, themeKey = 'classic' }) => {
 };
 
 const Toast = ({ message, type = 'success', onClose, themeKey = 'classic' }) => {
-  const theme = THEMES[themeKey];
+  const theme = THEMES[themeKey] || THEMES.classic;
   useEffect(() => {
     const timer = setTimeout(onClose, 3000);
     return () => clearTimeout(timer);
@@ -286,18 +284,40 @@ const Toast = ({ message, type = 'success', onClose, themeKey = 'classic' }) => 
 // --- Views ---
 
 const CreateView = ({ activeDevotional, updateDevotional, onSave, themeKey }) => {
-  const theme = THEMES[themeKey];
-  const handleGetDailyVerse = () => {
-    const verses = [
-      { ref: "Lamentations 3:22-23", text: "The steadfast love of the Lord never ceases; his mercies never come to an end; they are new every morning; great is your faithfulness." },
-      { ref: "Philippians 4:13", text: "I can do all things through him who strengthens me." },
-      { ref: "Jeremiah 29:11", text: "For I know the plans I have for you, declares the Lord, plans for welfare and not for evil, to give you a future and a hope." },
-      { ref: "Psalm 23:1", text: "The Lord is my shepherd; I shall not want." }
-    ];
-    const dayIndex = new Date().getDate() % verses.length;
-    const verse = verses[dayIndex];
-    updateDevotional('verseRef', verse.ref);
-    updateDevotional('verseText', verse.text);
+  const theme = THEMES[themeKey] || THEMES.classic;
+  const [loadingVerse, setLoadingVerse] = useState(false);
+
+  // Fetch from REAL API
+  const handleGetDailyVerse = async () => {
+    setLoadingVerse(true);
+    try {
+        // Using ourmanna.com free API for daily verse
+        const res = await fetch('https://beta.ourmanna.com/api/v1/get?format=json&order=random');
+        const data = await res.json();
+        
+        // Data structure from API: { verse: { details: { text: "...", reference: "...", version: "..." } } }
+        if (data && data.verse && data.verse.details) {
+            updateDevotional('verseRef', data.verse.details.reference);
+            updateDevotional('verseText', data.verse.details.text);
+        } else {
+            throw new Error("Invalid API response");
+        }
+    } catch (e) {
+        console.error("API failed, using fallback", e);
+        // Fallback to local list if offline or API fails
+        const verses = [
+            { ref: "Lamentations 3:22-23", text: "The steadfast love of the Lord never ceases; his mercies never come to an end; they are new every morning; great is your faithfulness." },
+            { ref: "Philippians 4:13", text: "I can do all things through him who strengthens me." },
+            { ref: "Jeremiah 29:11", text: "For I know the plans I have for you, declares the Lord, plans for welfare and not for evil, to give you a future and a hope." },
+            { ref: "Psalm 23:1", text: "The Lord is my shepherd; I shall not want." }
+        ];
+        const dayIndex = new Date().getDate() % verses.length;
+        const verse = verses[dayIndex];
+        updateDevotional('verseRef', verse.ref);
+        updateDevotional('verseText', verse.text);
+    } finally {
+        setLoadingVerse(false);
+    }
   };
 
   return (
@@ -309,15 +329,18 @@ const CreateView = ({ activeDevotional, updateDevotional, onSave, themeKey }) =>
 
       <button 
         onClick={handleGetDailyVerse}
-        className={`w-full ${theme.cardBg} border ${theme.border} p-4 rounded-xl flex items-center justify-between group shadow-sm hover:shadow-md hover:border-${theme.accent}-300 transition-all active:scale-[0.98]`}
+        disabled={loadingVerse}
+        className={`w-full ${theme.cardBg} border ${theme.border} p-4 rounded-xl flex items-center justify-between group shadow-sm hover:shadow-md hover:border-${theme.accent}-300 transition-all active:scale-[0.98] disabled:opacity-70`}
       >
         <div className="flex items-center gap-4">
             <div className={`w-10 h-10 ${theme.primaryLight} rounded-full flex items-center justify-center ${theme.primaryText}`}>
-                <Sparkles className="w-5 h-5" />
+                {loadingVerse ? <RefreshCw className="w-5 h-5 animate-spin"/> : <Sparkles className="w-5 h-5" />}
             </div>
             <div className="text-left">
                 <div className={`text-sm font-bold ${theme.textColor}`}>Verse of the Day</div>
-                <div className={`text-xs ${theme.subTextColor}`}>Tap to load today's scripture</div>
+                <div className={`text-xs ${theme.subTextColor}`}>
+                    {loadingVerse ? "Loading..." : "Tap to load today's scripture"}
+                </div>
             </div>
         </div>
         <div className={`${theme.appBg} p-2 rounded-full ${theme.subTextColor} group-hover:${theme.primaryLight} group-hover:${theme.primaryText} transition-colors`}>
@@ -356,7 +379,7 @@ const CreateView = ({ activeDevotional, updateDevotional, onSave, themeKey }) =>
 };
 
 const PolishView = ({ devotional, updateDevotional, onNext, themeKey }) => {
-  const theme = THEMES[themeKey];
+  const theme = THEMES[themeKey] || THEMES.classic;
   const [generating, setGenerating] = useState(false);
   const [selectedVersionId, setSelectedVersionId] = useState('raw');
 
@@ -414,7 +437,7 @@ const PolishView = ({ devotional, updateDevotional, onNext, themeKey }) => {
 };
 
 const CompileView = ({ devotional, settings, baseText, onBack, themeKey }) => {
-  const theme = THEMES[themeKey];
+  const theme = THEMES[themeKey] || THEMES.classic;
   const [activePlatform, setActivePlatform] = useState('instagram');
   const [compiledContent, setCompiledContent] = useState('');
   const [autoFitContent, setAutoFitContent] = useState(null);
@@ -528,7 +551,7 @@ const CompileView = ({ devotional, settings, baseText, onBack, themeKey }) => {
 };
 
 const LibraryView = ({ devotionals, onSelect, onDelete, themeKey }) => {
-  const theme = THEMES[themeKey];
+  const theme = THEMES[themeKey] || THEMES.classic;
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showFilter, setShowFilter] = useState(false);
@@ -605,7 +628,7 @@ const LibraryView = ({ devotionals, onSelect, onDelete, themeKey }) => {
 };
 
 const SettingsView = ({ settings, updateSetting, themeKey }) => {
-  const theme = THEMES[themeKey];
+  const theme = THEMES[themeKey] || THEMES.classic;
   const fileInputRef = useRef(null);
 
   const handleExportData = () => {
@@ -667,21 +690,21 @@ const SettingsView = ({ settings, updateSetting, themeKey }) => {
         </div>
       </Card>
 
-      {/* Theme Selector */}
+      {/* Theme Selector - Dropdown version */}
       <Card themeKey={themeKey}>
         <h3 className={`font-bold ${theme.textColor} mb-4 flex items-center gap-2`}>
           <Sun className={`w-4 h-4 ${theme.primaryText}`} /> App Theme
         </h3>
-        <div className="grid grid-cols-2 gap-2">
-          {Object.entries(THEMES).map(([key, t]) => (
-            <button
-              key={key}
-              onClick={() => updateSetting('theme', key)}
-              className={`p-3 rounded-xl border text-left transition-all ${settings.theme === key ? `${t.primaryLight} ${t.primaryText} border-${t.accent}-200 ring-1 ring-${t.accent}-200` : `${theme.appBg} ${theme.border} ${theme.subTextColor}`}`}
-            >
-              <span className={`block text-sm font-bold ${t.font}`}>{t.label}</span>
-            </button>
-          ))}
+        <div className="space-y-4">
+           <select 
+             className={`w-full p-3 ${theme.appBg} border ${theme.border} rounded-xl focus:outline-none focus:ring-2 focus:ring-${theme.accent}-500/50 ${theme.textColor} font-medium appearance-none`}
+             value={settings.theme}
+             onChange={(e) => updateSetting('theme', e.target.value)}
+           >
+             <option value="classic">Classic</option>
+             <option value="sunrise">Sunrise</option>
+             <option value="sunset">Sunset</option>
+           </select>
         </div>
       </Card>
 
@@ -715,7 +738,7 @@ const SettingsView = ({ settings, updateSetting, themeKey }) => {
 };
 
 const NavBar = ({ currentView, onChangeView, themeKey }) => {
-  const theme = THEMES[themeKey];
+  const theme = THEMES[themeKey] || THEMES.classic;
   const items = [
     { id: 'library', icon: Library, label: 'Library' },
     { id: 'create', icon: Plus, label: 'New', prominent: true },
@@ -816,7 +839,7 @@ export default function App() {
         <div onClick={() => setView('library')} className="flex flex-col items-center justify-center relative max-w-md mx-auto cursor-pointer hover:opacity-80 transition-opacity">
           <div className="flex items-center gap-3">
              <img 
-               src="Versedup logo 2.jpg" 
+               src="/Versedup%20logo%202.jpg" 
                alt="VersedUP" 
                className="w-10 h-10 object-contain rounded-full shadow-md bg-white"
                onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
