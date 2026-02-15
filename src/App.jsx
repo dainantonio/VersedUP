@@ -991,12 +991,12 @@ export default function App() {
         <div onClick={() => setView('library')} className="flex flex-col items-center justify-center relative max-w-md mx-auto cursor-pointer hover:opacity-80 transition-opacity">
           <div className="flex items-center gap-3">
              
-            <img 
-              src="/logo.jpg" 
-              alt="VersedUP" 
-              className="w-10 h-10 object-contain rounded-full shadow-lg bg-white ring-2 ring-white"
+            <img
+              src={`${import.meta.env.BASE_URL}logo.jpg`}
+              alt="VersedUP"
+              className="h-14 w-auto object-contain drop-shadow-md"
              />
-           
+                       
             <div className={`hidden w-10 h-10 ${theme.primary} rounded-full items-center justify-center text-white font-bold text-xl shadow-lg shadow-${theme.accent}-500/30`}>V</div>
             <span className={`font-bold text-xl tracking-tight ${theme.textColor}`}>VersedUP</span>
           </div>
