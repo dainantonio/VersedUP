@@ -5,7 +5,8 @@ import {
   MoreVertical, Check, RefreshCw, Smartphone, 
   Mail, Video, Hash, FileText, LayoutTemplate,
   Search, Filter, X, Menu, SlidersHorizontal,
-  MoveUp, MoveDown, AlertTriangle, Sun, Moon, BookOpen
+  MoveUp, MoveDown, AlertTriangle, Sun, Moon, BookOpen,
+  Upload, Database
 } from 'lucide-react';
 
 /**
@@ -605,11 +606,68 @@ const LibraryView = ({ devotionals, onSelect, onDelete, themeKey }) => {
 
 const SettingsView = ({ settings, updateSetting, themeKey }) => {
   const theme = THEMES[themeKey];
+  const fileInputRef = useRef(null);
+
+  const handleExportData = () => {
+    const data = {
+      devotionals: JSON.parse(localStorage.getItem(`${APP_ID}_data`) || '[]'),
+      settings: JSON.parse(localStorage.getItem(`${APP_ID}_settings`) || '{}')
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `versedup-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportData = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        if (data.devotionals) localStorage.setItem(`${APP_ID}_data`, JSON.stringify(data.devotionals));
+        if (data.settings) localStorage.setItem(`${APP_ID}_settings`, JSON.stringify(data.settings));
+        window.location.reload(); 
+      } catch (err) {
+        alert('Invalid backup file');
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="space-y-6 pb-24">
       <h1 className={`text-2xl font-bold ${theme.textColor} ${theme.font}`}>Settings</h1>
 
-      {/* Theme Selector - NEW */}
+      <Card themeKey={themeKey}>
+        <h3 className={`font-bold ${theme.textColor} mb-4 flex items-center gap-2`}>
+          <Database className={`w-4 h-4 ${theme.primaryText}`} /> Data Management
+        </h3>
+        <p className={`text-sm ${theme.subTextColor} mb-4`}>
+          Your data is stored locally on this device. Back it up regularly to avoid losing it.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <Button variant="secondary" onClick={handleExportData} icon={Download} className="text-sm" themeKey={themeKey}>
+            Backup Data
+          </Button>
+          <Button variant="secondary" onClick={() => fileInputRef.current?.click()} icon={Upload} className="text-sm" themeKey={themeKey}>
+            Restore Data
+          </Button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleImportData} 
+            accept=".json" 
+            className="hidden" 
+          />
+        </div>
+      </Card>
+
+      {/* Theme Selector */}
       <Card themeKey={themeKey}>
         <h3 className={`font-bold ${theme.textColor} mb-4 flex items-center gap-2`}>
           <Sun className={`w-4 h-4 ${theme.primaryText}`} /> App Theme
@@ -643,26 +701,6 @@ const SettingsView = ({ settings, updateSetting, themeKey }) => {
              <option value="convicting">Convicting</option>
              <option value="poetic">Poetic</option>
            </select>
-        </div>
-      </Card>
-
-      <Card themeKey={themeKey}>
-        <h3 className={`font-bold ${theme.textColor} mb-4 flex items-center gap-2`}>
-          <LayoutTemplate className={`w-4 h-4 ${theme.primaryText}`} /> Post Format
-        </h3>
-        <div className={`flex items-center justify-between mb-4 p-3 ${theme.appBg} rounded-xl`}>
-          <span className={`text-sm font-medium ${theme.textColor}`}>Mode</span>
-          <div className={`flex ${theme.cardBg} rounded-lg p-1 border ${theme.border} shadow-sm`}>
-            {['standard', 'custom'].map(mode => (
-              <button
-                key={mode}
-                onClick={() => updateSetting('postFormatMode', mode)}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors capitalize ${settings.postFormatMode === mode ? `${theme.primaryLight} ${theme.primaryText}` : theme.subTextColor}`}
-              >
-                {mode}
-              </button>
-            ))}
-          </div>
         </div>
       </Card>
 
