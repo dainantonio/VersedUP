@@ -6,7 +6,7 @@ import {
   Mail, Video, Hash, FileText, LayoutTemplate,
   Search, Filter, X, Menu, SlidersHorizontal,
   MoveUp, MoveDown, AlertTriangle, Sun, Moon, 
-  BookOpen, Camera, FileDown, Volume2, Key, Globe
+  BookOpen, Camera, FileDown, Volume2, Key, Globe, Mic, StopCircle
 } from 'lucide-react';
 
 /**
@@ -83,6 +83,7 @@ const DEFAULT_SETTINGS = {
     scripture: true,
     body: true,
     prayer: true,
+    reflectionQuestions: true, // NEW
     hashtags: true
   },
   enabledPlatforms: ['instagram', 'tiktok', 'youtube', 'email', 'generic'],
@@ -114,11 +115,17 @@ const runLLM = async ({ task, inputs, settings, platformLimit }) => {
   const { aiProvider, openaiKey, geminiKey } = settings;
   const { rawText, verseText, verseRef, title } = inputs;
   const tone = settings.preferredTone || 'encouraging';
+  const components = settings.enabledComponents || DEFAULT_SETTINGS.enabledComponents;
+
+  // Build Structure Request based on components
+  let structureReq = "Title, Scripture, Reflection";
+  if (components.prayer) structureReq += ", Prayer";
+  if (components.reflectionQuestions) structureReq += ", 2-3 Reflection Questions";
 
   // Construct Prompt based on task
   let prompt = "";
   if (task === 'fix') prompt = `Fix grammar and improve flow of this devotional thought. Tone: ${tone}. Text: "${rawText}"`;
-  else if (task === 'structure') prompt = `Format this as a devotional (Title, Scripture, Reflection, Prayer). Verse: ${verseRef} - ${verseText}. Thoughts: ${rawText}`;
+  else if (task === 'structure') prompt = `Format this as a devotional with these sections: ${structureReq}. Verse: ${verseRef} - ${verseText}. Thoughts: ${rawText}`;
   else if (task === 'shorten') prompt = `Shorten this text significantly while keeping the core message: "${rawText}"`;
   else if (task === 'expand') prompt = `Expand on this devotional thought deeper theologically: "${rawText}"`;
   else if (task === 'tiktok') prompt = `Write a viral TikTok caption/script for this devotional. Use hashtags. Verse: ${verseRef}. Text: ${rawText}`;
@@ -174,7 +181,11 @@ const runLLM = async ({ task, inputs, settings, platformLimit }) => {
       let result = '';
       switch (task) {
         case 'fix': result = rawText.replace(/\s+/g, ' ').trim() + ` (Refined for ${tone} clarity)`; break;
-        case 'structure': result = `**Title: ${title || 'Untitled'}**\n\n**Scripture:**\n"${verseText}" - ${verseRef}\n\n**Reflection:**\n${rawText}\n\n**Prayer:**\nLord, help me apply this word today. Amen.`; break;
+        case 'structure': 
+           result = `**Title: ${title || 'Untitled'}**\n\n**Scripture:**\n"${verseText}" - ${verseRef}\n\n**Reflection:**\n${rawText}\n\n`;
+           if (components.reflectionQuestions) result += `**Questions to Ponder:**\n1. How does this apply to my life today?\n2. What is God revealing about His character?\n\n`;
+           if (components.prayer) result += `**Prayer:**\nLord, help me apply this word today. Amen.`;
+           break;
         case 'shorten': result = rawText.split(' ').slice(0, Math.floor(rawText.split(' ').length * 0.7)).join(' ') + '...'; break;
         case 'expand': result = `${rawText}\n\nMoreover, when we look deeper at ${verseRef}, we see that this truth applies to every season of life. It invites us to trust deeper and walk closer.`; break;
         case 'tiktok': result = `POV: You need to hear this today ✨\n\n"${verseText}"\n\n${rawText}\n\n#ChristianTikTok #DailyDevotional #${verseRef.replace(/\s/g, '')}`; break;
@@ -250,6 +261,8 @@ const speakText = (text) => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 0.9;
     window.speechSynthesis.speak(utterance);
+  } else {
+    alert("Text-to-speech not supported in this browser.");
   }
 };
 
@@ -278,25 +291,82 @@ const InputGroup = ({ label, value, onChange, placeholder, multiline = false, cl
   const theme = THEMES[themeKey];
   const fileInputRef = useRef(null);
   const [scanning, setScanning] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
+
+  // Speech to Text Handler
+  const handleMicClick = () => {
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech recognition is not supported in this browser. Try Chrome or Safari.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => setListening(true);
+    recognition.onend = () => setListening(false);
+    
+    // We maintain a buffer of the current value to append to
+    let finalTranscript = value ? value + " " : "";
+
+    recognition.onresult = (event) => {
+      let interimTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+          onChange(finalTranscript); // Update the parent state
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+    };
+
+    recognition.start();
+    recognitionRef.current = recognition;
+  };
+
   const handleFileChange = async (e) => {
     if (e.target.files && e.target.files[0]) {
       setScanning(true); await onOCR(); setScanning(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
+
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
       <div className="flex justify-between items-center">
         <label className={`text-xs font-semibold uppercase tracking-wider ${theme.subTextColor} ${theme.font}`}>{label}</label>
-        {enableOCR && (
-          <div>
-             <input type="file" accept="image/*" capture="environment" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
-             <button onClick={() => fileInputRef.current?.click()} className={`text-xs flex items-center gap-1 ${theme.primaryText} hover:underline`} disabled={scanning}>
-               {scanning ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
-               {scanning ? 'Scanning...' : 'Scan Text'}
-             </button>
-          </div>
-        )}
+        <div className="flex gap-3">
+          {/* Microphone Button */}
+          <button 
+             onClick={handleMicClick}
+             className={`text-xs flex items-center gap-1 ${listening ? 'text-red-500 font-bold animate-pulse' : theme.primaryText} hover:underline`}
+          >
+             {listening ? <StopCircle className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+             {listening ? 'Stop' : 'Dictate'}
+          </button>
+
+          {/* OCR/Scan Button */}
+          {enableOCR && (
+            <>
+               <input type="file" accept="image/*" capture="environment" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
+               <button onClick={() => fileInputRef.current?.click()} className={`text-xs flex items-center gap-1 ${theme.primaryText} hover:underline`} disabled={scanning}>
+                 {scanning ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
+                 {scanning ? 'Scanning...' : 'Scan'}
+               </button>
+            </>
+          )}
+        </div>
       </div>
       {multiline ? (
         <textarea className={`w-full p-4 ${theme.appBg} border ${theme.border} rounded-xl focus:outline-none focus:ring-2 focus:ring-${theme.accent}-500/50 transition-all ${theme.textColor} leading-relaxed resize-none ${theme.font}`} rows={6} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
@@ -346,7 +416,6 @@ const CreateView = ({ activeDevotional, updateDevotional, onSave, themeKey }) =>
   };
 
   const handleGetDailyVerse = () => {
-    // Hardcoded list for "Verse of the Day" reliability
     const verses = [
       { ref: "Lamentations 3:22-23", text: "The steadfast love of the Lord never ceases; his mercies never come to an end; they are new every morning; great is your faithfulness." },
       { ref: "Philippians 4:13", text: "I can do all things through him who strengthens me." },
@@ -450,7 +519,12 @@ const PolishView = ({ devotional, updateDevotional, onNext, themeKey }) => {
     <div className="space-y-6 pb-24">
       <div className="flex items-center justify-between">
         <h1 className={`text-2xl font-bold ${theme.textColor} ${theme.font}`}>Polish</h1>
-        <div className={`text-xs font-medium ${theme.subTextColor} uppercase tracking-wider`}>{devotional.verseRef}</div>
+        <div className="flex items-center gap-2">
+           <button onClick={() => speakText(currentText)} className={`p-2 ${theme.subTextColor} hover:${theme.primaryText} hover:${theme.primaryLight} rounded-full transition-colors`} title="Read Aloud">
+             <Volume2 className="w-5 h-5" />
+           </button>
+           <div className={`text-xs font-medium ${theme.subTextColor} uppercase tracking-wider`}>{devotional.verseRef}</div>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -652,20 +726,28 @@ const SettingsView = ({ settings, updateSetting, themeKey }) => {
       </Card>
 
       <Card themeKey={themeKey}>
-        <h3 className={`font-bold ${theme.textColor} mb-4 flex items-center gap-2`}><Sparkles className={`w-4 h-4 ${theme.primaryText}`} /> Content Style</h3>
-        <div className="space-y-4">
-           <InputGroup themeKey={themeKey} label="Preferred Tone" className="w-full" placeholder="" />
-           <select className={`w-full p-3 ${theme.appBg} border ${theme.border} rounded-xl focus:outline-none focus:ring-2 focus:ring-${theme.accent}-500/50 ${theme.textColor} font-medium appearance-none`} value={settings.preferredTone} onChange={(e) => updateSetting('preferredTone', e.target.value)}>
-             <option value="encouraging">Encouraging</option>
-             <option value="teaching">Teaching</option>
-             <option value="convicting">Convicting</option>
-             <option value="poetic">Poetic</option>
-           </select>
+        <h3 className={`font-bold ${theme.textColor} mb-4 flex items-center gap-2`}><LayoutTemplate className={`w-4 h-4 ${theme.primaryText}`} /> Post Template</h3>
+        <div className="space-y-3">
+             <p className={`text-xs ${theme.subTextColor}`}>Select components to include in your structure:</p>
+             {['title', 'scripture', 'body', 'prayer', 'reflectionQuestions', 'hashtags'].map(component => (
+               <label key={component} className={`flex items-center justify-between p-2 rounded-lg cursor-pointer hover:${theme.primaryLight}`}>
+                 <span className={`capitalize ${theme.textColor} font-medium`}>{component.replace(/([A-Z])/g, ' $1').trim()}</span>
+                 <input 
+                   type="checkbox"
+                   checked={settings.enabledComponents?.[component] ?? true}
+                   onChange={(e) => {
+                     const current = settings.enabledComponents || DEFAULT_SETTINGS.enabledComponents;
+                     updateSetting('enabledComponents', { ...current, [component]: e.target.checked });
+                   }}
+                   className={`w-5 h-5 ${theme.primaryText} rounded focus:ring-${theme.accent}-500 border-gray-300`}
+                 />
+               </label>
+             ))}
         </div>
       </Card>
 
       <div className="text-center pt-8">
-        <p className={`text-xs ${theme.subTextColor} mb-2`}>VersedUP v1.4.0 (AI Keys + TTS)</p>
+        <p className={`text-xs ${theme.subTextColor} mb-2`}>VersedUP v1.5.0 (Mic + Custom)</p>
         <Button variant="danger" className="w-full text-sm py-2" onClick={() => localStorage.clear() || window.location.reload()} themeKey={themeKey}>Reset App Data</Button>
       </div>
     </div>
