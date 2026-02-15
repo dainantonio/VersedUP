@@ -992,9 +992,9 @@ export default function App() {
           <div className="flex items-center gap-3">
              
             <img
-              src={`${import.meta.env.BASE_URL}logo.jpg`}
+              src={`${import.meta.env.BASE_URL}logo.png`}
               alt="VersedUP"
-              className="h-14 w-auto object-contain drop-shadow-md"
+              className="h-14 w-auto object-contain "
              />
                        
             <div className={`hidden w-10 h-10 ${theme.primary} rounded-full items-center justify-center text-white font-bold text-xl shadow-lg shadow-${theme.accent}-500/30`}>V</div>
