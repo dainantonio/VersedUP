@@ -1,10 +1,45 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+name: Deploy to GitHub Pages
 
-// https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  // REPLACE 'repo-name' WITH YOUR ACTUAL GITHUB REPOSITORY NAME
-  // Example: if your repo is github.com/john/versed-up, this should be '/versed-up/'
-  base: '/versed-up/', 
-})
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
