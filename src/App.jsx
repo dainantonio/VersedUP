@@ -994,7 +994,8 @@ export default function App() {
             <img
               src={`${import.meta.env.BASE_URL}logo.png`}
               alt="VersedUP"
-              className="h-14 w-auto object-contain "
+              className="h-16 md:h-20 w-auto object-contain"
+              draggable="false"
              />
                        
             <div className={`hidden w-10 h-10 ${theme.primary} rounded-full items-center justify-center text-white font-bold text-xl shadow-lg shadow-${theme.accent}-500/30`}>V</div>
