@@ -96,6 +96,12 @@ const TOPIC_CHIPS = [
 
 const BIBLE_VERSIONS = ["KJV", "NLT", "ESV", "NKJV"];
 
+const VERSE_OF_DAY = {
+  verseRef: "Psalm 23:1-2",
+  verseText: "The Lord is my shepherd; I shall not want. He makes me lie down in green pastures.",
+  suggestedTitle: "The Shepherd Who Leads Me",
+};
+
 const DEFAULT_SETTINGS = {
   username: "",
   theme: "light",
@@ -761,7 +767,7 @@ function bumpStreakOnSave() {
 
 /* ---------------- Views ---------------- */
 
-function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
+function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak }) {
   return (
     <div className="space-y-6 pb-28">
       <div>
@@ -817,12 +823,10 @@ function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
           <div className="text-xs font-bold text-emerald-700">Daily</div>
         </div>
         <div className="mt-3 bg-gradient-to-br from-emerald-400 via-emerald-600 to-emerald-800 rounded-3xl p-6 text-white shadow-sm">
-          <div className="text-2xl leading-snug font-semibold">
-            “The Lord is my shepherd; I shall not want. He makes me lie down in green pastures.”
-          </div>
-          <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90">PSALM 23:1-2</div>
+          <div className="text-2xl leading-snug font-semibold">{`“${VERSE_OF_DAY.verseText}”`}</div>
+          <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
           <button
-            onClick={onNew}
+            onClick={onReflectVerseOfDay}
             className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/25 text-xs font-extrabold active:scale-[0.985]"
             type="button"
           >
@@ -2053,7 +2057,7 @@ function compileForPlatform(platform, d, settings) {
   return `${titleLine}${verseLine}${body}${questions}${prayer}`.trim();
 }
 
-function CompileView({ devotional, settings, onUpdate }) {
+function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   const [platform, setPlatform] = useState("tiktok");
   const [mode, setMode] = useState("preview");
   const [text, setText] = useState("");
@@ -2112,7 +2116,7 @@ function CompileView({ devotional, settings, onUpdate }) {
   };
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 pb-56">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-lg font-extrabold text-slate-900">Share</div>
@@ -2192,6 +2196,21 @@ function CompileView({ devotional, settings, onUpdate }) {
       ) : (
         <SocialPreview platform={platform} devotional={devotional} settings={settings} text={text} />
       )}
+
+      <div className="fixed left-0 right-0 bottom-24 z-30">
+        <div className="max-w-md mx-auto px-4">
+          <div className="rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-2 shadow-lg">
+            <div className="grid grid-cols-2 gap-2">
+              <SmallButton onClick={() => void shareNow()} icon={Share2} disabled={shareBusy} tone="primary">
+                {shareBusy ? "Sharing..." : "Share Now"}
+              </SmallButton>
+              <SmallButton onClick={copy} icon={Copy}>Copy</SmallButton>
+              <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
+              <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {scriptOpen ? <TikTokScriptModal devotional={devotional} settings={settings} onClose={() => setScriptOpen(false)} onUpdate={onUpdate} /> : null}
 
@@ -2709,6 +2728,17 @@ function AppInner({ session, starterMood, onLogout }) {
     setView("write");
   };
 
+  const reflectVerseOfDay = () => {
+    const d = createDevotional(settings);
+    d.verseRef = VERSE_OF_DAY.verseRef;
+    d.verseText = VERSE_OF_DAY.verseText;
+    d.title = VERSE_OF_DAY.suggestedTitle;
+    d.reflection = `Today I reflect on ${VERSE_OF_DAY.verseRef}. Lord, help me trust Your shepherding in every step.`;
+    setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
+    setActiveId(d.id);
+    setView("write");
+  };
+
   const openEntry = (id) => {
     setActiveId(id);
     setView("write");
@@ -2766,6 +2796,7 @@ function AppInner({ session, starterMood, onLogout }) {
             onNew={newEntry}
             onLibrary={() => setView("library")}
             onContinue={() => setView(active ? "write" : "home")}
+            onReflectVerseOfDay={reflectVerseOfDay}
             hasActive={Boolean(active)}
             streak={streak}
           />
@@ -2785,7 +2816,7 @@ function AppInner({ session, starterMood, onLogout }) {
 
         {view === "polish" && active ? <PolishView devotional={active} /> : null}
 
-        {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} /> : null}
+        {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} /> : null}
 
         {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} /> : null}
 
