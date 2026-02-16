@@ -1573,8 +1573,11 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   return (
     <div className="space-y-6 pb-28">
       <div>
-        <div className="text-lg font-extrabold text-slate-900">New Entry</div>
-        <div className="text-xs font-bold text-slate-400 mt-1">CAPTURE WHAT GOD IS SPEAKING</div>
+<div className="text-lg font-extrabold text-slate-900">New Entry</div>
+<div className="text-xs font-bold text-slate-400 mt-1">CAPTURE WHAT GOD IS SPEAKING</div>
+<div className="text-sm text-slate-500 mt-3">
+  Add a verse, write a reflection, then tap Save and Compile.
+</div>
       </div>
 
       <Card className="overflow-hidden">
