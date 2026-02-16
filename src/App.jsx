@@ -24,6 +24,26 @@ import {
   X,
   ScanLine,
 } from "lucide-react";
+/**
+ * Centralized icon mapping (enforced)
+ * - Make Share-Ready = Sparkles
+ * - Compile for Socials = Camera
+ * - Share Now = Check
+ * - Nav: Home = BookOpen, Write = PenTool, Compile = ScanLine
+ */
+const ICONS = Object.freeze({
+  actions: Object.freeze({
+    makeShareReady: Sparkles,
+    compileForSocials: Camera,
+    shareNow: Check,
+  }),
+  nav: Object.freeze({
+    home: BookOpen,
+    write: PenTool,
+    compile: ScanLine,
+  }),
+});
+
 
 /**
  * VersedUP — single file app
@@ -1577,7 +1597,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               <PrimaryButton
                 onClick={() => void doShareReady()}
                 disabled={shareReadyBusy || busy || (!hasReflection && !hasVerseRef)}
-                icon={shareReadyBusy ? Loader2 : Share2}
+                icon={shareReadyBusy ? Loader2 : ICONS.actions.makeShareReady}
               >
                 {shareReadyBusy ? "Making Share-Ready..." : "Make Share-Ready"}
               </PrimaryButton>
@@ -1651,7 +1671,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           onSaved();
           onGoCompile();
         }}
-        icon={Camera}
+        icon={ICONS.actions.compileForSocials}
       >
         Compile for Socials
       </PrimaryButton>
@@ -2084,6 +2104,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
         await navigator.share({
           title: devotional.title || devotional.verseRef || "Devotional",
           text,
+          url: window.location.href,
         });
       } else {
         await copy();
@@ -2106,6 +2127,32 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     window.location.href = `sms:?&body=${body}`;
   };
 
+  const shareToFacebook = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // ignore
+    }
+    const u = encodeURIComponent(window.location.href);
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}`, "_blank", "noopener,noreferrer");
+  };
+
+  const shareToX = () => {
+    const shareUrl = encodeURIComponent(window.location.href);
+    const shareText = encodeURIComponent(text);
+    window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`, "_blank", "noopener,noreferrer");
+  };
+
+  const shareToTikTok = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // ignore
+    }
+    window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
+  };
+
+
   const autoShorten = async () => {
     try {
       const out = await aiRewriteLength(settings, { text, mood: devotional.mood, direction: "shorten" });
@@ -2123,7 +2170,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
           <div className="text-sm text-slate-500 mt-1">Choose where this goes next.</div>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          <SmallButton onClick={() => void shareNow()} icon={Share2} disabled={shareBusy}>
+          <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy}>
             {shareBusy ? "Sharing..." : "Share Now"}
           </SmallButton>
           <SmallButton onClick={copy} icon={Copy}>
@@ -2211,7 +2258,10 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
         <div className="max-w-md mx-auto px-4">
           <div className="rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-2 shadow-lg">
             <div className="grid grid-cols-2 gap-2">
-              <SmallButton onClick={() => void shareNow()} icon={Share2} disabled={shareBusy} tone="primary">
+              
+              <SmallButton onClick={shareToFacebook}>Facebook</SmallButton>
+              <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
+<SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy} tone="primary">
                 {shareBusy ? "Sharing..." : "Share Now"}
               </SmallButton>
               <SmallButton onClick={copy} icon={Copy}>Copy</SmallButton>
@@ -2846,9 +2896,9 @@ function AppInner({ session, starterMood, onLogout }) {
                 {navCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
               </button>
               <div className={cn("grid gap-2 flex-1", navCollapsed ? "grid-cols-5" : "grid-cols-5")}>
-                <NavButton collapsed={navCollapsed} active={view === "home"} onClick={() => setView("home")} icon={PenTool} label="Home" />
-                <NavButton collapsed={navCollapsed} active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={PenTool} label="Write" />
-                <NavButton collapsed={navCollapsed} active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={Share2} label="Compile" />
+                <NavButton collapsed={navCollapsed} active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
+                <NavButton collapsed={navCollapsed} active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={ICONS.nav.write} label="Write" />
+                <NavButton collapsed={navCollapsed} active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ICONS.nav.compile} label="Compile" />
                 <NavButton collapsed={navCollapsed} active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
                 <NavButton collapsed={navCollapsed} active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
               </div>
