@@ -56,8 +56,8 @@ function ToastTicker({ toast }) {
   return (
     <div className="fixed top-0 left-0 right-0 z-50">
       <div className="max-w-md mx-auto px-4 pt-3">
-        <div className="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur-xl shadow-sm px-4 py-2">
-          <div className="text-xs font-extrabold text-slate-700">{toast.message}</div>
+        <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/90 dark:bg-slate-950/90 backdrop-blur-xl shadow-sm px-4 py-2">
+          <div className="text-xs font-extrabold text-slate-700 dark:text-slate-200">{toast.message}</div>
         </div>
       </div>
     </div>
@@ -189,6 +189,7 @@ const THEME_OPTIONS = Object.freeze([
   { id: "sunrise", label: "Sunrise" },
   { id: "sunset", label: "Sunset" },
   { id: "classic", label: "Classic" },
+  { id: "midnight", label: "Midnight" },
 ]);
 
 const THEME_STYLES = Object.freeze({
@@ -196,6 +197,7 @@ const THEME_STYLES = Object.freeze({
   sunrise: "from-amber-50 via-rose-50 to-sky-50",
   sunset: "from-orange-50 via-rose-100 to-indigo-100",
   classic: "from-slate-50 via-white to-slate-100",
+  midnight: "from-slate-950 via-slate-950 to-black",
 });
 
 
@@ -402,18 +404,18 @@ class ErrorBoundary extends React.Component {
 
     return (
       <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 to-slate-50 flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+        <div className="max-w-md w-full bg-white dark:bg-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-6 h-6 text-amber-500 mt-0.5" />
             <div>
-              <div className="text-lg font-extrabold text-slate-900">Something went wrong</div>
-              <div className="text-sm text-slate-600 mt-1">
+              <div className="text-lg font-extrabold text-slate-900 dark:text-slate-100">Something went wrong</div>
+              <div className="text-sm text-slate-600 dark:text-slate-300 mt-1">
                 Try refreshing. If this keeps happening, reset local data.
               </div>
-              <div className="mt-3 text-xs font-mono text-slate-500 whitespace-pre-wrap">{this.state.message}</div>
+              <div className="mt-3 text-xs font-mono text-slate-500 dark:text-slate-400 dark:text-slate-500 whitespace-pre-wrap">{this.state.message}</div>
               <div className="mt-5 flex gap-2">
                 <button
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-extrabold hover:bg-slate-50"
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-sm font-extrabold hover:bg-slate-50 dark:hover:bg-slate-900/50 dark:bg-slate-900/40"
                   onClick={() => location.reload()}
                   type="button"
                 >
@@ -736,7 +738,7 @@ function Card({ children, className }) {
   return (
     <div
       className={cn(
-        "bg-white rounded-3xl border border-slate-200 shadow-sm p-5",
+        "bg-white dark:bg-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-5",
         "backdrop-blur-sm",
         className
       )}
@@ -773,7 +775,7 @@ function Chip({ active, onClick, children }) {
         "active:scale-[0.98] will-change-transform",
         active
           ? "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
-          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+          : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900/50 dark:bg-slate-900/40"
       )}
       type="button"
     >
@@ -786,9 +788,9 @@ function SmallButton({ children, onClick, disabled, icon: Icon, tone = "neutral"
   const base =
     "px-3 py-2 rounded-xl text-xs font-extrabold border transition flex items-center gap-2 justify-center active:scale-[0.98] will-change-transform";
   const variants = {
-    neutral: "bg-white border-slate-200 text-slate-700 hover:bg-slate-50",
+    neutral: "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/50 dark:bg-slate-900/40",
     primary: "bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700",
-    danger: "bg-white border-slate-200 text-red-600 hover:bg-red-50",
+    danger: "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-red-600 hover:bg-red-50",
   };
   return (
     <button
@@ -806,15 +808,15 @@ function SmallButton({ children, onClick, disabled, icon: Icon, tone = "neutral"
 function Modal({ title, onClose, children, footer }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-          <div className="font-extrabold text-slate-900">{title}</div>
+      <div className="w-full max-w-lg bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+          <div className="font-extrabold text-slate-900 dark:text-slate-100">{title}</div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 active:scale-[0.98]" type="button">
             <X className="w-5 h-5" />
           </button>
         </div>
         <div className="p-4">{children}</div>
-        {footer ? <div className="px-4 py-3 border-t border-slate-200 bg-slate-50">{footer}</div> : null}
+        {footer ? <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">{footer}</div> : null}
       </div>
     </div>
   );
@@ -822,10 +824,10 @@ function Modal({ title, onClose, children, footer }) {
 
 function ApplySectionCard({ k, label, value, checked, onToggle, onChange }) {
   return (
-    <div className="rounded-2xl border border-slate-200 p-3 bg-white">
+    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-3 bg-white dark:bg-slate-950">
       <div className="flex items-center justify-between">
-        <div className="text-xs font-extrabold text-slate-700">{label}</div>
-        <label className="text-xs font-extrabold text-slate-600 flex items-center gap-2">
+        <div className="text-xs font-extrabold text-slate-700 dark:text-slate-200">{label}</div>
+        <label className="text-xs font-extrabold text-slate-600 dark:text-slate-300 flex items-center gap-2">
           <input type="checkbox" checked={checked} onChange={(e) => onToggle(e.target.checked)} />
           Apply
         </label>
@@ -834,7 +836,7 @@ function ApplySectionCard({ k, label, value, checked, onToggle, onChange }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={k === "reflection" ? 5 : k === "verseText" ? 4 : 3}
-        className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+        className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
       />
     </div>
   );
@@ -893,23 +895,23 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
   return (
     <div className="space-y-6 pb-28">
       <div>
-        <div className="text-sm text-slate-500">
+        <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
         </div>
-        <div className="text-3xl font-extrabold text-slate-900 mt-1">{getTimeGreeting(displayName)}</div>
-        <div className="text-sm text-slate-500 mt-2">{hasActive ? "Continue your last entry below." : "Start a devotional or pick a verse to reflect."}</div>
+        <div className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 mt-1">{getTimeGreeting(displayName)}</div>
+        <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-2">{hasActive ? "Continue your last entry below." : "Start a devotional or pick a verse to reflect."}</div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm p-5 overflow-hidden relative">
+        <div className="col-span-2 bg-white dark:bg-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 overflow-hidden relative">
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-200/40 via-transparent to-sky-200/30 pointer-events-none" />
           <div className="relative flex items-center justify-between">
             <div>
-              <div className="text-xs font-extrabold text-slate-500">CURRENT STREAK</div>
-              <div className="text-3xl font-extrabold text-slate-900 mt-1">
-                {streak.count} <Flame className="w-5 h-5 inline-block align-[-3px] ml-2 text-orange-500" /> <span className="text-slate-500 text-lg">days</span>
+              <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">CURRENT STREAK</div>
+              <div className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 mt-1">
+                {streak.count} <Flame className="w-5 h-5 inline-block align-[-3px] ml-2 text-orange-500" /> <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-lg">days</span>
               </div>
-              <div className="text-xs text-slate-500 mt-1">Keep showing up — God meets you here.</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Keep showing up — God meets you here.</div>
             </div>
             <button
               onClick={hasActive ? onContinue : onNew}
@@ -923,26 +925,26 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
 
         <button
           onClick={onNew}
-          className="bg-white rounded-3xl border border-slate-200 p-5 text-left hover:bg-slate-50 transition active:scale-[0.99]"
+          className="bg-white dark:bg-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 text-left hover:bg-slate-50 dark:hover:bg-slate-900/50 dark:bg-slate-900/40 transition active:scale-[0.99]"
           type="button"
         >
-          <div className="font-extrabold text-slate-900">New Entry</div>
-          <div className="text-xs text-slate-500 mt-1">Start fresh</div>
+          <div className="font-extrabold text-slate-900 dark:text-slate-100">New Entry</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Start fresh</div>
         </button>
 
         <button
           onClick={onLibrary}
-          className="bg-white rounded-3xl border border-slate-200 p-5 text-left hover:bg-slate-50 transition active:scale-[0.99]"
+          className="bg-white dark:bg-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 text-left hover:bg-slate-50 dark:hover:bg-slate-900/50 dark:bg-slate-900/40 transition active:scale-[0.99]"
           type="button"
         >
-          <div className="font-extrabold text-slate-900">Library</div>
-          <div className="text-xs text-slate-500 mt-1">View archive</div>
+          <div className="font-extrabold text-slate-900 dark:text-slate-100">Library</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">View archive</div>
         </button>
       </div>
 
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between">
-          <div className="font-extrabold text-slate-900">Verse of the Day</div>
+          <div className="font-extrabold text-slate-900 dark:text-slate-100">Verse of the Day</div>
           <div className="text-xs font-bold text-emerald-700">Daily</div>
         </div>
         <div className="mt-3 bg-gradient-to-br from-emerald-400 via-emerald-600 to-emerald-800 rounded-3xl p-6 text-white shadow-sm">
@@ -950,7 +952,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
           <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
           <button
             onClick={onReflectVerseOfDay}
-            className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/25 text-xs font-extrabold active:scale-[0.985]"
+            className="mt-4 px-4 py-2 rounded-full bg-white dark:bg-slate-950/20 hover:bg-white dark:bg-slate-950/25 text-xs font-extrabold active:scale-[0.985]"
             type="button"
           >
             Reflect on this
@@ -960,8 +962,8 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
 
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between">
-          <div className="font-extrabold text-slate-900">Pick a Verse</div>
-          <div className="text-xs font-bold text-slate-500">By theme</div>
+          <div className="font-extrabold text-slate-900 dark:text-slate-100">Pick a Verse</div>
+          <div className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">By theme</div>
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
@@ -974,7 +976,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
                 "px-3 py-2 rounded-full text-xs font-extrabold border active:scale-[0.985]",
                 moodVerseKey === key
                   ? "bg-emerald-600 text-white border-emerald-600"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                  : "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50 dark:bg-slate-900/40"
               )}
             >
               {MOOD_VERSES[key].label}
@@ -1137,7 +1139,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
       onClose={onClose}
       footer={
         <div className="flex gap-2 items-center">
-          <div className="text-xs text-slate-500">{busy ? "Reading..." : aiBusy ? "Structuring..." : ""}</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{busy ? "Reading..." : aiBusy ? "Structuring..." : ""}</div>
           <div className="flex-1" />
           <SmallButton onClick={onClose}>Close</SmallButton>
           <SmallButton onClick={applyFields} tone="primary" disabled={!rawText}>
@@ -1148,11 +1150,11 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
     >
       <div className="space-y-4">
         <Card className="p-4">
-          <div className="text-xs font-extrabold text-slate-500">UPLOAD OR CAPTURE</div>
+          <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">UPLOAD OR CAPTURE</div>
           <div className="mt-3 flex flex-wrap gap-2">
             <label className="cursor-pointer">
               <input type="file" accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-              <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-xs font-extrabold hover:bg-slate-50 active:scale-[0.98]">
+              <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-extrabold hover:bg-slate-50 dark:hover:bg-slate-900/50 dark:bg-slate-900/40 active:scale-[0.98]">
                 <Camera className="w-4 h-4" />
                 Upload
               </span>
@@ -1166,7 +1168,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
                 className="hidden"
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
               />
-              <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-xs font-extrabold hover:bg-slate-50 active:scale-[0.98]">
+              <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-extrabold hover:bg-slate-50 dark:hover:bg-slate-900/50 dark:bg-slate-900/40 active:scale-[0.98]">
                 <ScanLine className="w-4 h-4" />
                 Camera
               </span>
@@ -1188,7 +1190,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
           ) : null}
 
           {previewUrl ? (
-            <div className="mt-4 rounded-2xl overflow-hidden border border-slate-200">
+            <div className="mt-4 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
               <img src={previewUrl} alt="Scan preview" className="w-full h-auto" />
             </div>
           ) : null}
@@ -1197,8 +1199,8 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
         {rawText ? (
           <div className="space-y-3">
             <Card className="p-4">
-              <div className="text-xs font-extrabold text-slate-500">OCR TEXT (RAW)</div>
-              <div className="mt-2 text-xs whitespace-pre-wrap text-slate-600 max-h-40 overflow-auto">{rawText}</div>
+              <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">OCR TEXT (RAW)</div>
+              <div className="mt-2 text-xs whitespace-pre-wrap text-slate-600 dark:text-slate-300 max-h-40 overflow-auto">{rawText}</div>
             </Card>
 
             <div className="flex gap-2">
@@ -1570,15 +1572,15 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   return (
     <div className="space-y-6 pb-28">
       <div>
-<div className="text-lg font-extrabold text-slate-900">New Entry</div>
-<div className="text-xs font-bold text-slate-400 mt-1">CAPTURE WHAT GOD IS SPEAKING</div>
-<div className="text-sm text-slate-500 mt-3">
+<div className="text-lg font-extrabold text-slate-900 dark:text-slate-100">New Entry</div>
+<div className="text-xs font-bold text-slate-400 dark:text-slate-500 mt-1">CAPTURE WHAT GOD IS SPEAKING</div>
+<div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-3">
   Add a verse, write a reflection, then tap Save and Compile.
 </div>
       </div>
 
       <Card className="overflow-hidden">
-        <div className="text-xs font-extrabold text-slate-500">HOW IS YOUR HEART?</div>
+        <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">HOW IS YOUR HEART?</div>
         <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {MOODS.map((m) => (
             <Chip
@@ -1590,14 +1592,14 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             </Chip>
           ))}
         </div>
-        {guidedMode ? <div className="mt-3 text-xs text-slate-500">Guided Mode: mood gently affects AI tone.</div> : null}
+        {guidedMode ? <div className="mt-3 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Guided Mode: mood gently affects AI tone.</div> : null}
       </Card>
 
       <Card>
         <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <div className="text-xs font-extrabold text-slate-500 flex items-center gap-2">
+              <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500 flex items-center gap-2">
                 <BookOpen className="w-4 h-4" /> VERSE
               </div>
               <div className="flex gap-2">
@@ -1618,7 +1620,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                 value={devotional.verseRef}
                 onChange={(e) => onUpdate({ verseRef: e.target.value })}
                 placeholder="Verse reference (e.g., Psalm 23)"
-                className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200 bg-white"
+                className="flex-1 rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200 bg-white dark:bg-slate-950"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void doFetch();
                 }}
@@ -1626,7 +1628,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               <select
                 value={version}
                 onChange={(e) => onUpdate({ bibleVersion: e.target.value })}
-                className="rounded-xl border border-slate-200 px-2 py-2 text-sm font-extrabold bg-white"
+                className="rounded-xl border border-slate-200 dark:border-slate-800 px-2 py-2 text-sm font-extrabold bg-white dark:bg-slate-950"
               >
                 {BIBLE_VERSIONS.map((v) => (
                   <option key={v} value={v}>
@@ -1645,14 +1647,14 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             </div>
 
             {guidedMode && !hasVerseRef ? (
-              <div className="text-xs font-bold text-slate-500">
-                Try: <span className="font-extrabold text-slate-700">John 3:16-18</span> or{" "}
-                <span className="font-extrabold text-slate-700">Psalm 23</span>
+              <div className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                Try: <span className="font-extrabold text-slate-700 dark:text-slate-200">John 3:16-18</span> or{" "}
+                <span className="font-extrabold text-slate-700 dark:text-slate-200">Psalm 23</span>
               </div>
             ) : null}
 
             <div>
-              <label className="text-[10px] font-extrabold text-slate-400">VERSE TEXT</label>
+              <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500">VERSE TEXT</label>
               <textarea
                 value={devotional.verseText}
                 onChange={(e) => onUpdate({ verseText: e.target.value, verseTextEdited: true })}
@@ -1662,10 +1664,10 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                     : "Free-for-now: Open in YouVersion. Paste text you have rights to use."
                 }
                 rows={4}
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 bg-white resize-none"
+                className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 bg-white dark:bg-slate-950 resize-none"
               />
               {guidedMode && !hasVerseText && hasVerseRef ? (
-                <div className="mt-2 text-[11px] font-bold text-slate-500">
+                <div className="mt-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">
                   Tip: Press <span className="font-extrabold">FETCH</span> to fill KJV automatically (or use YouVersion).
                 </div>
               ) : null}
@@ -1676,19 +1678,19 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           </div>
 
           <div>
-            <label className="text-xs font-extrabold text-slate-400">TITLE (OPTIONAL)</label>
+            <label className="text-xs font-extrabold text-slate-400 dark:text-slate-500">TITLE (OPTIONAL)</label>
             <input
               value={devotional.title}
               onChange={(e) => onUpdate({ title: e.target.value })}
               placeholder="Give it a holy title..."
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+              className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
             />
           </div>
 
           <div>
             <div className="flex items-end justify-between gap-3">
-              <label className="text-xs font-extrabold text-slate-400">REFLECTION / BODY</label>
-              {guidedMode ? <div className="text-[11px] font-bold text-slate-500">Topic → prompt, then Guided Fill</div> : null}
+              <label className="text-xs font-extrabold text-slate-400 dark:text-slate-500">REFLECTION / BODY</label>
+              {guidedMode ? <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">Topic → prompt, then Guided Fill</div> : null}
             </div>
 
             <div className="mt-2 flex gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -1725,11 +1727,11 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               spellCheck
               autoCorrect="on"
               autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+              className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
             />
 
             {guidedMode && !hasReflection ? (
-              <div className="mt-2 text-xs font-bold text-slate-500">Starter: “What is God showing me about this verse today?”</div>
+              <div className="mt-2 text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">Starter: “What is God showing me about this verse today?”</div>
             ) : null}
 
             <div className="mt-3">
@@ -1759,14 +1761,14 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             </div>
 
             {guidedMode && !hasReflection ? (
-              <div className="mt-2 text-[11px] font-bold text-slate-500">
+              <div className="mt-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 Tip: write 3–6 lines, then tap <span className="font-extrabold">Structure</span>.
               </div>
             ) : null}
           </div>
 
           <div>
-            <label className="text-xs font-extrabold text-slate-400">PRAYER</label>
+            <label className="text-xs font-extrabold text-slate-400 dark:text-slate-500">PRAYER</label>
             <textarea
               value={devotional.prayer}
               onChange={(e) => onUpdate({ prayer: e.target.value })}
@@ -1775,12 +1777,12 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               spellCheck
               autoCorrect="on"
               autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+              className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
             />
           </div>
 
           <div>
-            <label className="text-xs font-extrabold text-slate-400">REFLECTION QUESTIONS</label>
+            <label className="text-xs font-extrabold text-slate-400 dark:text-slate-500">REFLECTION QUESTIONS</label>
             <textarea
               value={devotional.questions}
               onChange={(e) => onUpdate({ questions: e.target.value })}
@@ -1789,7 +1791,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               spellCheck
               autoCorrect="on"
               autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+              className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
             />
           </div>
         </div>
@@ -1836,10 +1838,10 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
         >
           <div className="space-y-4">
             {["title", "reflection", "prayer", "questions"].map((k) => (
-              <div key={k} className="rounded-2xl border border-slate-200 p-3">
+              <div key={k} className="rounded-2xl border border-slate-200 dark:border-slate-800 p-3">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs font-extrabold text-slate-500 uppercase">{k}</div>
-                  <label className="text-xs font-extrabold text-slate-600 flex items-center gap-2">
+                  <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">{k}</div>
+                  <label className="text-xs font-extrabold text-slate-600 dark:text-slate-300 flex items-center gap-2">
                     <input type="checkbox" checked={apply[k]} onChange={(e) => setApply((s) => ({ ...s, [k]: e.target.checked }))} />
                     Replace
                   </label>
@@ -1858,7 +1860,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           footer={
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-xs font-extrabold text-slate-700">
+                <label className="flex items-center gap-2 text-xs font-extrabold text-slate-700 dark:text-slate-200">
                   <input
                     type="checkbox"
                     checked={guidedGenerateScript}
@@ -1866,7 +1868,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                   />
                   Also generate TikTok script
                 </label>
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                   {guidedScriptBusy ? "Generating..." : guidedGenerateScript ? "One-click: Apply + Script" : "Apply only"}
                 </div>
               </div>
@@ -1931,33 +1933,33 @@ function PolishView({ devotional }) {
   return (
     <div className="space-y-6 pb-28">
       <Card>
-        <div className="text-xl font-extrabold text-slate-900">Polish</div>
-        <div className="text-sm text-slate-500 mt-1">Review and refine. Then export.</div>
+        <div className="text-xl font-extrabold text-slate-900 dark:text-slate-100">Polish</div>
+        <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Review and refine. Then export.</div>
       </Card>
 
       <Card>
         <div className="space-y-3">
-          <div className="text-sm font-extrabold text-slate-700">Scripture</div>
-          <div className="text-sm text-slate-600">{devotional.verseRef || "—"}</div>
+          <div className="text-sm font-extrabold text-slate-700 dark:text-slate-200">Scripture</div>
+          <div className="text-sm text-slate-600 dark:text-slate-300">{devotional.verseRef || "—"}</div>
           <div className="text-sm whitespace-pre-wrap text-slate-800">{devotional.verseText || "—"}</div>
         </div>
       </Card>
 
       <Card>
-        <div className="text-sm font-extrabold text-slate-700">Reflection</div>
+        <div className="text-sm font-extrabold text-slate-700 dark:text-slate-200">Reflection</div>
         <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800">{devotional.reflection || "—"}</div>
       </Card>
 
       {!!devotional.prayer && (
         <Card>
-          <div className="text-sm font-extrabold text-slate-700">Prayer</div>
+          <div className="text-sm font-extrabold text-slate-700 dark:text-slate-200">Prayer</div>
           <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800">{devotional.prayer}</div>
         </Card>
       )}
 
       {!!devotional.questions && (
         <Card>
-          <div className="text-sm font-extrabold text-slate-700">Questions</div>
+          <div className="text-sm font-extrabold text-slate-700 dark:text-slate-200">Questions</div>
           <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800">{devotional.questions}</div>
         </Card>
       )}
@@ -1981,29 +1983,29 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
       <Card>
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-lg font-extrabold text-slate-900">Library</div>
-            <div className="text-sm text-slate-500 mt-1">Your saved devotionals.</div>
+            <div className="text-lg font-extrabold text-slate-900 dark:text-slate-100">Library</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Your saved devotionals.</div>
           </div>
         </div>
         <div className="mt-4 relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search..."
-            className="w-full rounded-2xl border border-slate-200 pl-9 pr-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+            className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 pl-9 pr-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
           />
         </div>
       </Card>
 
       <div className="space-y-3">
         {filtered.map((d) => (
-          <div key={d.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5">
+          <div key={d.id} className="bg-white dark:bg-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
             <div className="flex items-start justify-between gap-3">
               <button onClick={() => onOpen(d.id)} className="text-left flex-1 active:scale-[0.995]" type="button">
-                <div className="font-extrabold text-slate-900">{d.title || "Untitled"}</div>
-                <div className="text-xs font-bold text-slate-500 mt-1">{d.verseRef || "No scripture"}</div>
-                <div className="text-xs text-slate-400 mt-1">{new Date(d.updatedAt).toLocaleDateString()}</div>
+                <div className="font-extrabold text-slate-900 dark:text-slate-100">{d.title || "Untitled"}</div>
+                <div className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">{d.verseRef || "No scripture"}</div>
+                <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{new Date(d.updatedAt).toLocaleDateString()}</div>
               </button>
               <SmallButton tone="danger" onClick={() => onDelete(d.id)} icon={Trash2}>
                 Delete
@@ -2013,7 +2015,7 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
         ))}
         {filtered.length === 0 ? (
           <Card>
-            <div className="text-sm text-slate-500">No results.</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">No results.</div>
           </Card>
         ) : null}
       </div>
@@ -2045,31 +2047,31 @@ function SettingsView({ settings, onUpdate, onReset }) {
 return (
     <div className="space-y-6 pb-28">
       <Card>
-        <div className="text-lg font-extrabold text-slate-900">Settings</div>
-        <div className="text-sm text-slate-500 mt-1">AI keys, defaults, OCR, guidance.</div>
+        <div className="text-lg font-extrabold text-slate-900 dark:text-slate-100">Settings</div>
+        <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">AI keys, defaults, OCR, guidance.</div>
       </Card>
 
-      <Card className="border-slate-200">
+      <Card className="border-slate-200 dark:border-slate-800">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-sm font-extrabold text-slate-900">Guided Mode</div>
-            <div className="text-xs text-slate-500 mt-1">Show helpful hints and suggested flows across the app.</div>
+            <div className="text-sm font-extrabold text-slate-900 dark:text-slate-100">Guided Mode</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Show helpful hints and suggested flows across the app.</div>
           </div>
-          <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
+          <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700 dark:text-slate-200">
             <input type="checkbox" checked={Boolean(settings.guidedMode)} onChange={(e) => onUpdate({ guidedMode: e.target.checked })} />
             On
           </label>
         </div>
       </Card>
 
-      <Card className="border-slate-200">
+      <Card className="border-slate-200 dark:border-slate-800">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-extrabold text-slate-900">Auto-fill empty sections on Topic tap</div>
-              <div className="text-xs text-slate-500 mt-1">When you tap a Topic Chip, auto-fill Title/Prayer/Questions if empty.</div>
+              <div className="text-sm font-extrabold text-slate-900 dark:text-slate-100">Auto-fill empty sections on Topic tap</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">When you tap a Topic Chip, auto-fill Title/Prayer/Questions if empty.</div>
             </div>
-            <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
+            <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700 dark:text-slate-200">
               <input
                 type="checkbox"
                 checked={Boolean(settings.autoFillEmptyOnTopicTap)}
@@ -2081,10 +2083,10 @@ return (
 
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-extrabold text-slate-900">Guided Fill: auto-generate TikTok script</div>
-              <div className="text-xs text-slate-500 mt-1">Default for the “Apply + Script” checkbox in Guided Fill.</div>
+              <div className="text-sm font-extrabold text-slate-900 dark:text-slate-100">Guided Fill: auto-generate TikTok script</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Default for the “Apply + Script” checkbox in Guided Fill.</div>
             </div>
-            <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
+            <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700 dark:text-slate-200">
               <input
                 type="checkbox"
                 checked={Boolean(settings.guidedAutoGenerateTikTok)}
@@ -2101,8 +2103,8 @@ return (
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
             <div>
-              <div className="font-extrabold text-slate-900">AI selected but missing key</div>
-              <div className="text-sm text-slate-600 mt-1">Add a key below or switch to Built-in (no key).</div>
+              <div className="font-extrabold text-slate-900 dark:text-slate-100">AI selected but missing key</div>
+              <div className="text-sm text-slate-600 dark:text-slate-300 mt-1">Add a key below or switch to Built-in (no key).</div>
             </div>
           </div>
         </Card>
@@ -2111,23 +2113,23 @@ return (
       <Card>
         <div className="space-y-4">
           <div>
-            <label className="text-xs font-extrabold text-slate-500">USERNAME / HANDLE</label>
+            <label className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">USERNAME / HANDLE</label>
             <input
               value={settings.username}
               onChange={(e) => onUpdate({ username: e.target.value })}
               onBlur={showGreeting}
               placeholder="@yourname"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+              className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
             />
           </div>
 
 
           <div>
-            <label className="text-xs font-extrabold text-slate-500">THEME</label>
+            <label className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">THEME</label>
             <select
               value={settings.theme || "light"}
               onChange={(e) => onUpdate({ theme: e.target.value })}
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+              className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
             >
               {THEME_OPTIONS.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -2135,17 +2137,17 @@ return (
                 </option>
               ))}
             </select>
-            <div className="mt-2 text-[11px] font-bold text-slate-500">
+            <div className="mt-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">
               Sunrise / Sunset / Classic adjust the app background only so everything stays readable.
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-extrabold text-slate-500">DEFAULT BIBLE VERSION</label>
+            <label className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">DEFAULT BIBLE VERSION</label>
             <select
               value={settings.defaultBibleVersion}
               onChange={(e) => onUpdate({ defaultBibleVersion: e.target.value })}
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white"
+              className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm font-extrabold bg-white dark:bg-slate-950"
             >
               {BIBLE_VERSIONS.map((v) => (
                 <option key={v} value={v}>
@@ -2155,66 +2157,66 @@ return (
             </select>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 p-4 bg-slate-50">
-            <div className="text-xs font-extrabold text-slate-600">SCAN / OCR</div>
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4 bg-slate-50 dark:bg-slate-900/40">
+            <div className="text-xs font-extrabold text-slate-600 dark:text-slate-300">SCAN / OCR</div>
 
             <div className="mt-3">
-              <label className="text-xs font-extrabold text-slate-500">OCR ENDPOINT (Vercel)</label>
+              <label className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">OCR ENDPOINT (Vercel)</label>
               <input
                 value={settings.ocrEndpoint || ""}
                 onChange={(e) => onUpdate({ ocrEndpoint: e.target.value })}
                 placeholder="https://your-vercel-app.vercel.app/api/ocr"
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200 bg-white"
+                className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200 bg-white dark:bg-slate-950"
               />
-              <div className="text-xs text-slate-500 mt-2">Best quality OCR uses Google Vision behind this endpoint.</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-2">Best quality OCR uses Google Vision behind this endpoint.</div>
             </div>
 
             <div className="mt-3 flex items-center justify-between">
-              <div className="text-xs font-extrabold text-slate-600">AUTO STRUCTURE AFTER SCAN</div>
-              <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
+              <div className="text-xs font-extrabold text-slate-600 dark:text-slate-300">AUTO STRUCTURE AFTER SCAN</div>
+              <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700 dark:text-slate-200">
                 <input type="checkbox" checked={Boolean(settings.ocrAutoStructure)} onChange={(e) => onUpdate({ ocrAutoStructure: e.target.checked })} />
                 On
               </label>
             </div>
-            <div className="text-xs text-slate-500 mt-1">After OCR, generate an AI Structured preview (editable + apply per section).</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">After OCR, generate an AI Structured preview (editable + apply per section).</div>
           </div>
 
           <div>
-            <label className="text-xs font-extrabold text-slate-500">AI PROVIDER</label>
+            <label className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">AI PROVIDER</label>
             <select
               value={settings.aiProvider}
               onChange={(e) => onUpdate({ aiProvider: e.target.value })}
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white"
+              className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm font-extrabold bg-white dark:bg-slate-950"
             >
               <option value="mock">Built-in (no key)</option>
               <option value="openai">OpenAI</option>
               <option value="gemini">Gemini</option>
             </select>
-            <div className="text-xs text-slate-500 mt-2">
+            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-2">
               Keys are stored locally. If an AI call fails, the app falls back to offline mode automatically.
             </div>
           </div>
 
           {settings.aiProvider === "openai" ? (
             <div>
-              <label className="text-xs font-extrabold text-slate-500">OPENAI API KEY</label>
+              <label className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">OPENAI API KEY</label>
               <input
                 value={settings.openaiKey}
                 onChange={(e) => onUpdate({ openaiKey: e.target.value })}
                 placeholder="sk-..."
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+                className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
               />
             </div>
           ) : null}
 
           {settings.aiProvider === "gemini" ? (
             <div>
-              <label className="text-xs font-extrabold text-slate-500">GEMINI API KEY</label>
+              <label className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">GEMINI API KEY</label>
               <input
                 value={settings.geminiKey}
                 onChange={(e) => onUpdate({ geminiKey: e.target.value })}
                 placeholder="AIza..."
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+                className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
               />
             </div>
           ) : null}
@@ -2348,8 +2350,8 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     <div className="space-y-6 pb-56">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-lg font-extrabold text-slate-900">Share</div>
-          <div className="text-sm text-slate-500 mt-1">Choose where this goes next.</div>
+          <div className="text-lg font-extrabold text-slate-900 dark:text-slate-100">Share</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Choose where this goes next.</div>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           <SmallButton onClick={() => void shareToFacebook()}>Facebook</SmallButton>
@@ -2369,13 +2371,13 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
       </div>
 
       <Card>
-        <div className="text-xs font-extrabold text-slate-500">SOCIAL SHARE</div>
+        <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">SOCIAL SHARE</div>
         <div className="mt-3 grid grid-cols-3 gap-2">
           <SmallButton onClick={shareToFacebook}>Facebook</SmallButton>
           <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
           <SmallButton onClick={() => void shareToTikTok()}>TikTok</SmallButton>
         </div>
-        <div className="mt-2 text-[11px] font-bold text-slate-500">TikTok opens upload and copies caption automatically.</div>
+        <div className="mt-2 text-[11px] font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">TikTok opens upload and copies caption automatically.</div>
       </Card>
 
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -2411,8 +2413,8 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
             <div className="flex-1">
-              <div className="font-extrabold text-slate-900">Over limit for {platform}</div>
-              <div className="text-sm text-slate-500">
+              <div className="font-extrabold text-slate-900 dark:text-slate-100">Over limit for {platform}</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 {text.length} / {limit}
               </div>
             </div>
@@ -2423,15 +2425,15 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
 
       {mode === "text" ? (
         <Card>
-          <div className="text-xs font-extrabold text-slate-500">OUTPUT</div>
-          <div className="text-sm text-slate-500 mt-2">Tip: Tap Copy, then paste into TikTok/IG. Keep it under {limit} characters for {platform}.</div>
+          <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500">OUTPUT</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-2">Tip: Tap Copy, then paste into TikTok/IG. Keep it under {limit} characters for {platform}.</div>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={16}
-            className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+            className="mt-3 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
           />
-          <div className={cn("mt-2 text-xs font-bold", over ? "text-red-600" : "text-slate-500")}>
+          <div className={cn("mt-2 text-xs font-bold", over ? "text-red-600" : "text-slate-500 dark:text-slate-400 dark:text-slate-500")}>
             {text.length} / {limit}
           </div>
         </Card>
@@ -2441,7 +2443,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
 
       <div className="fixed left-0 right-0 bottom-24 z-30">
         <div className="max-w-md mx-auto px-4">
-          <div className="rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-2 shadow-lg">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/95 backdrop-blur p-2 shadow-lg">
             <div className="grid grid-cols-2 gap-2">
               <SmallButton onClick={() => void shareToFacebook()}>Facebook</SmallButton>
               <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
@@ -2466,12 +2468,12 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
 function SocialPreview({ platform, devotional, settings, text }) {
   if (platform === "instagram") {
     return (
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 flex items-center gap-3 border-b border-slate-200 bg-slate-50">
+      <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-sm overflow-hidden">
+        <div className="p-4 flex items-center gap-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-sky-500" />
           <div className="flex-1">
-            <div className="text-sm font-extrabold text-slate-900">{settings.username || "yourprofile"}</div>
-            <div className="text-xs text-slate-500">Instagram</div>
+            <div className="text-sm font-extrabold text-slate-900 dark:text-slate-100">{settings.username || "yourprofile"}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Instagram</div>
           </div>
         </div>
         <div className="p-4">
@@ -2483,10 +2485,10 @@ function SocialPreview({ platform, devotional, settings, text }) {
 
   if (platform === "email") {
     return (
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50">
-          <div className="text-xs font-extrabold text-slate-500">EMAIL PREVIEW</div>
-          <div className="text-sm font-extrabold text-slate-900 mt-1">To: {settings.username || "you@example.com"}</div>
+      <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
+          <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">EMAIL PREVIEW</div>
+          <div className="text-sm font-extrabold text-slate-900 dark:text-slate-100 mt-1">To: {settings.username || "you@example.com"}</div>
         </div>
         <div className="p-4">
           <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
@@ -2496,19 +2498,19 @@ function SocialPreview({ platform, devotional, settings, text }) {
   }
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="p-4 flex items-center justify-between border-b border-slate-200 bg-slate-50">
+    <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-sm overflow-hidden">
+      <div className="p-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40">
         <div>
-          <div className="text-sm font-extrabold text-slate-900">TikTok Preview</div>
-          <div className="text-xs text-slate-500">Hook + short lines + CTA</div>
+          <div className="text-sm font-extrabold text-slate-900 dark:text-slate-100">TikTok Preview</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Hook + short lines + CTA</div>
         </div>
         <div className="text-xs font-extrabold text-emerald-700">{devotional.mood ? `Mood: ${devotional.mood}` : "No mood"}</div>
       </div>
 
       <div className="p-4">
-        <div className="rounded-3xl bg-gradient-to-b from-black/5 to-black/0 p-5 border border-slate-200">
-          <div className="text-sm whitespace-pre-wrap text-slate-900 leading-relaxed">{text}</div>
-          <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+        <div className="rounded-3xl bg-gradient-to-b from-black/5 to-black/0 p-5 border border-slate-200 dark:border-slate-800">
+          <div className="text-sm whitespace-pre-wrap text-slate-900 dark:text-slate-100 leading-relaxed">{text}</div>
+          <div className="mt-4 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
             <span>{settings.username || "@yourname"}</span>
             <span>❤️  •  💬  •  🔖</span>
           </div>
@@ -2571,7 +2573,7 @@ function TikTokScriptModal({ devotional, settings, onClose, onUpdate }) {
       onClose={onClose}
       footer={
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-xs font-extrabold text-slate-700">
+          <label className="flex items-center gap-2 text-xs font-extrabold text-slate-700 dark:text-slate-200">
             <input type="checkbox" checked={saveBack} onChange={(e) => setSaveBack(e.target.checked)} />
             Save back to reflection
           </label>
@@ -2600,9 +2602,9 @@ function TikTokScriptModal({ devotional, settings, onClose, onUpdate }) {
           value={script}
           onChange={(e) => setScript(e.target.value)}
           rows={14}
-          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+          className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
         />
-        <div className={cn("text-xs font-bold", count > limit ? "text-red-600" : count > 2000 ? "text-amber-600" : "text-slate-500")}>
+        <div className={cn("text-xs font-bold", count > limit ? "text-red-600" : count > 2000 ? "text-amber-600" : "text-slate-500 dark:text-slate-400 dark:text-slate-500")}>
           {count} / {limit}
         </div>
         {count > limit ? <div className="text-xs font-bold text-red-600">Over TikTok limit. Shorten before saving/export.</div> : null}
@@ -2657,10 +2659,10 @@ function TikTokExportModal({ devotional, settings, onClose }) {
         </div>
       }
     >
-      <div className="rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="w-full bg-slate-50 p-3 flex justify-center">
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="w-full bg-slate-50 dark:bg-slate-900/40 p-3 flex justify-center">
           <div className="origin-top" style={{ transform: "scale(0.22)" }}>
-            <div ref={ref} className="w-[1080px] h-[1920px] p-24 flex flex-col justify-between bg-white text-slate-900">
+            <div ref={ref} className="w-[1080px] h-[1920px] p-24 flex flex-col justify-between bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
               <div className="space-y-10">
                 {(includeTitle || includeDate) && (
                   <div className="space-y-2">
@@ -2668,7 +2670,7 @@ function TikTokExportModal({ devotional, settings, onClose }) {
                       <div className="text-6xl font-extrabold tracking-tight">{devotional.title || "Untitled Devotional"}</div>
                     ) : null}
                     {includeDate ? (
-                      <div className="text-2xl font-semibold text-slate-600">
+                      <div className="text-2xl font-semibold text-slate-600 dark:text-slate-300">
                         {new Date(devotional.updatedAt || devotional.createdAt).toLocaleDateString()}
                       </div>
                     ) : null}
@@ -2676,15 +2678,15 @@ function TikTokExportModal({ devotional, settings, onClose }) {
                 )}
 
                 {includeScripture ? (
-                  <div className="rounded-3xl border border-slate-200 p-10">
+                  <div className="rounded-3xl border border-slate-200 dark:border-slate-800 p-10">
                     <div className="flex items-center justify-between gap-4">
                       <div className="text-2xl font-extrabold">{devotional.verseRef || "Scripture"}</div>
-                      <div className="text-xl font-semibold text-slate-600">
+                      <div className="text-xl font-semibold text-slate-600 dark:text-slate-300">
                         {devotional.bibleVersion || settings.defaultBibleVersion || "KJV"}
                       </div>
                     </div>
                     {devotional.verseText ? (
-                      <div className="text-3xl leading-snug mt-6 whitespace-pre-wrap text-slate-600">{devotional.verseText}</div>
+                      <div className="text-3xl leading-snug mt-6 whitespace-pre-wrap text-slate-600 dark:text-slate-300">{devotional.verseText}</div>
                     ) : null}
                   </div>
                 ) : null}
@@ -2695,14 +2697,14 @@ function TikTokExportModal({ devotional, settings, onClose }) {
               </div>
 
               <div className="flex items-center justify-between">
-                <div className="text-2xl font-semibold text-slate-600">{includeUsername ? settings.username : ""}</div>
-                <div className="text-2xl font-semibold text-slate-600">{includeWatermark ? "VersedUP" : ""}</div>
+                <div className="text-2xl font-semibold text-slate-600 dark:text-slate-300">{includeUsername ? settings.username : ""}</div>
+                <div className="text-2xl font-semibold text-slate-600 dark:text-slate-300">{includeWatermark ? "VersedUP" : ""}</div>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <div className="text-xs text-slate-500 mt-3">Tip: TikTok UI covers edges. This export uses safe margins.</div>
+      <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-3">Tip: TikTok UI covers edges. This export uses safe margins.</div>
     </Modal>
   );
 }
@@ -2713,7 +2715,7 @@ function LandingView({ onGetStarted, onViewDemo }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50/70 via-white to-sky-50 px-4 py-10">
       <div className="max-w-md mx-auto">
-        <div className="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur p-6 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/90 backdrop-blur p-6 shadow-sm">
           <img
             src={assetUrl("logo.png")}
             alt="VersedUP"
@@ -2724,8 +2726,8 @@ function LandingView({ onGetStarted, onViewDemo }) {
               e.currentTarget.src = "/logo.png";
             }}
           />
-          <h1 className="mt-5 text-2xl font-black text-slate-900 text-center">Rooted in Christ, growing in His fruit.</h1>
-          <p className="mt-3 text-sm text-slate-600 text-center">Create devotionals, polish your reflection, and prepare share-ready content.</p>
+          <h1 className="mt-5 text-2xl font-black text-slate-900 dark:text-slate-100 text-center">Rooted in Christ, growing in His fruit.</h1>
+          <p className="mt-3 text-sm text-slate-600 dark:text-slate-300 text-center">Create devotionals, polish your reflection, and prepare share-ready content.</p>
 
           <div className="mt-6 grid gap-3">
             <PrimaryButton onClick={onGetStarted} icon={LogIn}>
@@ -2733,7 +2735,7 @@ function LandingView({ onGetStarted, onViewDemo }) {
             </PrimaryButton>
             <button
               onClick={onViewDemo}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50"
+              className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 py-3 text-sm font-extrabold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/50 dark:bg-slate-900/40"
               type="button"
             >
               View Demo
@@ -2751,21 +2753,21 @@ function AuthView({ onBack, onContinue }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-emerald-50 px-4 py-8">
       <div className="max-w-md mx-auto space-y-4">
-        <button type="button" onClick={onBack} className="text-sm font-bold text-slate-600">
+        <button type="button" onClick={onBack} className="text-sm font-bold text-slate-600 dark:text-slate-300">
           ← Back
         </button>
 
         <Card>
-          <div className="text-xs font-extrabold text-slate-500">AUTH</div>
-          <h2 className="mt-2 text-xl font-black text-slate-900">Sign in or continue as guest</h2>
+          <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">AUTH</div>
+          <h2 className="mt-2 text-xl font-black text-slate-900 dark:text-slate-100">Sign in or continue as guest</h2>
 
           <div className="mt-4">
-            <label className="text-xs font-extrabold text-slate-500">DISPLAY NAME</label>
+            <label className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">DISPLAY NAME</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+              className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
             />
           </div>
 
@@ -2776,7 +2778,7 @@ function AuthView({ onBack, onContinue }) {
             <button
               type="button"
               onClick={() => onContinue({ mode: "guest", name: "Guest" })}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50"
+              className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 py-3 text-sm font-extrabold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/50 dark:bg-slate-900/40"
             >
               Continue as Guest
             </button>
@@ -2823,27 +2825,27 @@ function OnboardingWizard({ authDraft, onFinish }) {
       <div className="max-w-md mx-auto">
         <Card>
           <div className="flex items-center justify-between">
-            <div className="text-xs font-extrabold text-slate-500">ONBOARDING</div>
-            <div className="text-xs font-bold text-slate-500">Step {step} / {total}</div>
+            <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">ONBOARDING</div>
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">Step {step} / {total}</div>
           </div>
 
           {step === 1 ? (
             <div className="mt-4">
-              <h2 className="text-lg font-black text-slate-900">What should we call you?</h2>
+              <h2 className="text-lg font-black text-slate-900 dark:text-slate-100">What should we call you?</h2>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Your name or handle"
-                className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+                className="mt-3 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
               />
             </div>
           ) : null}
 
           {step === 2 ? (
             <div className="mt-4 space-y-4">
-              <h2 className="text-lg font-black text-slate-900">Set personalized defaults</h2>
+              <h2 className="text-lg font-black text-slate-900 dark:text-slate-100">Set personalized defaults</h2>
               <div>
-                <div className="text-xs font-extrabold text-slate-500">CURRENT SEASON</div>
+                <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">CURRENT SEASON</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {MOODS.map((m) => (
                     <Chip key={m.id} active={mood === m.id} onClick={() => setMood(m.id)}>
@@ -2853,11 +2855,11 @@ function OnboardingWizard({ authDraft, onFinish }) {
                 </div>
               </div>
               <div>
-                <div className="text-xs font-extrabold text-slate-500">DEFAULT BIBLE VERSION</div>
+                <div className="text-xs font-extrabold text-slate-500 dark:text-slate-400 dark:text-slate-500">DEFAULT BIBLE VERSION</div>
                 <select
                   value={version}
                   onChange={(e) => setVersion(e.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm font-extrabold bg-white dark:bg-slate-950"
                 >
                   {BIBLE_VERSIONS.map((v) => (
                     <option key={v} value={v}>
@@ -2871,11 +2873,11 @@ function OnboardingWizard({ authDraft, onFinish }) {
 
           {step === 3 ? (
             <div className="mt-4 space-y-4">
-              <h2 className="text-lg font-black text-slate-900">Choose your writing experience</h2>
-              <label className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
+              <h2 className="text-lg font-black text-slate-900 dark:text-slate-100">Choose your writing experience</h2>
+              <label className="flex items-center justify-between rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
                 <div>
-                  <div className="text-sm font-extrabold text-slate-900">Guided mode</div>
-                  <div className="text-xs text-slate-500">Show helper hints and one-click structure prompts.</div>
+                  <div className="text-sm font-extrabold text-slate-900 dark:text-slate-100">Guided mode</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Show helper hints and one-click structure prompts.</div>
                 </div>
                 <input type="checkbox" checked={guidedMode} onChange={(e) => setGuidedMode(e.target.checked)} />
               </label>
@@ -2916,7 +2918,7 @@ function NavButton({ active, onClick, icon: Icon, label, collapsed }) {
       className={cn(
         "flex items-center justify-center rounded-2xl p-2 transition active:scale-[0.98]",
         collapsed ? "h-11" : "flex-col gap-1",
-        active ? "bg-white/50 text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
+        active ? "bg-white dark:bg-slate-950/50 text-emerald-700 shadow-sm" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-800"
       )}
       type="button"
       title={label}
@@ -3054,10 +3056,10 @@ const onSaved = () => {
 
   return (
     <ToastContext.Provider value={{ pushToast }}>
-      <div className={cn("min-h-screen bg-gradient-to-b", THEME_STYLES[settings.theme] || THEME_STYLES.light)}>
+      <div className={cn("min-h-screen bg-gradient-to-b", THEME_STYLES[settings.theme] || THEME_STYLES.light, settings.theme === "midnight" ? "dark" : "")}>
       <ToastTicker toast={toast} />
 
-      <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/70 px-4 py-3">
+      <div className="sticky top-0 z-30 bg-white dark:bg-slate-950/70 backdrop-blur-xl border-b border-slate-200/70 dark:border-slate-800/70 px-4 py-3">
         <div className="max-w-md mx-auto flex items-center gap-3">
           <img
             src={assetUrl("logo.png")}
@@ -3066,11 +3068,11 @@ const onSaved = () => {
             draggable="false"
           />
           <div className="min-w-0 leading-tight flex-1">
-            <div className="text-sm font-extrabold text-slate-900">Rooted in Christ, growing in his fruit.</div>
-            <div className="text-xs font-bold text-slate-500">(John 15:5)</div>
+            <div className="text-sm font-extrabold text-slate-900 dark:text-slate-100">Rooted in Christ, growing in his fruit.</div>
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">(John 15:5)</div>
             <div className="text-[11px] font-bold text-emerald-700 mt-1"></div>
           </div>
-          <button type="button" onClick={onLogout} className="text-xs font-extrabold text-slate-600 border border-slate-200 rounded-xl px-2 py-1 bg-white">
+          <button type="button" onClick={onLogout} className="text-xs font-extrabold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1 bg-white dark:bg-slate-950">
             Logout
           </button>
         </div>
@@ -3112,12 +3114,12 @@ const onSaved = () => {
 
       <div className="fixed bottom-0 left-0 right-0 z-40">
         <div className="max-w-md mx-auto px-4 pb-4">
-          <div className="bg-white/55 backdrop-blur-2xl border border-slate-200/70 shadow-[0_18px_60px_-25px_rgba(0,0,0,0.35)] rounded-3xl px-3 py-2">
+          <div className="bg-white dark:bg-slate-950/55 backdrop-blur-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-[0_18px_60px_-25px_rgba(0,0,0,0.35)] rounded-3xl px-3 py-2">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setNavCollapsed((v) => !v)}
-                className="h-11 w-11 rounded-2xl border border-slate-200 bg-white text-slate-700 flex items-center justify-center"
+                className="h-11 w-11 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-200 flex items-center justify-center"
                 title={navCollapsed ? "Expand nav" : "Collapse nav"}
               >
                 {navCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
