@@ -15,6 +15,10 @@ import {
   Settings,
   Share2,
   Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  LogIn,
+  User,
   Trash2,
   Wand2,
   X,
@@ -35,6 +39,19 @@ const APP_ID = "versedup_v1";
 const STORAGE_SETTINGS = `${APP_ID}_settings`;
 const STORAGE_DEVOTIONALS = `${APP_ID}_devotionals`;
 const STORAGE_STREAK = `${APP_ID}_streak`;
+const STORAGE_SESSION = `${APP_ID}_session`;
+
+const NAV_ICONS = {
+  home: BookOpen,
+  write: PenTool,
+  compile: ScanLine,
+};
+
+const CTA_ICONS = {
+  makeShareReady: Sparkles,
+  compileForSocials: Camera,
+  shareNow: Check,
+};
 
 const PLATFORM_LIMITS = {
   tiktok: 2200,
@@ -91,6 +108,12 @@ const TOPIC_CHIPS = [
 
 const BIBLE_VERSIONS = ["KJV", "NLT", "ESV", "NKJV"];
 
+const VERSE_OF_DAY = {
+  verseRef: "Psalm 23:1-2",
+  verseText: "The Lord is my shepherd; I shall not want. He makes me lie down in green pastures.",
+  suggestedTitle: "The Shepherd Who Leads Me",
+};
+
 const DEFAULT_SETTINGS = {
   username: "",
   theme: "light",
@@ -105,6 +128,7 @@ const DEFAULT_SETTINGS = {
   // NEW
   autoFillEmptyOnTopicTap: true, // title/prayer/questions templates on topic click
   guidedAutoGenerateTikTok: true, // in Guided Fill modal: Apply also generates TikTok script
+  onboardingComplete: false,
 
   exportPrefs: {
     tiktokTemplate: "minimalLight",
@@ -131,6 +155,21 @@ function safeParseJson(value, fallback) {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function loadSession() {
+  const raw = localStorage.getItem(STORAGE_SESSION);
+  const parsed = safeParseJson(raw, null);
+  if (!parsed || typeof parsed !== "object") return null;
+  return parsed;
+}
+
+function persistSession(session) {
+  if (!session) {
+    localStorage.removeItem(STORAGE_SESSION);
+    return;
+  }
+  localStorage.setItem(STORAGE_SESSION, JSON.stringify(session));
 }
 
 function todayKey(date = new Date()) {
@@ -740,7 +779,7 @@ function bumpStreakOnSave() {
 
 /* ---------------- Views ---------------- */
 
-function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
+function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak }) {
   return (
     <div className="space-y-6 pb-28">
       <div>
@@ -796,12 +835,10 @@ function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
           <div className="text-xs font-bold text-emerald-700">Daily</div>
         </div>
         <div className="mt-3 bg-gradient-to-br from-emerald-400 via-emerald-600 to-emerald-800 rounded-3xl p-6 text-white shadow-sm">
-          <div className="text-2xl leading-snug font-semibold">
-            “The Lord is my shepherd; I shall not want. He makes me lie down in green pastures.”
-          </div>
-          <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90">PSALM 23:1-2</div>
+          <div className="text-2xl leading-snug font-semibold">{`“${VERSE_OF_DAY.verseText}”`}</div>
+          <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
           <button
-            onClick={onNew}
+            onClick={onReflectVerseOfDay}
             className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/25 text-xs font-extrabold active:scale-[0.985]"
             type="button"
           >
@@ -1150,6 +1187,8 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
 
   const [guidedScriptBusy, setGuidedScriptBusy] = useState(false);
   const [guidedGenerateScript, setGuidedGenerateScript] = useState(Boolean(settings.guidedAutoGenerateTikTok));
+  const [shareReadyBusy, setShareReadyBusy] = useState(false);
+  const [shareReadyStep, setShareReadyStep] = useState("");
 
   const reflectionRef = useRef(null);
 
@@ -1226,6 +1265,46 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       alert(e?.message || "AI failed.");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const doShareReady = async () => {
+    const hasSource = Boolean((devotional.reflection || "").trim() || (devotional.verseRef || "").trim());
+    if (!hasSource) {
+      alert("Add a verse reference or reflection first.");
+      return;
+    }
+
+    setShareReadyBusy(true);
+    try {
+      setShareReadyStep("Correcting grammar & spelling...");
+      const fixed = (devotional.reflection || "").trim()
+        ? await aiFixGrammar(settings, { text: devotional.reflection || "", mood: devotional.mood })
+        : devotional.reflection || "";
+
+      setShareReadyStep("Structuring your devotional...");
+      const structured = await aiStructure(settings, {
+        verseRef: devotional.verseRef,
+        verseText: devotional.verseText,
+        reflection: fixed,
+        mood: devotional.mood,
+      });
+
+      setShareReadyStep("Preparing share-ready draft...");
+      onUpdate({
+        reflection: structured.reflection || fixed,
+        title: structured.title || devotional.title,
+        prayer: structured.prayer || devotional.prayer,
+        questions: structured.questions || devotional.questions,
+      });
+
+      onSaved();
+      onGoCompile();
+    } catch (e) {
+      alert(e?.message || "We couldn’t complete the share-ready flow. Continue manually.");
+    } finally {
+      setShareReadyBusy(false);
+      setShareReadyStep("");
     }
   };
 
@@ -1506,17 +1585,28 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               <div className="mt-2 text-xs font-bold text-slate-500">Starter: “What is God showing me about this verse today?”</div>
             ) : null}
 
+            <div className="mt-3">
+              <PrimaryButton
+                onClick={() => void doShareReady()}
+                disabled={shareReadyBusy || busy || (!hasReflection && !hasVerseRef)}
+                icon={shareReadyBusy ? Loader2 : CTA_ICONS.makeShareReady}
+              >
+                {shareReadyBusy ? "Making Share-Ready..." : "Make Share-Ready"}
+              </PrimaryButton>
+              {shareReadyStep ? <div className="mt-2 text-xs font-bold text-emerald-700">{shareReadyStep}</div> : null}
+            </div>
+
             <div className="mt-2 flex flex-wrap gap-2">
-              <SmallButton onClick={doFixReflection} disabled={busy || !hasReflection} icon={Sparkles}>
+              <SmallButton onClick={doFixReflection} disabled={busy || shareReadyBusy || !hasReflection} icon={Sparkles}>
                 Fix grammar
               </SmallButton>
-              <SmallButton onClick={doStructure} disabled={busy || (!hasReflection && !hasVerseRef)} icon={Wand2}>
+              <SmallButton onClick={doStructure} disabled={busy || shareReadyBusy || (!hasReflection && !hasVerseRef)} icon={Wand2}>
                 Structure
               </SmallButton>
-              <SmallButton onClick={() => void doLength("shorten")} disabled={busy || !hasReflection}>
+              <SmallButton onClick={() => void doLength("shorten")} disabled={busy || shareReadyBusy || !hasReflection}>
                 Shorten
               </SmallButton>
-              <SmallButton onClick={() => void doLength("lengthen")} disabled={busy || !hasReflection}>
+              <SmallButton onClick={() => void doLength("lengthen")} disabled={busy || shareReadyBusy || !hasReflection}>
                 Lengthen
               </SmallButton>
             </div>
@@ -1573,7 +1663,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           onSaved();
           onGoCompile();
         }}
-        icon={Share2}
+        icon={CTA_ICONS.compileForSocials}
       >
         Compile for Socials
       </PrimaryButton>
@@ -1979,12 +2069,13 @@ function compileForPlatform(platform, d, settings) {
   return `${titleLine}${verseLine}${body}${questions}${prayer}`.trim();
 }
 
-function CompileView({ devotional, settings, onUpdate }) {
+function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   const [platform, setPlatform] = useState("tiktok");
   const [mode, setMode] = useState("preview");
   const [text, setText] = useState("");
   const [scriptOpen, setScriptOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
 
   useEffect(() => {
     setText(compileForPlatform(platform, devotional, settings));
@@ -1998,22 +2089,95 @@ function CompileView({ devotional, settings, onUpdate }) {
     alert("Copied");
   };
 
+  const shareNow = async () => {
+    setShareBusy(true);
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: devotional.title || devotional.verseRef || "Devotional",
+          text,
+        });
+      } else {
+        await copy();
+      }
+    } catch {
+      // no-op when user cancels native share
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const openEmailDraft = () => {
+    const subject = encodeURIComponent(devotional.title || devotional.verseRef || "Encouragement");
+    const body = encodeURIComponent(text);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const openTextDraft = () => {
+    const body = encodeURIComponent(text);
+    window.location.href = `sms:?&body=${body}`;
+  };
+
+  const shareToFacebook = () => {
+    const shareUrl = encodeURIComponent(window.location.href);
+    const quote = encodeURIComponent(text.slice(0, 280));
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${shareUrl}&quote=${quote}`, "_blank", "noopener,noreferrer");
+  };
+
+  const shareToX = () => {
+    const tweet = encodeURIComponent(text.slice(0, 280));
+    window.open(`https://twitter.com/intent/tweet?text=${tweet}`, "_blank", "noopener,noreferrer");
+  };
+
+  const shareToTikTok = async () => {
+    await copy();
+    window.open("https://www.tiktok.com/upload?lang=en", "_blank", "noopener,noreferrer");
+    alert("Caption copied. Paste it into your TikTok post.");
+  };
+
+  const autoShorten = async () => {
+    try {
+      const out = await aiRewriteLength(settings, { text, mood: devotional.mood, direction: "shorten" });
+      setText(out);
+    } catch (e) {
+      alert(e?.message || "Could not shorten automatically.");
+    }
+  };
+
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 pb-56">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-lg font-extrabold text-slate-900">Compile</div>
-          <div className="text-sm text-slate-500 mt-1">Preview like a real post.</div>
+          <div className="text-lg font-extrabold text-slate-900">Share</div>
+          <div className="text-sm text-slate-500 mt-1">Choose where this goes next — socials, email, text, or download.</div>
+          <button type="button" onClick={onBackToWrite} className="mt-2 text-xs font-extrabold text-slate-600 underline underline-offset-2">
+            Back to Edit
+          </button>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
+          <SmallButton onClick={() => void shareNow()} icon={CTA_ICONS.shareNow} disabled={shareBusy}>
+            {shareBusy ? "Sharing..." : "Share Now"}
+          </SmallButton>
           <SmallButton onClick={copy} icon={Copy}>
             Copy
           </SmallButton>
+          <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
+          <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
           <SmallButton onClick={() => setExportOpen(true)} icon={Camera}>
-            PNG
+            Download PNG
           </SmallButton>
         </div>
       </div>
+
+      <Card>
+        <div className="text-xs font-extrabold text-slate-500">SOCIAL SHARE</div>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <SmallButton onClick={shareToFacebook}>Facebook</SmallButton>
+          <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
+          <SmallButton onClick={() => void shareToTikTok()}>TikTok</SmallButton>
+        </div>
+        <div className="mt-2 text-[11px] font-bold text-slate-500">TikTok opens upload and copies caption automatically.</div>
+      </Card>
 
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
         {[
@@ -2047,12 +2211,13 @@ function CompileView({ devotional, settings, onUpdate }) {
         <Card>
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
-            <div>
-              <div className="font-extrabold text-slate-900">Over limit</div>
+            <div className="flex-1">
+              <div className="font-extrabold text-slate-900">Over limit for {platform}</div>
               <div className="text-sm text-slate-500">
                 {text.length} / {limit}
               </div>
             </div>
+            <SmallButton onClick={() => void autoShorten()}>Auto-Shorten</SmallButton>
           </div>
         </Card>
       ) : null}
@@ -2073,6 +2238,23 @@ function CompileView({ devotional, settings, onUpdate }) {
       ) : (
         <SocialPreview platform={platform} devotional={devotional} settings={settings} text={text} />
       )}
+
+      <div className="fixed left-0 right-0 bottom-24 z-30">
+        <div className="max-w-md mx-auto px-4">
+          <div className="rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-2 shadow-lg">
+            <div className="grid grid-cols-2 gap-2">
+              <SmallButton onClick={() => void shareNow()} icon={CTA_ICONS.shareNow} disabled={shareBusy} tone="primary">
+                {shareBusy ? "Sharing..." : "Share Now"}
+              </SmallButton>
+              <SmallButton onClick={copy} icon={Copy}>Copy</SmallButton>
+              <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
+              <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
+              <SmallButton onClick={shareToFacebook}>Facebook</SmallButton>
+              <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {scriptOpen ? <TikTokScriptModal devotional={devotional} settings={settings} onClose={() => setScriptOpen(false)} onUpdate={onUpdate} /> : null}
 
@@ -2323,25 +2505,218 @@ function TikTokExportModal({ devotional, settings, onClose }) {
   );
 }
 
+/* ---------------- Entry flow ---------------- */
+
+function LandingView({ onGetStarted, onViewDemo }) {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50/70 via-white to-sky-50 px-4 py-10">
+      <div className="max-w-md mx-auto">
+        <div className="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur p-6 shadow-sm">
+          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="VersedUP" className="h-20 w-auto mx-auto" draggable="false" />
+          <h1 className="mt-5 text-2xl font-black text-slate-900 text-center">Rooted in Christ, growing in His fruit.</h1>
+          <p className="mt-3 text-sm text-slate-600 text-center">Create devotionals, polish your reflection, and prepare share-ready content.</p>
+
+          <div className="mt-6 grid gap-3">
+            <PrimaryButton onClick={onGetStarted} icon={LogIn}>
+              Get Started
+            </PrimaryButton>
+            <button
+              onClick={onViewDemo}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50"
+              type="button"
+            >
+              View Demo
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuthView({ onBack, onContinue }) {
+  const [name, setName] = useState("");
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-emerald-50 px-4 py-8">
+      <div className="max-w-md mx-auto space-y-4">
+        <button type="button" onClick={onBack} className="text-sm font-bold text-slate-600">
+          ← Back
+        </button>
+
+        <Card>
+          <div className="text-xs font-extrabold text-slate-500">AUTH</div>
+          <h2 className="mt-2 text-xl font-black text-slate-900">Sign in or continue as guest</h2>
+
+          <div className="mt-4">
+            <label className="text-xs font-extrabold text-slate-500">DISPLAY NAME</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+            />
+          </div>
+
+          <div className="mt-4 grid gap-3">
+            <PrimaryButton onClick={() => onContinue({ mode: "signed-in", name: name.trim() || "Friend" })} icon={User} disabled={name.trim().length < 2}>
+              Sign in
+            </PrimaryButton>
+            <button
+              type="button"
+              onClick={() => onContinue({ mode: "guest", name: "Guest" })}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50"
+            >
+              Continue as Guest
+            </button>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            <div className="font-extrabold">One key detail (so you’re not surprised)</div>
+            <div className="mt-1">
+              On GitHub Pages, auth is UI + local session (secure-feeling, not bank-secure). Later, we can swap to real auth
+              (Supabase/Clerk/Firebase) without changing the screens.
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function OnboardingWizard({ authDraft, onFinish }) {
+  const [step, setStep] = useState(1);
+  const [name, setName] = useState(authDraft?.name || "");
+  const [mood, setMood] = useState("hopeful");
+  const [version, setVersion] = useState("KJV");
+  const [guidedMode, setGuidedMode] = useState(true);
+
+  const total = 3;
+
+  const finish = () => {
+    onFinish({
+      mode: authDraft?.mode || "guest",
+      name: name.trim() || (authDraft?.mode === "guest" ? "Guest" : "Friend"),
+      settingsPatch: {
+        username: name.trim(),
+        defaultBibleVersion: version,
+        guidedMode,
+        onboardingComplete: true,
+      },
+      starterMood: mood,
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-sky-50 px-4 py-8">
+      <div className="max-w-md mx-auto">
+        <Card>
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-extrabold text-slate-500">ONBOARDING</div>
+            <div className="text-xs font-bold text-slate-500">Step {step} / {total}</div>
+          </div>
+
+          {step === 1 ? (
+            <div className="mt-4">
+              <h2 className="text-lg font-black text-slate-900">What should we call you?</h2>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your name or handle"
+                className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+              />
+            </div>
+          ) : null}
+
+          {step === 2 ? (
+            <div className="mt-4 space-y-4">
+              <h2 className="text-lg font-black text-slate-900">Set personalized defaults</h2>
+              <div>
+                <div className="text-xs font-extrabold text-slate-500">CURRENT SEASON</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {MOODS.map((m) => (
+                    <Chip key={m.id} active={mood === m.id} onClick={() => setMood(m.id)}>
+                      {m.label}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-extrabold text-slate-500">DEFAULT BIBLE VERSION</div>
+                <select
+                  value={version}
+                  onChange={(e) => setVersion(e.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white"
+                >
+                  {BIBLE_VERSIONS.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ) : null}
+
+          {step === 3 ? (
+            <div className="mt-4 space-y-4">
+              <h2 className="text-lg font-black text-slate-900">Choose your writing experience</h2>
+              <label className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
+                <div>
+                  <div className="text-sm font-extrabold text-slate-900">Guided mode</div>
+                  <div className="text-xs text-slate-500">Show helper hints and one-click structure prompts.</div>
+                </div>
+                <input type="checkbox" checked={guidedMode} onChange={(e) => setGuidedMode(e.target.checked)} />
+              </label>
+            </div>
+          ) : null}
+
+          <div className="mt-6 flex gap-2">
+            {step > 1 ? (
+              <SmallButton onClick={() => setStep((s) => Math.max(1, s - 1))} icon={ChevronLeft}>
+                Back
+              </SmallButton>
+            ) : (
+              <div />
+            )}
+            <div className="flex-1" />
+            {step < total ? (
+              <SmallButton onClick={() => setStep((s) => Math.min(total, s + 1))} tone="primary" icon={ChevronRight}>
+                Next
+              </SmallButton>
+            ) : (
+              <SmallButton onClick={finish} tone="primary">
+                Start App
+              </SmallButton>
+            )}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- App shell ---------------- */
 
-function NavButton({ active, onClick, icon: Icon, label }) {
+function NavButton({ active, onClick, icon: Icon, label, collapsed }) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        "flex flex-col items-center justify-center gap-1 rounded-2xl p-2 transition active:scale-[0.98]",
+        "flex items-center justify-center rounded-2xl p-2 transition active:scale-[0.98]",
+        collapsed ? "h-11" : "flex-col gap-1",
         active ? "bg-white/50 text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
       )}
       type="button"
+      title={label}
     >
       <Icon className="w-5 h-5" />
-      <span className="text-[10px] font-extrabold">{label}</span>
+      {!collapsed ? <span className="text-[10px] font-extrabold">{label}</span> : null}
     </button>
   );
 }
 
-function AppInner() {
+function AppInner({ session, starterMood, onLogout }) {
   const [settings, setSettings] = useState(() => {
     const raw = localStorage.getItem(STORAGE_SETTINGS);
     const parsed = safeParseJson(raw, DEFAULT_SETTINGS);
@@ -2357,9 +2732,21 @@ function AppInner() {
   const [streak, setStreak] = useState(() => loadStreak());
   const [activeId, setActiveId] = useState(() => (Array.isArray(devotionals) && devotionals[0] ? devotionals[0].id : ""));
   const [view, setView] = useState("home"); // home | write | polish | compile | library | settings
+  const [navCollapsed, setNavCollapsed] = useState(false);
 
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
+
+  useEffect(() => {
+    if (!starterMood) return;
+    if (safeDevotionals.length > 0) return;
+    const d = createDevotional(settings);
+    d.mood = starterMood;
+    d.title = `A ${starterMood} start with Jesus`;
+    d.reflection = "I can begin from this mood, but I don’t have to stay here alone. Jesus meets me here.";
+    setDevotionals([d]);
+    setActiveId(d.id);
+  }, [starterMood, safeDevotionals.length]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(settings));
@@ -2380,6 +2767,17 @@ function AppInner() {
 
   const newEntry = () => {
     const d = createDevotional(settings);
+    setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
+    setActiveId(d.id);
+    setView("write");
+  };
+
+  const reflectVerseOfDay = () => {
+    const d = createDevotional(settings);
+    d.verseRef = VERSE_OF_DAY.verseRef;
+    d.verseText = VERSE_OF_DAY.verseText;
+    d.title = VERSE_OF_DAY.suggestedTitle;
+    d.reflection = `Today I reflect on ${VERSE_OF_DAY.verseRef}. Lord, help me trust Your shepherding in every step.`;
     setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
     setActiveId(d.id);
     setView("write");
@@ -2425,10 +2823,14 @@ function AppInner() {
             className="h-16 w-auto object-contain drop-shadow-sm"
             draggable="false"
           />
-          <div className="min-w-0 leading-tight">
+          <div className="min-w-0 leading-tight flex-1">
             <div className="text-sm font-extrabold text-slate-900">Rooted in Christ, growing in his fruit.</div>
             <div className="text-xs font-bold text-slate-500">(John 15:5)</div>
+            <div className="text-[11px] font-bold text-emerald-700 mt-1">{session?.mode === "guest" ? "Guest session" : `Signed in as ${session?.name || "Friend"}`}</div>
           </div>
+          <button type="button" onClick={onLogout} className="text-xs font-extrabold text-slate-600 border border-slate-200 rounded-xl px-2 py-1 bg-white">
+            Logout
+          </button>
         </div>
       </div>
 
@@ -2438,6 +2840,7 @@ function AppInner() {
             onNew={newEntry}
             onLibrary={() => setView("library")}
             onContinue={() => setView(active ? "write" : "home")}
+            onReflectVerseOfDay={reflectVerseOfDay}
             hasActive={Boolean(active)}
             streak={streak}
           />
@@ -2457,7 +2860,7 @@ function AppInner() {
 
         {view === "polish" && active ? <PolishView devotional={active} /> : null}
 
-        {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} /> : null}
+        {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} /> : null}
 
         {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} /> : null}
 
@@ -2467,12 +2870,22 @@ function AppInner() {
       <div className="fixed bottom-0 left-0 right-0 z-40">
         <div className="max-w-md mx-auto px-4 pb-4">
           <div className="bg-white/55 backdrop-blur-2xl border border-slate-200/70 shadow-[0_18px_60px_-25px_rgba(0,0,0,0.35)] rounded-3xl px-3 py-2">
-            <div className="grid grid-cols-5 gap-2">
-              <NavButton active={view === "home"} onClick={() => setView("home")} icon={PenTool} label="Home" />
-              <NavButton active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={PenTool} label="Write" />
-              <NavButton active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={Share2} label="Compile" />
-              <NavButton active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
-              <NavButton active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setNavCollapsed((v) => !v)}
+                className="h-11 w-11 rounded-2xl border border-slate-200 bg-white text-slate-700 flex items-center justify-center"
+                title={navCollapsed ? "Expand nav" : "Collapse nav"}
+              >
+                {navCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+              </button>
+              <div className={cn("grid gap-2 flex-1", navCollapsed ? "grid-cols-5" : "grid-cols-5")}>
+                <NavButton collapsed={navCollapsed} active={view === "home"} onClick={() => setView("home")} icon={NAV_ICONS.home} label="Home" />
+                <NavButton collapsed={navCollapsed} active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={NAV_ICONS.write} label="Write" />
+                <NavButton collapsed={navCollapsed} active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={NAV_ICONS.compile} label="Compile" />
+                <NavButton collapsed={navCollapsed} active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
+                <NavButton collapsed={navCollapsed} active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
+              </div>
             </div>
           </div>
         </div>
@@ -2491,9 +2904,53 @@ function AppInner() {
 }
 
 export default function App() {
+  const [stage, setStage] = useState(() => (loadSession() ? "app" : "landing"));
+  const [authDraft, setAuthDraft] = useState(null);
+  const [session, setSession] = useState(() => loadSession());
+  const [starterMood, setStarterMood] = useState("");
+
+  const startDemo = () => {
+    const draft = { mode: "guest", name: "Guest" };
+    setAuthDraft(draft);
+    const existing = safeParseJson(localStorage.getItem(STORAGE_SETTINGS), {});
+    const patched = { ...DEFAULT_SETTINGS, ...(existing || {}), onboardingComplete: true, username: "Guest" };
+    localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(patched));
+    const nextSession = { id: crypto.randomUUID(), mode: "guest", name: "Guest", createdAt: nowIso() };
+    persistSession(nextSession);
+    setSession(nextSession);
+    setStarterMood("hopeful");
+    setStage("app");
+  };
+
+  const handleAuthContinue = (draft) => {
+    setAuthDraft(draft);
+    setStage("onboarding");
+  };
+
+  const handleFinishOnboarding = ({ mode, name, settingsPatch, starterMood: mood }) => {
+    const existing = safeParseJson(localStorage.getItem(STORAGE_SETTINGS), {});
+    localStorage.setItem(STORAGE_SETTINGS, JSON.stringify({ ...DEFAULT_SETTINGS, ...(existing || {}), ...settingsPatch }));
+    const nextSession = { id: crypto.randomUUID(), mode, name, createdAt: nowIso() };
+    persistSession(nextSession);
+    setSession(nextSession);
+    setStarterMood(mood || "");
+    setStage("app");
+  };
+
+  const logout = () => {
+    persistSession(null);
+    setSession(null);
+    setAuthDraft(null);
+    setStarterMood("");
+    setStage("landing");
+  };
+
   return (
     <ErrorBoundary>
-      <AppInner />
+      {stage === "landing" ? <LandingView onGetStarted={() => setStage("auth")} onViewDemo={startDemo} /> : null}
+      {stage === "auth" ? <AuthView onBack={() => setStage("landing")} onContinue={handleAuthContinue} /> : null}
+      {stage === "onboarding" ? <OnboardingWizard authDraft={authDraft} onFinish={handleFinishOnboarding} /> : null}
+      {stage === "app" ? <AppInner session={session} starterMood={starterMood} onLogout={logout} /> : null}
     </ErrorBoundary>
   );
 }
