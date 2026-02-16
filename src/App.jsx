@@ -23,6 +23,7 @@ import {
   Wand2,
   X,
   ScanLine,
+  Flame,
 } from "lucide-react";
 
 /**
@@ -245,6 +246,18 @@ function safeParseJson(value, fallback) {
 function nowIso() {
   return new Date().toISOString();
 }
+function getDisplayName(session, settings) {
+  const raw = String(settings?.username || session?.name || "").trim();
+  const name = raw.replace(/^@/, "").trim();
+  return name || "";
+}
+
+function getTimeGreeting(name) {
+  const hour = new Date().getHours();
+  const base = hour >= 5 && hour < 12 ? "Good morning" : hour >= 12 && hour < 17 ? "Good afternoon" : "Good evening";
+  return name ? `${base}, ${name}` : base;
+}
+
 
 function loadSession() {
   const raw = localStorage.getItem(STORAGE_SESSION);
@@ -868,7 +881,7 @@ function bumpStreakOnSave() {
 
 /* ---------------- Views ---------------- */
 
-function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak }) {
+function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak, displayName }) {
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
   const moodVerse = MOOD_VERSES[moodVerseKey] || MOOD_VERSES.joy;
@@ -885,7 +898,8 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
         <div className="text-sm text-slate-500">
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
         </div>
-        <div className="text-3xl font-extrabold text-slate-900 mt-1">Good Evening</div>
+        <div className="text-3xl font-extrabold text-slate-900 mt-1">{getTimeGreeting(displayName)}</div>
+        <div className="text-sm text-slate-500 mt-2">Start a devotional or pick a verse to reflect.</div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -895,7 +909,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
             <div>
               <div className="text-xs font-extrabold text-slate-500">CURRENT STREAK</div>
               <div className="text-3xl font-extrabold text-slate-900 mt-1">
-                {streak.count} <span className="text-slate-500 text-lg">days</span>
+                {streak.count} <Flame className="w-5 h-5 inline-block align-[-3px] ml-2 text-orange-500" /> <span className="text-slate-500 text-lg">days</span>
               </div>
               <div className="text-xs text-slate-500 mt-1">Keep showing up — God meets you here.</div>
             </div>
@@ -2940,6 +2954,19 @@ function AppInner({ session, starterMood, onLogout }) {
   };
 
 
+// versedup_login_greeting
+useEffect(() => {
+  const name = getDisplayName(session, settings);
+  if (!name) return;
+  const hour = new Date().getHours();
+  const message =
+    hour >= 5 && hour < 12
+      ? `Good morning, ${name}.`
+      : `This is the day the Lord has made; let us rejoice and be glad in it, ${name}.`;
+  pushToast(message, 4500);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
 
@@ -3014,10 +3041,14 @@ function AppInner({ session, starterMood, onLogout }) {
     setView("home");
   };
 
-  const onSaved = () => {
-    const next = bumpStreakOnSave();
-    setStreak(next);
-  };
+  
+const onSaved = () => {
+  const before = streak;
+  const next = bumpStreakOnSave();
+  setStreak(next);
+  const changed = before?.lastDay !== next?.lastDay;
+  pushToast(changed ? `Saved • 🔥 Streak: ${next.count} days` : "Saved");
+};
 
   return (
     <ToastContext.Provider value={{ pushToast }}>
@@ -3035,7 +3066,7 @@ function AppInner({ session, starterMood, onLogout }) {
           <div className="min-w-0 leading-tight flex-1">
             <div className="text-sm font-extrabold text-slate-900">Rooted in Christ, growing in his fruit.</div>
             <div className="text-xs font-bold text-slate-500">(John 15:5)</div>
-            <div className="text-[11px] font-bold text-emerald-700 mt-1">{session?.mode === "guest" ? "Guest session" : `Signed in as ${session?.name || "Friend"}`}</div>
+            <div className="text-[11px] font-bold text-emerald-700 mt-1"></div>
           </div>
           <button type="button" onClick={onLogout} className="text-xs font-extrabold text-slate-600 border border-slate-200 rounded-xl px-2 py-1 bg-white">
             Logout
@@ -3052,6 +3083,7 @@ function AppInner({ session, starterMood, onLogout }) {
             onReflectVerseOfDay={reflectVerseOfDay}
             hasActive={Boolean(active)}
             streak={streak}
+            displayName={getDisplayName(session, settings)}
           />
         ) : null}
 
