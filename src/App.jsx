@@ -146,19 +146,31 @@ function buildMoodHint(mood) {
   return map[mood] || "";
 }
 
-async function openAiChat({ apiKey, prompt }) {
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+async function openAiResponseText({ apiKey, prompt }) {
+  const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
       model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
+      input: prompt,
       temperature: 0.4,
     }),
   });
+
   if (!res.ok) throw new Error(await res.text());
+
   const data = await res.json();
-  return data.choices?.[0]?.message?.content ?? "";
+
+  // Preferred: `output_text` (provided by Responses API)
+  if (typeof data.output_text === "string" && data.output_text.length) return data.output_text;
+
+  // Fallback parsing (just in case)
+  const parts =
+    data.output?.flatMap((item) => item.content || [])?.filter((c) => c.type === "output_text") || [];
+  return parts.map((p) => p.text).join("") || "";
 }
 
 async function geminiGenerate({ apiKey, prompt }) {
@@ -179,16 +191,31 @@ async function geminiGenerate({ apiKey, prompt }) {
 }
 
 async function ai(settings, prompt) {
-  if (settings.aiProvider === "openai" && settings.openaiKey) return openAiChat({ apiKey: settings.openaiKey, prompt });
-  if (settings.aiProvider === "gemini" && settings.geminiKey) return geminiGenerate({ apiKey: settings.geminiKey, prompt });
-  // mock
-  await new Promise((r) => setTimeout(r, 650));
-  return `(${settings.aiProvider || "mock"}) ${prompt}`.slice(0, 3000);
-}
+  const provider = settings.aiProvider;
 
-async function aiFixGrammar(settings, { text, mood }) {
-  const prompt = `Fix grammar and spelling. ${buildMoodHint(mood)} Return only the corrected text.\n\nTEXT:\n${text}`;
-  return ai(settings, prompt);
+  // OpenAI
+  if (provider === "openai" && settings.openaiKey) {
+    try {
+      return await openAiResponseText({ apiKey: settings.openaiKey, prompt });
+    } catch (e) {
+      console.warn("OpenAI failed; falling back to mock:", e);
+      return await ai({ ...settings, aiProvider: "mock" }, prompt);
+    }
+  }
+
+  // Gemini
+  if (provider === "gemini" && settings.geminiKey) {
+    try {
+      return await geminiGenerate({ apiKey: settings.geminiKey, prompt });
+    } catch (e) {
+      console.warn("Gemini failed; falling back to mock:", e);
+      return await ai({ ...settings, aiProvider: "mock" }, prompt);
+    }
+  }
+
+  // Mock
+  await new Promise((r) => setTimeout(r, 650));
+  return `(${provider || "mock"}) ${prompt}`.slice(0, 3000);
 }
 
 async function aiStructure(settings, { verseRef, verseText, reflection, mood }) {
