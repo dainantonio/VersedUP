@@ -2256,7 +2256,8 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   const [text, setText] = useState("");
   const [scriptOpen, setScriptOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [shareBusy, setShareBusy] = useState(false);
+  const \[shareBusy, setShareBusy\] = useState\(false\);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setText(compileForPlatform(platform, devotional, settings));
@@ -2269,6 +2270,8 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     try {
       await navigator.clipboard.writeText(text);
       pushToast("Copied");
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
     } catch {
       pushToast("Copy failed");
     }
@@ -2355,7 +2358,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
             {shareBusy ? "Sharing..." : "Share Now"}
           </SmallButton>
           <SmallButton onClick={copy} icon={Copy}>
-            Copy
+            {copied ? "Copied ✓" : "Copy"}
           </SmallButton>
           <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
           <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
@@ -2445,7 +2448,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
               <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy} tone="primary">
                 {shareBusy ? "Sharing..." : "Share Now"}
               </SmallButton>
-              <SmallButton onClick={copy} icon={Copy}>Copy</SmallButton>
+              <SmallButton onClick={copy} icon={Copy}>{copied ? "Copied ✓" : "Copy"}</SmallButton>
               <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
               <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
             </div>
