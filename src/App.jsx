@@ -2137,6 +2137,16 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
         </div>
       </div>
 
+      <Card>
+        <div className="text-xs font-extrabold text-slate-500">SOCIAL SHARE</div>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <SmallButton onClick={shareToFacebook}>Facebook</SmallButton>
+          <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
+          <SmallButton onClick={() => void shareToTikTok()}>TikTok</SmallButton>
+        </div>
+        <div className="mt-2 text-[11px] font-bold text-slate-500">TikTok opens upload and copies caption automatically.</div>
+      </Card>
+
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
         {[
           { id: "tiktok", label: "TikTok" },
