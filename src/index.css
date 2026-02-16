@@ -7,6 +7,7 @@
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+
 @keyframes versedup-marquee {
   0% { transform: translateX(100%); }
   100% { transform: translateX(-100%); }
@@ -16,23 +17,4 @@
   display: inline-block;
   white-space: nowrap;
   animation: versedup-marquee 6s linear infinite;
-}
-
-/* Splash logo entrance + gentle float (keeps layout intact) */
-@keyframes versedup-pop {
-  0% { opacity: 0; transform: translateY(14px) scale(0.92); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes versedup-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
-.versedup-pop {
-  animation: versedup-pop 600ms cubic-bezier(.2,.8,.2,1) both;
-}
-
-.versedup-float {
-  animation: versedup-float 2.6s ease-in-out 700ms infinite;
 }
