@@ -15,6 +15,7 @@ import {
   Settings,
   Share2,
   Sparkles,
+  Flame,
   ChevronLeft,
   ChevronRight,
   LogIn,
@@ -24,6 +25,8 @@ import {
   X,
   ScanLine,
 } from "lucide-react";
+
+
 
 /**
  * Centralized icon mapping (enforced)
@@ -44,30 +47,35 @@ const ICONS = Object.freeze({
     compile: ScanLine,
   }),
 });
-const ToastContext = React.createContext({ pushToast: () => {} });
 
-function useToast() {
-  return React.useContext(ToastContext);
-}
+const FRUIT_LABELS = Object.freeze([
+  "Love",
+  "Joy",
+  "Peace",
+  "Patience",
+  "Kindness",
+  "Goodness",
+  "Faithfulness",
+  "Gentleness",
+  "Self-Control",
+]);
 
-function ToastTicker({ toast }) {
-  if (!toast) return null;
-  return (
-    <div className="fixed top-0 left-0 right-0 z-50">
-      <div className="max-w-md mx-auto px-4 pt-3">
-        <div className="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur-xl shadow-sm px-4 py-2 overflow-hidden">
-          <div className="versedup-marquee text-xs font-extrabold text-slate-700">
-            <span>{toast.message}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+const MOOD_VERSES = Object.freeze({
+  joy: { label: "Joy", verseRef: "Nehemiah 8:10", verseText: "The joy of the LORD is your strength." },
+  anxiety: { label: "Anxiety", verseRef: "Philippians 4:6-7", verseText: "Be anxious for nothing… and the peace of God… shall keep your hearts and minds through Christ Jesus." },
+  hope: { label: "Hope", verseRef: "Romans 15:13", verseText: "Now the God of hope fill you with all joy and peace in believing… that ye may abound in hope, through the power of the Holy Ghost." },
+  peace: { label: "Peace", verseRef: "John 14:27", verseText: "Peace I leave with you, my peace I give unto you… Let not your heart be troubled." },
+  strength: { label: "Strength", verseRef: "Isaiah 41:10", verseText: "Fear thou not; for I am with thee… I will strengthen thee; yea, I will help thee." },
+});
 
+const MOOD_VERSE_ORDER = Object.freeze(["joy", "anxiety", "hope", "peace", "strength"]);
 
-
-
+const VERSE_CARD_GRADIENT = Object.freeze({
+  light: "from-emerald-400 via-emerald-600 to-emerald-800",
+  sunrise: "from-amber-400 via-rose-500 to-sky-700",
+  sunset: "from-orange-500 via-rose-600 to-indigo-800",
+  classic: "from-slate-700 via-slate-900 to-emerald-950",
+});
 
 /**
  * VersedUP — single file app
@@ -146,18 +154,6 @@ const VERSE_OF_DAY = {
   suggestedTitle: "The Shepherd Who Leads Me",
 };
 
-
-const MOOD_VERSES = Object.freeze({
-  joy: { label: "Joy", verseRef: "Nehemiah 8:10", verseText: "The joy of the LORD is your strength." },
-  anxiety: { label: "Anxiety", verseRef: "Philippians 4:6-7", verseText: "Be anxious for nothing… and the peace of God… shall keep your hearts and minds through Christ Jesus." },
-  hope: { label: "Hope", verseRef: "Romans 15:13", verseText: "Now the God of hope fill you with all joy and peace in believing… that ye may abound in hope, through the power of the Holy Ghost." },
-  peace: { label: "Peace", verseRef: "John 14:27", verseText: "Peace I leave with you, my peace I give unto you… Let not your heart be troubled." },
-  strength: { label: "Strength", verseRef: "Isaiah 41:10", verseText: "Fear thou not; for I am with thee… I will strengthen thee; yea, I will help thee." },
-});
-
-const MOOD_VERSE_ORDER = Object.freeze(["joy", "anxiety", "hope", "peace", "strength"]);
-
-
 const DEFAULT_SETTINGS = {
   username: "",
   theme: "light",
@@ -184,24 +180,25 @@ const DEFAULT_SETTINGS = {
   },
 };
 
-
-const THEME_OPTIONS = Object.freeze([
-  { id: "light", label: "Light" },
-  { id: "sunrise", label: "Sunrise" },
-  { id: "sunset", label: "Sunset" },
-  { id: "classic", label: "Classic" },
-]);
-
-const THEME_STYLES = Object.freeze({
-  light: "from-emerald-50/60 via-slate-50 to-sky-50",
-  sunrise: "from-amber-50 via-rose-50 to-sky-50",
-  sunset: "from-orange-50 via-rose-100 to-indigo-100",
-  classic: "from-slate-50 via-white to-slate-100",
-});
-
-
 function cn(...classes) {
   return classes.filter(Boolean).join(" ");
+
+
+function ToastTicker({ message }) {
+  if (!message) return null;
+  return (
+    <div className="fixed top-0 left-0 right-0 z-50">
+      <div className="max-w-md mx-auto px-4 pt-3">
+        <div className="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur-xl shadow-sm px-4 py-2 overflow-hidden">
+          <div className="versedup-marquee text-xs font-extrabold text-slate-700">
+            <span>{message}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 }
 
 function safeParseJson(value, fallback) {
@@ -261,6 +258,7 @@ function createDevotional(settings) {
     prayer: "",
     questions: "",
     tiktokScript: "",
+    label: "",
     status: "draft",
   };
 }
@@ -800,6 +798,40 @@ function ApplySectionCard({ k, label, value, checked, onToggle, onChange }) {
   );
 }
 
+
+
+/* ---------------- Verse inference (offline heuristics) ---------------- */
+
+function normalizeVerseText(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function scoreTextMatch(query, candidate) {
+  const q = normalizeVerseText(query);
+  const c = normalizeVerseText(candidate);
+  if (!q || !c) return 0;
+  if (c.includes(q)) return Math.min(1, q.length / Math.max(10, c.length));
+  const qWords = q.split(" ").filter(Boolean);
+  const cWords = new Set(c.split(" ").filter(Boolean));
+  const hits = qWords.reduce((n, w) => n + (cWords.has(w) ? 1 : 0), 0);
+  return hits / Math.max(6, qWords.length);
+}
+
+function inferVerseRefFromText(queryText, candidates) {
+  const query = normalizeVerseText(queryText);
+  if (!query || query.length < 18) return null;
+  let best = { score: 0, verseRef: "" };
+  (Array.isArray(candidates) ? candidates : []).forEach((c) => {
+    const s = scoreTextMatch(query, c.verseText);
+    if (s > best.score) best = { score: s, verseRef: c.verseRef };
+  });
+  return best.score >= 0.45 ? best.verseRef : null;
+}
+
 /* ---------------- Streak ---------------- */
 
 function loadStreak() {
@@ -839,17 +871,7 @@ function bumpStreakOnSave() {
 
 /* ---------------- Views ---------------- */
 
-function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak }) {
-  const { pushToast } = useToast();
-  const [moodVerseKey, setMoodVerseKey] = useState("joy");
-  const moodVerse = MOOD_VERSES[moodVerseKey] || MOOD_VERSES.joy;
-
-  const handleSelectMoodVerse = (key) => {
-    setMoodVerseKey(key);
-    const label = (MOOD_VERSES[key] || {}).label || "Verse";
-    pushToast(`${label} verse ready.`);
-  };
-
+function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak, settings, onPickMoodVerse }) {
   return (
     <div className="space-y-6 pb-28">
       <div>
@@ -866,7 +888,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
             <div>
               <div className="text-xs font-extrabold text-slate-500">CURRENT STREAK</div>
               <div className="text-3xl font-extrabold text-slate-900 mt-1">
-                {streak.count} <span className="text-slate-500 text-lg">days</span>
+                {streak.count} <Flame className="w-6 h-6 inline-block align-[-4px] ml-2 text-orange-500" /> <span className="text-slate-500 text-lg">days</span>
               </div>
               <div className="text-xs text-slate-500 mt-1">Keep showing up — God meets you here.</div>
             </div>
@@ -904,7 +926,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
           <div className="font-extrabold text-slate-900">Verse of the Day</div>
           <div className="text-xs font-bold text-emerald-700">Daily</div>
         </div>
-        <div className="mt-3 bg-gradient-to-br from-emerald-400 via-emerald-600 to-emerald-800 rounded-3xl p-6 text-white shadow-sm">
+        <div className={cn("mt-3 bg-gradient-to-br rounded-3xl p-6 text-white shadow-sm", VERSE_CARD_GRADIENT[settings?.theme || "light"] || VERSE_CARD_GRADIENT.light)}>
           <div className="text-2xl leading-snug font-semibold">{`“${VERSE_OF_DAY.verseText}”`}</div>
           <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
           <button
@@ -916,43 +938,11 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
           </button>
         </div>
       </Card>
-
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between">
-          <div className="font-extrabold text-slate-900">Pick a Verse</div>
-          <div className="text-xs font-bold text-slate-500">By theme</div>
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          {MOOD_VERSE_ORDER.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => handleSelectMoodVerse(key)}
-              className={cn(
-                "px-3 py-2 rounded-full text-xs font-extrabold border active:scale-[0.985]",
-                moodVerseKey === key
-                  ? "bg-emerald-600 text-white border-emerald-600"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-              )}
-            >
-              {MOOD_VERSES[key].label}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950 rounded-3xl p-6 text-white shadow-sm">
-          <div className="text-xl leading-snug font-semibold">{`“${moodVerse.verseText}”`}</div>
-          <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90">{moodVerse.verseRef.toUpperCase()}</div>
-        </div>
-      </Card>
-
     </div>
   );
 }
 
 function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
-  const { pushToast } = useToast();
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [file, setFile] = useState(null);
@@ -1008,7 +998,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
     const reflection = String(src.reflection || "").trim();
 
     if (!verseRef && !reflection && !verseText) {
-      pushToast("Scan first (or paste text) so there is something to structure.");
+      alert("Scan first (or paste text) so there is something to structure.");
       return;
     }
 
@@ -1019,7 +1009,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
       setApplyStructured({ title: true, reflection: true, prayer: true, questions: true });
       setTab("structured");
     } catch (e) {
-      pushToast(e?.message || "AI failed.");
+      alert(e?.message || "AI failed.");
     } finally {
       setAiBusy(false);
     }
@@ -1027,11 +1017,11 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
 
   const runOcr = async () => {
     if (!canRun) {
-      pushToast("Set OCR Endpoint in Settings first (Vercel /api/ocr).");
+      alert("Set OCR Endpoint in Settings first (Vercel /api/ocr).");
       return;
     }
     if (!file) {
-      pushToast("Select an image first.");
+      alert("Select an image first.");
       return;
     }
     setBusy(true);
@@ -1055,7 +1045,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
         await generateStructure({ fromParsed: true });
       }
     } catch (e) {
-      pushToast(e?.message || "OCR failed.");
+      alert(e?.message || "OCR failed.");
     } finally {
       setBusy(false);
     }
@@ -1272,8 +1262,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
   );
 }
 
-function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings }) {
-  const { pushToast } = useToast();
+function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings, verseCandidates, pushToast }) {
   const [busy, setBusy] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
   const [structureDraft, setStructureDraft] = useState({ title: "", reflection: "", prayer: "", questions: "" });
@@ -1295,6 +1284,10 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
 
   const reflectionRef = useRef(null);
 
+const [verseRefLocked, setVerseRefLocked] = useState(false);
+
+
+
   const version = devotional.bibleVersion || settings.defaultBibleVersion || "KJV";
   const guidedMode = Boolean(settings.guidedMode);
 
@@ -1312,7 +1305,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       const text = await fetchKjvFromBibleApi(devotional.verseRef);
       onUpdate({ verseText: text, verseTextEdited: false });
     } catch (e) {
-      pushToast(e?.message || "Fetch failed.");
+      alert(e?.message || "Fetch failed.");
     } finally {
       setFetching(false);
     }
@@ -1324,7 +1317,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       const fixed = await aiFixGrammar(settings, { text: devotional.reflection || "", mood: devotional.mood });
       onUpdate({ reflection: fixed });
     } catch (e) {
-      pushToast(e?.message || "AI failed.");
+      alert(e?.message || "AI failed.");
     } finally {
       setBusy(false);
     }
@@ -1343,7 +1336,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       setApply({ title: true, reflection: true, prayer: true, questions: true });
       setStructureOpen(true);
     } catch (e) {
-      pushToast(e?.message || "AI failed.");
+      alert(e?.message || "AI failed.");
     } finally {
       setBusy(false);
     }
@@ -1365,7 +1358,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       const out = await aiRewriteLength(settings, { text: devotional.reflection || "", mood: devotional.mood, direction });
       onUpdate({ reflection: out });
     } catch (e) {
-      pushToast(e?.message || "AI failed.");
+      alert(e?.message || "AI failed.");
     } finally {
       setBusy(false);
     }
@@ -1374,7 +1367,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const doShareReady = async () => {
     const hasSource = Boolean((devotional.reflection || "").trim() || (devotional.verseRef || "").trim());
     if (!hasSource) {
-      pushToast("Add a verse reference or reflection first.");
+      alert("Add a verse reference or reflection first.");
       return;
     }
 
@@ -1404,7 +1397,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       onSaved();
       onGoCompile();
     } catch (e) {
-      pushToast(e?.message || "We couldn’t complete the share-ready flow. Continue manually.");
+      alert(e?.message || "We couldn’t complete the share-ready flow. Continue manually.");
     } finally {
       setShareReadyBusy(false);
       setShareReadyStep("");
@@ -1454,10 +1447,10 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
 
       onUpdate({ tiktokScript: out });
       setGuidedOpen(false);
-      pushToast("Applied + generated TikTok script ✅ (see Compile → TikTok Script)");
+      alert("Applied + generated TikTok script ✅ (see Compile → TikTok Script)");
     } catch (e) {
       setGuidedOpen(false);
-      pushToast(e?.message || "Applied, but TikTok script generation failed.");
+      alert(e?.message || "Applied, but TikTok script generation failed.");
     } finally {
       setGuidedScriptBusy(false);
     }
@@ -1489,7 +1482,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       setGuidedGenerateScript(Boolean(settings.guidedAutoGenerateTikTok));
       setGuidedOpen(true);
     } catch (e) {
-      pushToast(e?.message || "AI failed.");
+      alert(e?.message || "AI failed.");
     } finally {
       setGuidedBusy(false);
     }
@@ -1545,7 +1538,24 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               {m.label}
             </Chip>
           ))}
-        </div>
+        
+
+<div className="mt-4">
+  <div className="text-xs font-extrabold text-slate-500">LABEL (FRUIT OF THE SPIRIT)</div>
+  <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+    {FRUIT_LABELS.map((lbl) => (
+      <Chip
+        key={lbl}
+        active={devotional.label === lbl}
+        onClick={() => onUpdate({ label: devotional.label === lbl ? "" : lbl })}
+      >
+        {lbl}
+      </Chip>
+    ))}
+  </div>
+</div>
+
+</div>
         {guidedMode ? <div className="mt-3 text-xs text-slate-500">Guided Mode: mood gently affects AI tone.</div> : null}
       </Card>
 
@@ -1557,7 +1567,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                 <BookOpen className="w-4 h-4" /> VERSE
               </div>
               <div className="flex gap-2">
-                <SmallButton onClick={openScan} icon={ScanLine}>
+                <SmallButton onClick={openScan} icon={ICONS.nav.compile}>
                   Scan
                 </SmallButton>
                 <SmallButton
@@ -1569,10 +1579,42 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               </div>
             </div>
 
-            <div className="flex gap-2">
+            
+
+<div className="mt-4">
+  <div className="text-xs font-extrabold text-slate-500">PICK A VERSE</div>
+  <div className="mt-3 flex flex-wrap gap-2">
+    {MOOD_VERSE_ORDER.map((key) => (
+      <button
+        key={key}
+        type="button"
+        onClick={() => {
+          const v = MOOD_VERSES[key];
+          onUpdate({
+            mood: devotional.mood || key,
+            verseRef: v.verseRef,
+            verseText: devotional.verseTextEdited ? devotional.verseText : v.verseText,
+            verseTextEdited: devotional.verseTextEdited ? true : false,
+            title: settings.autoFillEmptyOnTopicTap && !devotional.title ? `${v.label}: ${v.verseRef}` : devotional.title,
+          });
+          pushToast(`${v.label} verse applied.`);
+        }}
+        className="px-3 py-2 rounded-full text-xs font-extrabold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-[0.985]"
+      >
+        {MOOD_VERSES[key].label}
+      </button>
+    ))}
+  </div>
+</div>
+
+<div className="flex gap-2">
               <input
                 value={devotional.verseRef}
-                onChange={(e) => onUpdate({ verseRef: e.target.value })}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  onUpdate({ verseRef: v });
+                  setVerseRefLocked(Boolean(v.trim()));
+                }}
                 placeholder="Verse reference (e.g., Psalm 23)"
                 className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200 bg-white"
                 onKeyDown={(e) => {
@@ -1611,7 +1653,17 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               <label className="text-[10px] font-extrabold text-slate-400">VERSE TEXT</label>
               <textarea
                 value={devotional.verseText}
-                onChange={(e) => onUpdate({ verseText: e.target.value, verseTextEdited: true })}
+                onChange={(e) => {
+                  const nextText = e.target.value;
+                  onUpdate({ verseText: nextText, verseTextEdited: true });
+                  if (!verseRefLocked && !devotional.verseRef.trim()) {
+                    const inferred = inferVerseRefFromText(nextText, verseCandidates);
+                    if (inferred) {
+                      onUpdate({ verseRef: inferred });
+                      pushToast(`Found reference: ${inferred}`);
+                    }
+                  }
+                }}
                 placeholder={
                   isKjv(version)
                     ? "Fetch KJV to auto-fill..."
@@ -1766,7 +1818,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           onSaved();
           onGoCompile();
         }}
-        icon={ICONS.actions.compileForSocials}
+        icon={Camera}
       >
         Compile for Socials
       </PrimaryButton>
@@ -1927,7 +1979,7 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
     const query = q.trim().toLowerCase();
     if (!query) return devotionals;
     return devotionals.filter((d) => {
-      const hay = `${d.title} ${d.verseRef} ${d.reflection}`.toLowerCase();
+      const hay = `${d.title} ${d.verseRef} ${d.reflection} ${d.label || ""}`.toLowerCase();
       return hay.includes(query);
     });
   }, [q, devotionals]);
@@ -1938,6 +1990,14 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
         <div className="flex items-center justify-between">
           <div>
             <div className="text-lg font-extrabold text-slate-900">Library</div>
+
+{d.label ? (
+  <div className="mt-2 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-extrabold text-slate-700">
+    {d.label}
+  </div>
+) : null}
+
+
             <div className="text-sm text-slate-500 mt-1">Your saved devotionals.</div>
           </div>
         </div>
@@ -1949,6 +2009,21 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
             placeholder="Search..."
             className="w-full rounded-2xl border border-slate-200 pl-9 pr-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
           />
+
+<div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+  {FRUIT_LABELS.map((lbl) => (
+    <button
+      key={lbl}
+      type="button"
+      onClick={() => setQ((cur) => (cur.trim().toLowerCase() === lbl.toLowerCase() ? "" : lbl))}
+      className="px-3 py-2 rounded-full text-xs font-extrabold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-[0.985]"
+    >
+      {lbl}
+    </button>
+  ))}
+</div>
+
+
         </div>
       </Card>
 
@@ -1978,27 +2053,11 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
 }
 
 function SettingsView({ settings, onUpdate, onReset }) {
-  const { pushToast } = useToast();
   const aiNeedsKey =
     (settings.aiProvider === "openai" && !settings.openaiKey) ||
     (settings.aiProvider === "gemini" && !settings.geminiKey);
 
-  
-  const showGreeting = () => {
-    const raw = String(settings.username || "").trim();
-    const name = raw.replace(/^@/, "").trim();
-    if (!name) return;
-
-    const hour = new Date().getHours();
-    const message =
-      hour >= 5 && hour < 12
-        ? `Good morning, ${name}.`
-        : `This is the day the Lord has made; let us rejoice and be glad in it, ${name}.`;
-
-    pushToast(message, 4500);
-  };
-
-return (
+  return (
     <div className="space-y-6 pb-28">
       <Card>
         <div className="text-lg font-extrabold text-slate-900">Settings</div>
@@ -2071,29 +2130,9 @@ return (
             <input
               value={settings.username}
               onChange={(e) => onUpdate({ username: e.target.value })}
-              onBlur={showGreeting}
               placeholder="@yourname"
               className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
             />
-          </div>
-
-
-          <div>
-            <label className="text-xs font-extrabold text-slate-500">THEME</label>
-            <select
-              value={settings.theme || "light"}
-              onChange={(e) => onUpdate({ theme: e.target.value })}
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
-            >
-              {THEME_OPTIONS.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-            <div className="mt-2 text-[11px] font-bold text-slate-500">
-              Sunrise / Sunset / Classic adjust the app background only so everything stays readable.
-            </div>
           </div>
 
           <div>
@@ -2208,8 +2247,7 @@ function compileForPlatform(platform, d, settings) {
   return `${titleLine}${verseLine}${body}${questions}${prayer}`.trim();
 }
 
-function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
-  const { pushToast } = useToast();
+function CompileView({ devotional, settings, onUpdate, onBackToWrite, pushToast }) {
   const [platform, setPlatform] = useState("tiktok");
   const [mode, setMode] = useState("preview");
   const [text, setText] = useState("");
@@ -2261,42 +2299,43 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   const openTextDraft = () => {
     const body = encodeURIComponent(text);
     window.location.href = `sms:?&body=${body}`;
-  
-
-  const shareToFacebook = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      pushToast("Caption copied. Facebook opened.");
-    } catch {
-      pushToast("Facebook opened.");
-    }
-    const u = encodeURIComponent(window.location.href);
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}`, "_blank", "noopener,noreferrer");
   };
 
-  const shareToX = () => {
-    const shareUrl = encodeURIComponent(window.location.href);
-    const shareText = encodeURIComponent(text);
-    window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`, "_blank", "noopener,noreferrer");
-  };
-
-  const shareToTikTok = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      pushToast("Caption copied. TikTok upload opened.");
-    } catch {
-      pushToast("TikTok upload opened.");
-    }
-    window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
-  };
+const shareToFacebook = async () => {
+  try {
+    await navigator.clipboard.writeText(text);
+    pushToast("Caption copied. Facebook opened.");
+  } catch {
+    pushToast("Facebook opened.");
+  }
+  const u = encodeURIComponent(window.location.href);
+  window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}`, "_blank", "noopener,noreferrer");
 };
+
+const shareToX = () => {
+  const shareUrl = encodeURIComponent(window.location.href);
+  const shareText = encodeURIComponent(text);
+  window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`, "_blank", "noopener,noreferrer");
+};
+
+const shareToTikTok = async () => {
+  try {
+    await navigator.clipboard.writeText(text);
+    pushToast("Caption copied. TikTok upload opened.");
+  } catch {
+    pushToast("TikTok upload opened.");
+  }
+  window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
+};
+
+
 
   const autoShorten = async () => {
     try {
       const out = await aiRewriteLength(settings, { text, mood: devotional.mood, direction: "shorten" });
       setText(out);
     } catch (e) {
-      pushToast(e?.message || "Could not shorten automatically.");
+      alert(e?.message || "Could not shorten automatically.");
     }
   };
 
@@ -2308,8 +2347,6 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
           <div className="text-sm text-slate-500 mt-1">Choose where this goes next.</div>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          <SmallButton onClick={() => void shareToFacebook()}>Facebook</SmallButton>
-          <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
           <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy}>
             {shareBusy ? "Sharing..." : "Share Now"}
           </SmallButton>
@@ -2398,8 +2435,6 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
         <div className="max-w-md mx-auto px-4">
           <div className="rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-2 shadow-lg">
             <div className="grid grid-cols-2 gap-2">
-              <SmallButton onClick={() => void shareToFacebook()}>Facebook</SmallButton>
-              <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
               <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy} tone="primary">
                 {shareBusy ? "Sharing..." : "Share Now"}
               </SmallButton>
@@ -2474,7 +2509,6 @@ function SocialPreview({ platform, devotional, settings, text }) {
 }
 
 function TikTokScriptModal({ devotional, settings, onClose, onUpdate }) {
-  const { pushToast } = useToast();
   const [busy, setBusy] = useState(false);
   const [script, setScript] = useState(devotional.tiktokScript || "");
   const [saveBack, setSaveBack] = useState(false);
@@ -2495,7 +2529,7 @@ function TikTokScriptModal({ devotional, settings, onClose, onUpdate }) {
       });
       setScript(out);
     } catch (e) {
-      pushToast(e?.message || "AI failed.");
+      alert(e?.message || "AI failed.");
     } finally {
       setBusy(false);
     }
@@ -2507,7 +2541,7 @@ function TikTokScriptModal({ devotional, settings, onClose, onUpdate }) {
       const out = await aiRewriteLength(settings, { text: script, mood: devotional.mood, direction: "shorten" });
       setScript(out);
     } catch (e) {
-      pushToast(e?.message || "AI failed.");
+      alert(e?.message || "AI failed.");
     } finally {
       setBusy(false);
     }
@@ -2567,7 +2601,6 @@ function TikTokScriptModal({ devotional, settings, onClose, onUpdate }) {
 }
 
 function TikTokExportModal({ devotional, settings, onClose }) {
-  const { pushToast } = useToast();
   const [busy, setBusy] = useState(false);
   const ref = useRef(null);
 
@@ -2593,7 +2626,7 @@ function TikTokExportModal({ devotional, settings, onClose }) {
       download(dataUrl);
       onClose();
     } catch {
-      pushToast("Export failed. Try again.");
+      alert("Export failed. Try again.");
     } finally {
       setBusy(false);
     }
@@ -2886,21 +2919,39 @@ function AppInner({ session, starterMood, onLogout }) {
     return Array.isArray(parsed) ? parsed : [];
   });
 
+
+const verseCandidates = useMemo(() => {
+  const seeds = [
+    { verseRef: "Psalm 23:1-2", verseText: "The LORD is my shepherd; I shall not want. He maketh me to lie down in green pastures." },
+    ...MOOD_VERSE_ORDER.map((k) => ({ verseRef: MOOD_VERSES[k].verseRef, verseText: MOOD_VERSES[k].verseText })),
+  ];
+  const fromLibrary = (Array.isArray(devotionals) ? devotionals : [])
+    .filter((d) => d && d.verseRef && d.verseText)
+    .map((d) => ({ verseRef: d.verseRef, verseText: d.verseText }));
+  const seen = new Set();
+  return [...seeds, ...fromLibrary].filter((v) => {
+    const key = `${v.verseRef}__${v.verseText}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}, [devotionals]);
+
   const [streak, setStreak] = useState(() => loadStreak());
   const [activeId, setActiveId] = useState(() => (Array.isArray(devotionals) && devotionals[0] ? devotionals[0].id : ""));
-  const [view, setView] = useState("home"); // home | write | polish | compile | library | settings
-  const [navCollapsed, setNavCollapsed] = useState(false);
+  
 
-  const [toast, setToast] = useState(null);
+  const [toastMessage, setToastMessage] = useState("");
   const toastTimerRef = useRef(null);
 
-  const pushToast = (message, durationMs = 2800) => {
+  const pushToast = (message, durationMs = 3500) => {
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
-    const next = { id: crypto.randomUUID(), message: String(message || "") };
-    setToast(next);
-    toastTimerRef.current = window.setTimeout(() => setToast(null), durationMs);
+    setToastMessage(String(message || ""));
+    toastTimerRef.current = window.setTimeout(() => setToastMessage(""), durationMs);
   };
 
+  const [view, setView] = useState("home"); // home | write | polish | compile | library | settings
+  const [navCollapsed, setNavCollapsed] = useState(false);
 
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
@@ -2982,9 +3033,8 @@ function AppInner({ session, starterMood, onLogout }) {
   };
 
   return (
-    <ToastContext.Provider value={{ pushToast }}>
-      <div className={cn("min-h-screen bg-gradient-to-b", THEME_STYLES[settings.theme] || THEME_STYLES.light)}>
-      <ToastTicker toast={toast} />
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-slate-50 to-sky-50">
+      <ToastTicker message={toastMessage} />
 
       <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/70 px-4 py-3">
         <div className="max-w-md mx-auto flex items-center gap-3">
@@ -2997,8 +3047,7 @@ function AppInner({ session, starterMood, onLogout }) {
           <div className="min-w-0 leading-tight flex-1">
             <div className="text-sm font-extrabold text-slate-900">Rooted in Christ, growing in his fruit.</div>
             <div className="text-xs font-bold text-slate-500">(John 15:5)</div>
-            <div className="text-[11px] font-bold text-emerald-700 mt-1">{session?.mode === "guest" ? "Guest session" : `Signed in as ${session?.name || "Friend"}`}</div>
-          </div>
+                      </div>
           <button type="button" onClick={onLogout} className="text-xs font-extrabold text-slate-600 border border-slate-200 rounded-xl px-2 py-1 bg-white">
             Logout
           </button>
@@ -3026,12 +3075,14 @@ function AppInner({ session, starterMood, onLogout }) {
             onGoPolish={() => setView("polish")}
             onSaved={onSaved}
             onGoSettings={() => setView("settings")}
+            verseCandidates={verseCandidates}
+            pushToast={pushToast}
           />
         ) : null}
 
         {view === "polish" && active ? <PolishView devotional={active} /> : null}
 
-        {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} /> : null}
+        {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} pushToast={pushToast} /> : null}
 
         {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} /> : null}
 
@@ -3071,7 +3122,6 @@ function AppInner({ session, starterMood, onLogout }) {
         <Plus className="w-7 h-7" />
       </button>
     </div>
-    </ToastContext.Provider>
   );
 }
 
