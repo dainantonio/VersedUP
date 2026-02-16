@@ -52,24 +52,17 @@ function useToast() {
 }
 
 function ToastTicker({ toast }) {
-  if (!tofunction ToastTicker({ toast }) {
   if (!toast) return null;
   return (
     <div className="fixed top-0 left-0 right-0 z-50">
       <div className="max-w-md mx-auto px-4 pt-3">
         <div className="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur-xl shadow-sm px-4 py-2">
-          <div className="text-xs font-extrabold text-slate-700">
-            {toast.message}
-          </div>
+          <div className="text-xs font-extrabold text-slate-700">{toast.message}</div>
         </div>
       </div>
     </div>
   );
 }
-
-
-
-
 
 /**
  * VersedUP — single file app
@@ -2256,8 +2249,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   const [text, setText] = useState("");
   const [scriptOpen, setScriptOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const \[shareBusy, setShareBusy\] = useState\(false\);
-  const [copied, setCopied] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
 
   useEffect(() => {
     setText(compileForPlatform(platform, devotional, settings));
@@ -2270,8 +2262,6 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     try {
       await navigator.clipboard.writeText(text);
       pushToast("Copied");
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
     } catch {
       pushToast("Copy failed");
     }
@@ -2358,7 +2348,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
             {shareBusy ? "Sharing..." : "Share Now"}
           </SmallButton>
           <SmallButton onClick={copy} icon={Copy}>
-            {copied ? "Copied ✓" : "Copy"}
+            Copy
           </SmallButton>
           <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
           <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
@@ -2448,7 +2438,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
               <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy} tone="primary">
                 {shareBusy ? "Sharing..." : "Share Now"}
               </SmallButton>
-              <SmallButton onClick={copy} icon={Copy}>{copied ? "Copied ✓" : "Copy"}</SmallButton>
+              <SmallButton onClick={copy} icon={Copy}>Copy</SmallButton>
               <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
               <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
             </div>
