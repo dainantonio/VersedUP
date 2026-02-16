@@ -23,25 +23,18 @@ import {
 
 /**
  * VersedUP — single file app
- * Stability:
- * - ErrorBoundary
- * - Defensive localStorage schema
  *
- * UX "Glow Up":
- * - Bento Home dashboard (streak + quick actions + verse of day)
- * - Mood chips ("How is your heart?") influences AI prompts
- * - Compile Text/Preview toggle (TikTok/Instagram/Email mockups)
- * - Glass bottom nav + bouncy interactions
+ * Added in this version:
+ * - Smart Writer Topic Chips (insert prompts into Reflection)
+ * - Empty-state guidance (Verse examples, OCR endpoint guidance, AI key reminders)
  *
- * Pro:
- * - TikTok script engine (regen from devotional + improve script)
- * - Editable script + char counter + save back toggle
- * - TikTok PNG export (one-screen safe margins)
- *
- * OCR:
- * - Scan via file input (camera/upload)
- * - Calls your Vercel OCR endpoint (Google Vision)
- * - Parsed fields + optional AI Structure preview + Apply per section
+ * Existing:
+ * - Error boundary + defensive localStorage
+ * - Bento home + streak
+ * - Mood selector influences AI
+ * - Compile Preview/Text toggle
+ * - TikTok script modal + PNG export
+ * - OCR modal (Google Vision via Vercel endpoint)
  */
 
 const APP_ID = "versedup_v1";
@@ -64,6 +57,51 @@ const MOODS = [
   { id: "weary", label: "Weary" },
 ];
 
+const TOPIC_CHIPS = [
+  {
+    id: "gratitude",
+    label: "Gratitude",
+    prompt:
+      "What is one specific thing I can thank God for today? How does it change my perspective?\n",
+  },
+  {
+    id: "anxiety",
+    label: "Anxiety",
+    prompt:
+      "What am I anxious about right now? What truth from Scripture counters that fear?\n",
+  },
+  {
+    id: "identity",
+    label: "Identity",
+    prompt:
+      "Who does God say I am in Christ? Where have I been believing a lie instead?\n",
+  },
+  {
+    id: "forgiveness",
+    label: "Forgiveness",
+    prompt:
+      "Is there someone I need to forgive (or ask forgiveness from)? What step can I take today?\n",
+  },
+  {
+    id: "purpose",
+    label: "Purpose",
+    prompt:
+      "What might God be inviting me to do or become in this season? What is one obedient next step?\n",
+  },
+  {
+    id: "discipline",
+    label: "Discipline",
+    prompt:
+      "What habit would help me stay rooted in Christ this week? How can I make it simple and consistent?\n",
+  },
+  {
+    id: "relationships",
+    label: "Relationships",
+    prompt:
+      "Where do I need to love like Jesus in my relationships? What would humility look like today?\n",
+  },
+];
+
 const BIBLE_VERSIONS = ["KJV", "NLT", "ESV", "NKJV"];
 
 const DEFAULT_SETTINGS = {
@@ -74,7 +112,7 @@ const DEFAULT_SETTINGS = {
   geminiKey: "",
   defaultBibleVersion: "KJV",
   ocrEndpoint: "", // e.g. https://YOUR-VERCEL-APP.vercel.app/api/ocr
-  ocrAutoStructure: true, // when OCR runs, also generate AI structure preview
+  ocrAutoStructure: true,
   exportPrefs: {
     tiktokTemplate: "minimalLight",
     includeTitle: true,
@@ -156,6 +194,34 @@ async function fetchKjvFromBibleApi(passage) {
   return String(data.text).trim();
 }
 
+function insertAtCursor(textareaEl, currentValue, insertText) {
+  const insertion = String(insertText || "");
+  if (!insertion) return currentValue;
+
+  if (!textareaEl) {
+    const sep = currentValue?.trim() ? "\n\n" : "";
+    return `${currentValue || ""}${sep}${insertion}`.trimStart();
+  }
+
+  const start = textareaEl.selectionStart ?? (currentValue || "").length;
+  const end = textareaEl.selectionEnd ?? start;
+  const before = (currentValue || "").slice(0, start);
+  const after = (currentValue || "").slice(end);
+  const next = `${before}${insertion}${after}`;
+  const nextPos = start + insertion.length;
+
+  requestAnimationFrame(() => {
+    try {
+      textareaEl.focus();
+      textareaEl.setSelectionRange(nextPos, nextPos);
+    } catch {
+      // no-op
+    }
+  });
+
+  return next;
+}
+
 /* ---------------- Error Boundary ---------------- */
 
 class ErrorBoundary extends React.Component {
@@ -211,7 +277,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-/* ---------------- AI (OpenAI Responses + Gemini v1 + fallback-to-mock) ---------------- */
+/* ---------------- AI ---------------- */
 
 function buildMoodHint(mood) {
   if (!mood) return "";
@@ -348,6 +414,20 @@ async function aiTikTokScript(settings, { verseRef, verseText, reflection, mood,
       ? `Improve this existing TikTok script without changing the meaning too much:\n\n${baseScript}`
       : `Source content:\nVerse: ${verseRef}\nVerse text:\n${verseText}\nReflection:\n${reflection}`;
   const prompt = `${style}\n${buildMoodHint(mood)}\n\n${base}\n\nReturn ONLY the script text.`;
+  return ai(settings, prompt);
+}
+
+async function aiGenerateTopicPrompt(settings, { topicLabel, verseRef, verseText, mood }) {
+  const prompt = `Generate ONE short journaling prompt (3-6 lines max) for a devotional reflection.
+
+Topic: ${topicLabel}
+Scripture reference: ${verseRef || "(not provided)"}
+Verse text (optional):
+${verseText || ""}
+
+${buildMoodHint(mood)}
+
+Return ONLY the prompt text.`;
   return ai(settings, prompt);
 }
 
@@ -570,7 +650,7 @@ function ApplySectionCard({ k, label, value, checked, onToggle, onChange }) {
   );
 }
 
-/* ---------------- Streak model ---------------- */
+/* ---------------- Streak ---------------- */
 
 function loadStreak() {
   const raw = localStorage.getItem(STORAGE_STREAK);
@@ -877,7 +957,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
 
           {!canRun ? (
             <div className="mt-3 text-xs font-bold text-amber-700">
-              Set OCR Endpoint in Settings (Vercel /api/ocr) to enable best-quality scan.
+              OCR is not connected yet. Go to <b>Settings</b> → paste your Vercel OCR URL.
             </div>
           ) : null}
 
@@ -1001,7 +1081,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
                   <Card className="p-4">
                     <div className="text-xs font-extrabold text-slate-500">FALLBACK</div>
                     <div className="mt-2 text-xs text-slate-600">
-                      If you uncheck an AI section, the app will use the Parsed section for that field instead.
+                      If you uncheck an AI section, the app uses the Parsed section for that field instead.
                     </div>
                   </Card>
                 </>
@@ -1014,15 +1094,23 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
   );
 }
 
-function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved }) {
+function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings }) {
   const [busy, setBusy] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
   const [structureDraft, setStructureDraft] = useState({ title: "", reflection: "", prayer: "", questions: "" });
   const [apply, setApply] = useState({ title: true, reflection: true, prayer: true, questions: true });
   const [fetching, setFetching] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [topicBusy, setTopicBusy] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState("");
+
+  const reflectionRef = useRef(null);
 
   const version = devotional.bibleVersion || settings.defaultBibleVersion || "KJV";
+
+  const aiNeedsKey =
+    (settings.aiProvider === "openai" && !settings.openaiKey) ||
+    (settings.aiProvider === "gemini" && !settings.geminiKey);
 
   const doFetch = async () => {
     setFetching(true);
@@ -1093,6 +1181,44 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     }
   };
 
+  const onTopicClick = (topic) => {
+    setSelectedTopic(topic.id);
+    const next = insertAtCursor(reflectionRef.current, devotional.reflection || "", `${topic.prompt}\n`);
+    onUpdate({ reflection: next });
+  };
+
+  const generateTopicPrompt = async () => {
+    const topic = TOPIC_CHIPS.find((t) => t.id === selectedTopic) || TOPIC_CHIPS[0];
+    setTopicBusy(true);
+    try {
+      const out = await aiGenerateTopicPrompt(settings, {
+        topicLabel: topic?.label || "Devotional",
+        verseRef: devotional.verseRef,
+        verseText: devotional.verseText,
+        mood: devotional.mood,
+      });
+      const next = insertAtCursor(reflectionRef.current, devotional.reflection || "", `${out.trim()}\n\n`);
+      onUpdate({ reflection: next });
+    } catch (e) {
+      alert(e?.message || "AI failed.");
+    } finally {
+      setTopicBusy(false);
+    }
+  };
+
+  const openScan = () => {
+    if (!settings.ocrEndpoint?.trim()) {
+      const go = confirm("OCR is not connected yet. Go to Settings to paste your Vercel OCR URL?");
+      if (go) onGoSettings();
+      return;
+    }
+    setScanOpen(true);
+  };
+
+  const hasVerseRef = Boolean(String(devotional.verseRef || "").trim());
+  const hasVerseText = Boolean(String(devotional.verseText || "").trim());
+  const hasReflection = Boolean(String(devotional.reflection || "").trim());
+
   return (
     <div className="space-y-6 pb-28">
       <div>
@@ -1123,12 +1249,12 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                 <BookOpen className="w-4 h-4" /> VERSE
               </div>
               <div className="flex gap-2">
-                <SmallButton onClick={() => setScanOpen(true)} icon={ScanLine}>
+                <SmallButton onClick={openScan} icon={ScanLine}>
                   Scan
                 </SmallButton>
                 <SmallButton
                   onClick={() => window.open(youVersionSearchUrl(devotional.verseRef), "_blank", "noopener,noreferrer")}
-                  disabled={!devotional.verseRef}
+                  disabled={!hasVerseRef}
                 >
                   Open YouVersion
                 </SmallButton>
@@ -1158,13 +1284,20 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               </select>
               <SmallButton
                 onClick={doFetch}
-                disabled={!devotional.verseRef || fetching}
+                disabled={!hasVerseRef || fetching}
                 icon={fetching ? Loader2 : null}
                 tone="primary"
               >
                 {fetching ? "..." : "FETCH"}
               </SmallButton>
             </div>
+
+            {!hasVerseRef ? (
+              <div className="text-xs font-bold text-slate-500">
+                Try: <span className="font-extrabold text-slate-700">John 3:16-18</span> or{" "}
+                <span className="font-extrabold text-slate-700">Psalm 23</span>
+              </div>
+            ) : null}
 
             <div>
               <label className="text-[10px] font-extrabold text-slate-400">VERSE TEXT</label>
@@ -1174,12 +1307,19 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                 placeholder={
                   isKjv(version)
                     ? "Fetch KJV to auto-fill..."
-                    : "Full text opens in YouVersion (free-for-now). Paste text you have rights to use."
+                    : "Free-for-now: Open in YouVersion. Paste text you have rights to use."
                 }
                 rows={4}
                 className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 bg-white resize-none"
               />
-              {devotional.verseTextEdited ? <div className="mt-2 text-[11px] font-bold text-amber-700">Edited override</div> : null}
+              {!hasVerseText && hasVerseRef ? (
+                <div className="mt-2 text-[11px] font-bold text-slate-500">
+                  Tip: Press <span className="font-extrabold">FETCH</span> to fill KJV automatically (or use YouVersion).
+                </div>
+              ) : null}
+              {devotional.verseTextEdited ? (
+                <div className="mt-2 text-[11px] font-bold text-amber-700">Edited override</div>
+              ) : null}
             </div>
           </div>
 
@@ -1194,31 +1334,73 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           </div>
 
           <div>
-            <label className="text-xs font-extrabold text-slate-400">REFLECTION / BODY</label>
+            <div className="flex items-end justify-between gap-3">
+              <label className="text-xs font-extrabold text-slate-400">REFLECTION / BODY</label>
+              <div className="text-[11px] font-bold text-slate-500">
+                Topic prompts → click to insert
+              </div>
+            </div>
+
+            <div className="mt-2 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+              {TOPIC_CHIPS.map((t) => (
+                <Chip key={t.id} active={selectedTopic === t.id} onClick={() => onTopicClick(t)}>
+                  {t.label}
+                </Chip>
+              ))}
+              <div className="flex-1" />
+              <SmallButton
+                onClick={() => void generateTopicPrompt()}
+                disabled={topicBusy || aiNeedsKey}
+                icon={topicBusy ? Loader2 : Sparkles}
+              >
+                {topicBusy ? "..." : "AI Prompt"}
+              </SmallButton>
+            </div>
+
+            {aiNeedsKey ? (
+              <div className="mt-2 text-xs font-bold text-amber-700">
+                AI is selected but no key is set. Go to <b>Settings</b> to add a key (or switch to Built-in).
+              </div>
+            ) : null}
+
             <textarea
+              ref={reflectionRef}
               value={devotional.reflection}
               onChange={(e) => onUpdate({ reflection: e.target.value })}
-              placeholder="Start writing..."
+              placeholder="Start writing... (or tap a Topic Chip above)"
               rows={8}
               spellCheck
               autoCorrect="on"
               autoCapitalize="sentences"
               className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
             />
+
+            {!hasReflection ? (
+              <div className="mt-2 text-xs font-bold text-slate-500">
+                Starter idea: “What is God showing me about this verse today?”
+              </div>
+            ) : null}
+
             <div className="mt-2 flex flex-wrap gap-2">
-              <SmallButton onClick={doFixReflection} disabled={busy} icon={Sparkles}>
+              <SmallButton onClick={doFixReflection} disabled={busy || !hasReflection} icon={Sparkles}>
                 Fix grammar
               </SmallButton>
-              <SmallButton onClick={doStructure} disabled={busy} icon={Wand2}>
+              <SmallButton onClick={doStructure} disabled={busy || (!hasReflection && !hasVerseRef)} icon={Wand2}>
                 Structure
               </SmallButton>
-              <SmallButton onClick={() => void doLength("shorten")} disabled={busy}>
+              <SmallButton onClick={() => void doLength("shorten")} disabled={busy || !hasReflection}>
                 Shorten
               </SmallButton>
-              <SmallButton onClick={() => void doLength("lengthen")} disabled={busy}>
+              <SmallButton onClick={() => void doLength("lengthen")} disabled={busy || !hasReflection}>
                 Lengthen
               </SmallButton>
             </div>
+
+            {!hasReflection ? (
+              <div className="mt-2 text-[11px] font-bold text-slate-500">
+                Tip: write 3–6 lines, then tap <span className="font-extrabold">Structure</span>.
+              </div>
+            ) : null}
           </div>
 
           <div>
@@ -1418,12 +1600,28 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
 }
 
 function SettingsView({ settings, onUpdate, onReset }) {
+  const aiNeedsKey =
+    (settings.aiProvider === "openai" && !settings.openaiKey) ||
+    (settings.aiProvider === "gemini" && !settings.geminiKey);
+
   return (
     <div className="space-y-6 pb-28">
       <Card>
         <div className="text-lg font-extrabold text-slate-900">Settings</div>
         <div className="text-sm text-slate-500 mt-1">AI keys, defaults, OCR.</div>
       </Card>
+
+      {aiNeedsKey && settings.aiProvider !== "mock" ? (
+        <Card className="border-amber-200 bg-amber-50">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+            <div>
+              <div className="font-extrabold text-slate-900">AI selected but missing key</div>
+              <div className="text-sm text-slate-600 mt-1">Add a key below or switch to Built-in (no key).</div>
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       <Card>
         <div className="space-y-4">
@@ -1463,7 +1661,9 @@ function SettingsView({ settings, onUpdate, onReset }) {
                 placeholder="https://your-vercel-app.vercel.app/api/ocr"
                 className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200 bg-white"
               />
-              <div className="text-xs text-slate-500 mt-2">Best quality OCR uses Google Vision behind this endpoint.</div>
+              <div className="text-xs text-slate-500 mt-2">
+                Best quality OCR uses Google Vision behind this endpoint.
+              </div>
             </div>
 
             <div className="mt-3 flex items-center justify-between">
@@ -1477,7 +1677,9 @@ function SettingsView({ settings, onUpdate, onReset }) {
                 On
               </label>
             </div>
-            <div className="text-xs text-slate-500 mt-1">After OCR, immediately generate an AI Structured preview (editable + apply per section).</div>
+            <div className="text-xs text-slate-500 mt-1">
+              After OCR, generate an AI Structured preview (editable + apply per section).
+            </div>
           </div>
 
           <div>
@@ -1529,7 +1731,7 @@ function SettingsView({ settings, onUpdate, onReset }) {
   );
 }
 
-/* ---------------- Compile + Pro previews ---------------- */
+/* ---------------- Compile + previews ---------------- */
 
 function compileForPlatform(platform, d, settings) {
   const verseLine = d.verseRef ? `“${d.verseText || ""}”\n— ${d.verseRef}\n\n` : "";
@@ -2027,6 +2229,7 @@ function AppInner() {
             onGoCompile={() => setView("compile")}
             onGoPolish={() => setView("polish")}
             onSaved={onSaved}
+            onGoSettings={() => setView("settings")}
           />
         ) : null}
 
