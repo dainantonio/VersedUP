@@ -15,6 +15,7 @@ import {
   Settings,
   Share2,
   Sparkles,
+  Flame,
   ChevronLeft,
   ChevronRight,
   LogIn,
@@ -44,6 +45,20 @@ const ICONS = Object.freeze({
     compile: ScanLine,
   }),
 });
+
+const FRUIT_LABELS = Object.freeze([
+  "Love",
+  "Joy",
+  "Peace",
+  "Patience",
+  "Kindness",
+  "Goodness",
+  "Faithfulness",
+  "Gentleness",
+  "Self-Control",
+]);
+
+
 const ToastContext = React.createContext({ pushToast: () => {} });
 
 function useToast() {
@@ -261,7 +276,8 @@ function createDevotional(settings) {
     prayer: "",
     questions: "",
     tiktokScript: "",
-    status: "draft",
+    label: "",
+        status: "draft",
   };
 }
 
@@ -313,6 +329,42 @@ function insertAtCursor(textareaEl, currentValue, insertText) {
 
   return next;
 }
+
+
+/* ---------------- Verse inference (offline heuristic) ---------------- */
+
+function normalizeVerseText(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function scoreTextMatch(query, candidate) {
+  const q = normalizeVerseText(query);
+  const c = normalizeVerseText(candidate);
+  if (!q || !c) return 0;
+  if (c.includes(q)) return Math.min(1, q.length / Math.max(10, c.length));
+  const qWords = q.split(" ").filter(Boolean);
+  const cWords = new Set(c.split(" ").filter(Boolean));
+  const hits = qWords.reduce((n, w) => n + (cWords.has(w) ? 1 : 0), 0);
+  return hits / Math.max(6, qWords.length);
+}
+
+function inferVerseRefFromText(queryText, candidates) {
+  const query = normalizeVerseText(queryText);
+  if (!query || query.length < 18) return null;
+
+  let best = { score: 0, verseRef: "" };
+  (Array.isArray(candidates) ? candidates : []).forEach((c) => {
+    const s = scoreTextMatch(query, c.verseText);
+    if (s > best.score) best = { score: s, verseRef: c.verseRef };
+  });
+
+  return best.score >= 0.45 ? best.verseRef : null;
+}
+
 
 function templateGuidedFill({ topicLabel, verseRef, mood }) {
   const moodLine = mood ? `Mood: ${mood}` : "";
@@ -866,7 +918,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
             <div>
               <div className="text-xs font-extrabold text-slate-500">CURRENT STREAK</div>
               <div className="text-3xl font-extrabold text-slate-900 mt-1">
-                {streak.count} <span className="text-slate-500 text-lg">days</span>
+                {streak.count} <Flame className="w-6 h-6 inline-block align-[-4px] ml-2 text-orange-500" /> <span className="text-slate-500 text-lg">days</span>
               </div>
               <div className="text-xs text-slate-500 mt-1">Keep showing up — God meets you here.</div>
             </div>
@@ -1272,7 +1324,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
   );
 }
 
-function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings }) {
+function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings, verseCandidates }) {
   const { pushToast } = useToast();
   const [busy, setBusy] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
@@ -1546,7 +1598,19 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             </Chip>
           ))}
         </div>
-        {guidedMode ? <div className="mt-3 text-xs text-slate-500">Guided Mode: mood gently affects AI tone.</div> : null}
+        {guidedMode ? <div className="mt-3 text-xs text-slate-500">
+        <div className="mt-4">
+          <div className="text-xs font-extrabold text-slate-500">LABEL (FRUIT OF THE SPIRIT)</div>
+          <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            {FRUIT_LABELS.map((lbl) => (
+              <Chip key={lbl} active={devotional.label === lbl} onClick={() => onUpdate({ label: devotional.label === lbl ? "" : lbl })}>
+                {lbl}
+              </Chip>
+            ))}
+          </div>
+        </div>
+
+Guided Mode: mood gently affects AI tone.</div> : null}
       </Card>
 
       <Card>
@@ -1611,7 +1675,17 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               <label className="text-[10px] font-extrabold text-slate-400">VERSE TEXT</label>
               <textarea
                 value={devotional.verseText}
-                onChange={(e) => onUpdate({ verseText: e.target.value, verseTextEdited: true })}
+                onChange={(e) => {
+                  const nextText = e.target.value;
+                  onUpdate({ verseText: nextText, verseTextEdited: true });
+                  if (!String(devotional.verseRef || "").trim()) {
+                    const inferred = inferVerseRefFromText(nextText, verseCandidates);
+                    if (inferred) {
+                      onUpdate({ verseRef: inferred });
+                      pushToast(`Found reference: ${inferred}`);
+                    }
+                  }
+                }}
                 placeholder={
                   isKjv(version)
                     ? "Fetch KJV to auto-fill..."
@@ -1927,7 +2001,7 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
     const query = q.trim().toLowerCase();
     if (!query) return devotionals;
     return devotionals.filter((d) => {
-      const hay = `${d.title} ${d.verseRef} ${d.reflection}`.toLowerCase();
+      const hay = `${d.title} ${d.verseRef} ${d.reflection} ${d.label || ""}`.toLowerCase();
       return hay.includes(query);
     });
   }, [q, devotionals]);
@@ -1949,6 +2023,19 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
             placeholder="Search..."
             className="w-full rounded-2xl border border-slate-200 pl-9 pr-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
           />
+          <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            {FRUIT_LABELS.map((lbl) => (
+              <button
+                key={lbl}
+                type="button"
+                onClick={() => setQ((cur) => (cur.trim().toLowerCase() === lbl.toLowerCase() ? "" : lbl))}
+                className="px-3 py-2 rounded-full text-xs font-extrabold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-[0.985]"
+              >
+                {lbl}
+              </button>
+            ))}
+          </div>
+
         </div>
       </Card>
 
@@ -2669,16 +2756,7 @@ function LandingView({ onGetStarted, onViewDemo }) {
     <div className="min-h-screen bg-gradient-to-b from-emerald-50/70 via-white to-sky-50 px-4 py-10">
       <div className="max-w-md mx-auto">
         <div className="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur p-6 shadow-sm">
-          <div className="flex justify-center">
-            <div className="versedup-float">
-              <img
-                src={`${import.meta.env.BASE_URL}logo.png`}
-                alt="VersedUP"
-                className="h-24 w-auto mx-auto versedup-pop drop-shadow-lg select-none"
-                draggable="false"
-              />
-            </div>
-          </div>
+          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="VersedUP" className="h-20 w-auto mx-auto" draggable="false" />
           <h1 className="mt-5 text-2xl font-black text-slate-900 text-center">Rooted in Christ, growing in His fruit.</h1>
           <p className="mt-3 text-sm text-slate-600 text-center">Create devotionals, polish your reflection, and prepare share-ready content.</p>
 
@@ -2908,11 +2986,47 @@ function AppInner({ session, starterMood, onLogout }) {
     const next = { id: crypto.randomUUID(), message: String(message || "") };
     setToast(next);
     toastTimerRef.current = window.setTimeout(() => setToast(null), durationMs);
+
+  // greetingOnLogin
+  useEffect(() => {
+    const raw = String(session?.name || settings.username || "").trim();
+    const name = raw.replace(/^@/, "").trim();
+    if (!name) return;
+
+    const hour = new Date().getHours();
+    const message =
+      hour >= 5 && hour < 12
+        ? `Good morning, ${name}.`
+        : `This is the day the Lord has made; let us rejoice and be glad in it, ${name}.`;
+
+    pushToast(message, 4500);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.id]);
+
   };
 
 
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
-  const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
+const verseCandidates = useMemo(() => {
+    const seeds = [
+      { verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText },
+      ...MOOD_VERSE_ORDER.map((k) => ({ verseRef: MOOD_VERSES[k].verseRef, verseText: MOOD_VERSES[k].verseText })),
+    ];
+
+    const fromLibrary = safeDevotionals
+      .filter((d) => d && d.verseRef && d.verseText)
+      .map((d) => ({ verseRef: d.verseRef, verseText: d.verseText }));
+
+    const seen = new Set();
+    return [...seeds, ...fromLibrary].filter((v) => {
+      const key = `${v.verseRef}__${v.verseText}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [safeDevotionals]);
+
+    const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
 
   useEffect(() => {
     if (!starterMood) return;
@@ -3000,13 +3114,13 @@ function AppInner({ session, starterMood, onLogout }) {
           <img
             src={`${import.meta.env.BASE_URL}logo.png`}
             alt="VersedUP"
-            className="h-18 w-auto object-contain drop-shadow-md"
+            className="h-16 w-auto object-contain drop-shadow-sm"
             draggable="false"
           />
           <div className="min-w-0 leading-tight flex-1">
             <div className="text-sm font-extrabold text-slate-900">Rooted in Christ, growing in his fruit.</div>
             <div className="text-xs font-bold text-slate-500">(John 15:5)</div>
-            <div className="text-[11px] font-bold text-emerald-700 mt-1">{session?.mode === "guest" ? "Guest session" : `Signed in as ${session?.name || "Friend"}`}</div>
+            <div className="text-[11px] font-bold text-emerald-700 mt-1"></div>
           </div>
           <button type="button" onClick={onLogout} className="text-xs font-extrabold text-slate-600 border border-slate-200 rounded-xl px-2 py-1 bg-white">
             Logout
