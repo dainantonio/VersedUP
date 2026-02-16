@@ -52,13 +52,14 @@ function useToast() {
 }
 
 function ToastTicker({ toast }) {
+  if (!tofunction ToastTicker({ toast }) {
   if (!toast) return null;
   return (
     <div className="fixed top-0 left-0 right-0 z-50">
       <div className="max-w-md mx-auto px-4 pt-3">
-        <div className="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur-xl shadow-sm px-4 py-2 overflow-hidden">
-          <div className="versedup-marquee text-xs font-extrabold text-slate-700">
-            <span>{toast.message}</span>
+        <div className="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur-xl shadow-sm px-4 py-2">
+          <div className="text-xs font-extrabold text-slate-700">
+            {toast.message}
           </div>
         </div>
       </div>
