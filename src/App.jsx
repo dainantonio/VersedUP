@@ -15,6 +15,7 @@ import {
   Settings,
   Share2,
   Sparkles,
+  Flame,
   ChevronLeft,
   ChevronRight,
   LogIn,
@@ -24,6 +25,57 @@ import {
   X,
   ScanLine,
 } from "lucide-react";
+
+
+
+/**
+ * Centralized icon mapping (enforced)
+ * - Make Share-Ready = Sparkles
+ * - Compile for Socials = Camera
+ * - Share Now = Check
+ * - Nav: Home = BookOpen, Write = PenTool, Compile = ScanLine
+ */
+const ICONS = Object.freeze({
+  actions: Object.freeze({
+    makeShareReady: Sparkles,
+    compileForSocials: Camera,
+    shareNow: Check,
+  }),
+  nav: Object.freeze({
+    home: BookOpen,
+    write: PenTool,
+    compile: ScanLine,
+  }),
+});
+
+const FRUIT_LABELS = Object.freeze([
+  "Love",
+  "Joy",
+  "Peace",
+  "Patience",
+  "Kindness",
+  "Goodness",
+  "Faithfulness",
+  "Gentleness",
+  "Self-Control",
+]);
+
+const MOOD_VERSES = Object.freeze({
+  joy: { label: "Joy", verseRef: "Nehemiah 8:10", verseText: "The joy of the LORD is your strength." },
+  anxiety: { label: "Anxiety", verseRef: "Philippians 4:6-7", verseText: "Be anxious for nothing… and the peace of God… shall keep your hearts and minds through Christ Jesus." },
+  hope: { label: "Hope", verseRef: "Romans 15:13", verseText: "Now the God of hope fill you with all joy and peace in believing… that ye may abound in hope, through the power of the Holy Ghost." },
+  peace: { label: "Peace", verseRef: "John 14:27", verseText: "Peace I leave with you, my peace I give unto you… Let not your heart be troubled." },
+  strength: { label: "Strength", verseRef: "Isaiah 41:10", verseText: "Fear thou not; for I am with thee… I will strengthen thee; yea, I will help thee." },
+});
+
+const MOOD_VERSE_ORDER = Object.freeze(["joy", "anxiety", "hope", "peace", "strength"]);
+
+const VERSE_CARD_GRADIENT = Object.freeze({
+  light: "from-emerald-400 via-emerald-600 to-emerald-800",
+  sunrise: "from-amber-400 via-rose-500 to-sky-700",
+  sunset: "from-orange-500 via-rose-600 to-indigo-800",
+  classic: "from-slate-700 via-slate-900 to-emerald-950",
+});
 
 /**
  * VersedUP — single file app
@@ -130,7 +182,7 @@ const DEFAULT_SETTINGS = {
 
 function cn(...classes) {
   return classes.filter(Boolean).join(" ");
-}
+
 
 function ToastTicker({ message }) {
   if (!message) return null;
@@ -145,6 +197,8 @@ function ToastTicker({ message }) {
       </div>
     </div>
   );
+}
+
 }
 
 function safeParseJson(value, fallback) {
@@ -204,6 +258,7 @@ function createDevotional(settings) {
     prayer: "",
     questions: "",
     tiktokScript: "",
+    label: "",
     status: "draft",
   };
 }
@@ -743,6 +798,40 @@ function ApplySectionCard({ k, label, value, checked, onToggle, onChange }) {
   );
 }
 
+
+
+/* ---------------- Verse inference (offline heuristics) ---------------- */
+
+function normalizeVerseText(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function scoreTextMatch(query, candidate) {
+  const q = normalizeVerseText(query);
+  const c = normalizeVerseText(candidate);
+  if (!q || !c) return 0;
+  if (c.includes(q)) return Math.min(1, q.length / Math.max(10, c.length));
+  const qWords = q.split(" ").filter(Boolean);
+  const cWords = new Set(c.split(" ").filter(Boolean));
+  const hits = qWords.reduce((n, w) => n + (cWords.has(w) ? 1 : 0), 0);
+  return hits / Math.max(6, qWords.length);
+}
+
+function inferVerseRefFromText(queryText, candidates) {
+  const query = normalizeVerseText(queryText);
+  if (!query || query.length < 18) return null;
+  let best = { score: 0, verseRef: "" };
+  (Array.isArray(candidates) ? candidates : []).forEach((c) => {
+    const s = scoreTextMatch(query, c.verseText);
+    if (s > best.score) best = { score: s, verseRef: c.verseRef };
+  });
+  return best.score >= 0.45 ? best.verseRef : null;
+}
+
 /* ---------------- Streak ---------------- */
 
 function loadStreak() {
@@ -782,7 +871,7 @@ function bumpStreakOnSave() {
 
 /* ---------------- Views ---------------- */
 
-function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak }) {
+function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak, settings, onPickMoodVerse }) {
   return (
     <div className="space-y-6 pb-28">
       <div>
@@ -799,7 +888,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
             <div>
               <div className="text-xs font-extrabold text-slate-500">CURRENT STREAK</div>
               <div className="text-3xl font-extrabold text-slate-900 mt-1">
-                {streak.count} <span className="text-slate-500 text-lg">days</span>
+                {streak.count} <Flame className="w-6 h-6 inline-block align-[-4px] ml-2 text-orange-500" /> <span className="text-slate-500 text-lg">days</span>
               </div>
               <div className="text-xs text-slate-500 mt-1">Keep showing up — God meets you here.</div>
             </div>
@@ -837,7 +926,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
           <div className="font-extrabold text-slate-900">Verse of the Day</div>
           <div className="text-xs font-bold text-emerald-700">Daily</div>
         </div>
-        <div className="mt-3 bg-gradient-to-br from-emerald-400 via-emerald-600 to-emerald-800 rounded-3xl p-6 text-white shadow-sm">
+        <div className={cn("mt-3 bg-gradient-to-br rounded-3xl p-6 text-white shadow-sm", VERSE_CARD_GRADIENT[settings?.theme || "light"] || VERSE_CARD_GRADIENT.light)}>
           <div className="text-2xl leading-snug font-semibold">{`“${VERSE_OF_DAY.verseText}”`}</div>
           <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
           <button
@@ -1173,7 +1262,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
   );
 }
 
-function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings }) {
+function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings, verseCandidates, pushToast }) {
   const [busy, setBusy] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
   const [structureDraft, setStructureDraft] = useState({ title: "", reflection: "", prayer: "", questions: "" });
@@ -1194,6 +1283,10 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [shareReadyStep, setShareReadyStep] = useState("");
 
   const reflectionRef = useRef(null);
+
+const [verseRefLocked, setVerseRefLocked] = useState(false);
+
+
 
   const version = devotional.bibleVersion || settings.defaultBibleVersion || "KJV";
   const guidedMode = Boolean(settings.guidedMode);
@@ -1445,7 +1538,24 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               {m.label}
             </Chip>
           ))}
-        </div>
+        
+
+<div className="mt-4">
+  <div className="text-xs font-extrabold text-slate-500">LABEL (FRUIT OF THE SPIRIT)</div>
+  <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+    {FRUIT_LABELS.map((lbl) => (
+      <Chip
+        key={lbl}
+        active={devotional.label === lbl}
+        onClick={() => onUpdate({ label: devotional.label === lbl ? "" : lbl })}
+      >
+        {lbl}
+      </Chip>
+    ))}
+  </div>
+</div>
+
+</div>
         {guidedMode ? <div className="mt-3 text-xs text-slate-500">Guided Mode: mood gently affects AI tone.</div> : null}
       </Card>
 
@@ -1457,7 +1567,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                 <BookOpen className="w-4 h-4" /> VERSE
               </div>
               <div className="flex gap-2">
-                <SmallButton onClick={openScan} icon={ScanLine}>
+                <SmallButton onClick={openScan} icon={ICONS.nav.compile}>
                   Scan
                 </SmallButton>
                 <SmallButton
@@ -1469,10 +1579,42 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               </div>
             </div>
 
-            <div className="flex gap-2">
+            
+
+<div className="mt-4">
+  <div className="text-xs font-extrabold text-slate-500">PICK A VERSE</div>
+  <div className="mt-3 flex flex-wrap gap-2">
+    {MOOD_VERSE_ORDER.map((key) => (
+      <button
+        key={key}
+        type="button"
+        onClick={() => {
+          const v = MOOD_VERSES[key];
+          onUpdate({
+            mood: devotional.mood || key,
+            verseRef: v.verseRef,
+            verseText: devotional.verseTextEdited ? devotional.verseText : v.verseText,
+            verseTextEdited: devotional.verseTextEdited ? true : false,
+            title: settings.autoFillEmptyOnTopicTap && !devotional.title ? `${v.label}: ${v.verseRef}` : devotional.title,
+          });
+          pushToast(`${v.label} verse applied.`);
+        }}
+        className="px-3 py-2 rounded-full text-xs font-extrabold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-[0.985]"
+      >
+        {MOOD_VERSES[key].label}
+      </button>
+    ))}
+  </div>
+</div>
+
+<div className="flex gap-2">
               <input
                 value={devotional.verseRef}
-                onChange={(e) => onUpdate({ verseRef: e.target.value })}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  onUpdate({ verseRef: v });
+                  setVerseRefLocked(Boolean(v.trim()));
+                }}
                 placeholder="Verse reference (e.g., Psalm 23)"
                 className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200 bg-white"
                 onKeyDown={(e) => {
@@ -1511,7 +1653,17 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               <label className="text-[10px] font-extrabold text-slate-400">VERSE TEXT</label>
               <textarea
                 value={devotional.verseText}
-                onChange={(e) => onUpdate({ verseText: e.target.value, verseTextEdited: true })}
+                onChange={(e) => {
+                  const nextText = e.target.value;
+                  onUpdate({ verseText: nextText, verseTextEdited: true });
+                  if (!verseRefLocked && !devotional.verseRef.trim()) {
+                    const inferred = inferVerseRefFromText(nextText, verseCandidates);
+                    if (inferred) {
+                      onUpdate({ verseRef: inferred });
+                      pushToast(`Found reference: ${inferred}`);
+                    }
+                  }
+                }}
                 placeholder={
                   isKjv(version)
                     ? "Fetch KJV to auto-fill..."
@@ -1592,7 +1744,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               <PrimaryButton
                 onClick={() => void doShareReady()}
                 disabled={shareReadyBusy || busy || (!hasReflection && !hasVerseRef)}
-                icon={shareReadyBusy ? Loader2 : Share2}
+                icon={shareReadyBusy ? Loader2 : ICONS.actions.makeShareReady}
               >
                 {shareReadyBusy ? "Making Share-Ready..." : "Make Share-Ready"}
               </PrimaryButton>
@@ -1827,7 +1979,7 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
     const query = q.trim().toLowerCase();
     if (!query) return devotionals;
     return devotionals.filter((d) => {
-      const hay = `${d.title} ${d.verseRef} ${d.reflection}`.toLowerCase();
+      const hay = `${d.title} ${d.verseRef} ${d.reflection} ${d.label || ""}`.toLowerCase();
       return hay.includes(query);
     });
   }, [q, devotionals]);
@@ -1838,6 +1990,14 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
         <div className="flex items-center justify-between">
           <div>
             <div className="text-lg font-extrabold text-slate-900">Library</div>
+
+{d.label ? (
+  <div className="mt-2 inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-extrabold text-slate-700">
+    {d.label}
+  </div>
+) : null}
+
+
             <div className="text-sm text-slate-500 mt-1">Your saved devotionals.</div>
           </div>
         </div>
@@ -1849,6 +2009,21 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
             placeholder="Search..."
             className="w-full rounded-2xl border border-slate-200 pl-9 pr-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
           />
+
+<div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+  {FRUIT_LABELS.map((lbl) => (
+    <button
+      key={lbl}
+      type="button"
+      onClick={() => setQ((cur) => (cur.trim().toLowerCase() === lbl.toLowerCase() ? "" : lbl))}
+      className="px-3 py-2 rounded-full text-xs font-extrabold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-[0.985]"
+    >
+      {lbl}
+    </button>
+  ))}
+</div>
+
+
         </div>
       </Card>
 
@@ -2072,7 +2247,7 @@ function compileForPlatform(platform, d, settings) {
   return `${titleLine}${verseLine}${body}${questions}${prayer}`.trim();
 }
 
-function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
+function CompileView({ devotional, settings, onUpdate, onBackToWrite, pushToast }) {
   const [platform, setPlatform] = useState("tiktok");
   const [mode, setMode] = useState("preview");
   const [text, setText] = useState("");
@@ -2088,8 +2263,12 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   const over = text.length > limit;
 
   const copy = async () => {
-    await navigator.clipboard.writeText(text);
-    alert("Copied");
+    try {
+      await navigator.clipboard.writeText(text);
+      pushToast("Copied");
+    } catch {
+      pushToast("Copy failed");
+    }
   };
 
   const shareNow = async () => {
@@ -2099,6 +2278,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
         await navigator.share({
           title: devotional.title || devotional.verseRef || "Devotional",
           text,
+          url: window.location.href,
         });
       } else {
         await copy();
@@ -2121,6 +2301,35 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     window.location.href = `sms:?&body=${body}`;
   };
 
+const shareToFacebook = async () => {
+  try {
+    await navigator.clipboard.writeText(text);
+    pushToast("Caption copied. Facebook opened.");
+  } catch {
+    pushToast("Facebook opened.");
+  }
+  const u = encodeURIComponent(window.location.href);
+  window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}`, "_blank", "noopener,noreferrer");
+};
+
+const shareToX = () => {
+  const shareUrl = encodeURIComponent(window.location.href);
+  const shareText = encodeURIComponent(text);
+  window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`, "_blank", "noopener,noreferrer");
+};
+
+const shareToTikTok = async () => {
+  try {
+    await navigator.clipboard.writeText(text);
+    pushToast("Caption copied. TikTok upload opened.");
+  } catch {
+    pushToast("TikTok upload opened.");
+  }
+  window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
+};
+
+
+
   const autoShorten = async () => {
     try {
       const out = await aiRewriteLength(settings, { text, mood: devotional.mood, direction: "shorten" });
@@ -2138,7 +2347,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
           <div className="text-sm text-slate-500 mt-1">Choose where this goes next.</div>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          <SmallButton onClick={() => void shareNow()} icon={Share2} disabled={shareBusy}>
+          <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy}>
             {shareBusy ? "Sharing..." : "Share Now"}
           </SmallButton>
           <SmallButton onClick={copy} icon={Copy}>
@@ -2226,7 +2435,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
         <div className="max-w-md mx-auto px-4">
           <div className="rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-2 shadow-lg">
             <div className="grid grid-cols-2 gap-2">
-              <SmallButton onClick={() => void shareNow()} icon={Share2} disabled={shareBusy} tone="primary">
+              <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy} tone="primary">
                 {shareBusy ? "Sharing..." : "Share Now"}
               </SmallButton>
               <SmallButton onClick={copy} icon={Copy}>Copy</SmallButton>
@@ -2710,8 +2919,37 @@ function AppInner({ session, starterMood, onLogout }) {
     return Array.isArray(parsed) ? parsed : [];
   });
 
+
+const verseCandidates = useMemo(() => {
+  const seeds = [
+    { verseRef: "Psalm 23:1-2", verseText: "The LORD is my shepherd; I shall not want. He maketh me to lie down in green pastures." },
+    ...MOOD_VERSE_ORDER.map((k) => ({ verseRef: MOOD_VERSES[k].verseRef, verseText: MOOD_VERSES[k].verseText })),
+  ];
+  const fromLibrary = (Array.isArray(devotionals) ? devotionals : [])
+    .filter((d) => d && d.verseRef && d.verseText)
+    .map((d) => ({ verseRef: d.verseRef, verseText: d.verseText }));
+  const seen = new Set();
+  return [...seeds, ...fromLibrary].filter((v) => {
+    const key = `${v.verseRef}__${v.verseText}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}, [devotionals]);
+
   const [streak, setStreak] = useState(() => loadStreak());
   const [activeId, setActiveId] = useState(() => (Array.isArray(devotionals) && devotionals[0] ? devotionals[0].id : ""));
+  
+
+  const [toastMessage, setToastMessage] = useState("");
+  const toastTimerRef = useRef(null);
+
+  const pushToast = (message, durationMs = 3500) => {
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    setToastMessage(String(message || ""));
+    toastTimerRef.current = window.setTimeout(() => setToastMessage(""), durationMs);
+  };
+
   const [view, setView] = useState("home"); // home | write | polish | compile | library | settings
   const [navCollapsed, setNavCollapsed] = useState(false);
 
@@ -2796,6 +3034,8 @@ function AppInner({ session, starterMood, onLogout }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-slate-50 to-sky-50">
+      <ToastTicker message={toastMessage} />
+
       <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/70 px-4 py-3">
         <div className="max-w-md mx-auto flex items-center gap-3">
           <img
@@ -2807,8 +3047,7 @@ function AppInner({ session, starterMood, onLogout }) {
           <div className="min-w-0 leading-tight flex-1">
             <div className="text-sm font-extrabold text-slate-900">Rooted in Christ, growing in his fruit.</div>
             <div className="text-xs font-bold text-slate-500">(John 15:5)</div>
-            <div className="text-[11px] font-bold text-emerald-700 mt-1">{session?.mode === "guest" ? "Guest session" : `Signed in as ${session?.name || "Friend"}`}</div>
-          </div>
+                      </div>
           <button type="button" onClick={onLogout} className="text-xs font-extrabold text-slate-600 border border-slate-200 rounded-xl px-2 py-1 bg-white">
             Logout
           </button>
@@ -2836,12 +3075,14 @@ function AppInner({ session, starterMood, onLogout }) {
             onGoPolish={() => setView("polish")}
             onSaved={onSaved}
             onGoSettings={() => setView("settings")}
+            verseCandidates={verseCandidates}
+            pushToast={pushToast}
           />
         ) : null}
 
         {view === "polish" && active ? <PolishView devotional={active} /> : null}
 
-        {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} /> : null}
+        {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} pushToast={pushToast} /> : null}
 
         {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} /> : null}
 
@@ -2861,9 +3102,9 @@ function AppInner({ session, starterMood, onLogout }) {
                 {navCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
               </button>
               <div className={cn("grid gap-2 flex-1", navCollapsed ? "grid-cols-5" : "grid-cols-5")}>
-                <NavButton collapsed={navCollapsed} active={view === "home"} onClick={() => setView("home")} icon={PenTool} label="Home" />
-                <NavButton collapsed={navCollapsed} active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={PenTool} label="Write" />
-                <NavButton collapsed={navCollapsed} active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={Share2} label="Compile" />
+                <NavButton collapsed={navCollapsed} active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
+                <NavButton collapsed={navCollapsed} active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={ICONS.nav.write} label="Write" />
+                <NavButton collapsed={navCollapsed} active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ICONS.nav.compile} label="Compile" />
                 <NavButton collapsed={navCollapsed} active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
                 <NavButton collapsed={navCollapsed} active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
               </div>
