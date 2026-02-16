@@ -41,18 +41,6 @@ const STORAGE_DEVOTIONALS = `${APP_ID}_devotionals`;
 const STORAGE_STREAK = `${APP_ID}_streak`;
 const STORAGE_SESSION = `${APP_ID}_session`;
 
-const NAV_ICONS = {
-  home: BookOpen,
-  write: PenTool,
-  compile: ScanLine,
-};
-
-const CTA_ICONS = {
-  makeShareReady: Sparkles,
-  compileForSocials: Camera,
-  shareNow: Check,
-};
-
 const PLATFORM_LIMITS = {
   tiktok: 2200,
   instagram: 2200,
@@ -1589,7 +1577,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               <PrimaryButton
                 onClick={() => void doShareReady()}
                 disabled={shareReadyBusy || busy || (!hasReflection && !hasVerseRef)}
-                icon={shareReadyBusy ? Loader2 : CTA_ICONS.makeShareReady}
+                icon={shareReadyBusy ? Loader2 : Share2}
               >
                 {shareReadyBusy ? "Making Share-Ready..." : "Make Share-Ready"}
               </PrimaryButton>
@@ -1663,7 +1651,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           onSaved();
           onGoCompile();
         }}
-        icon={CTA_ICONS.compileForSocials}
+        icon={Camera}
       >
         Compile for Socials
       </PrimaryButton>
@@ -2118,23 +2106,6 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     window.location.href = `sms:?&body=${body}`;
   };
 
-  const shareToFacebook = () => {
-    const shareUrl = encodeURIComponent(window.location.href);
-    const quote = encodeURIComponent(text.slice(0, 280));
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${shareUrl}&quote=${quote}`, "_blank", "noopener,noreferrer");
-  };
-
-  const shareToX = () => {
-    const tweet = encodeURIComponent(text.slice(0, 280));
-    window.open(`https://twitter.com/intent/tweet?text=${tweet}`, "_blank", "noopener,noreferrer");
-  };
-
-  const shareToTikTok = async () => {
-    await copy();
-    window.open("https://www.tiktok.com/upload?lang=en", "_blank", "noopener,noreferrer");
-    alert("Caption copied. Paste it into your TikTok post.");
-  };
-
   const autoShorten = async () => {
     try {
       const out = await aiRewriteLength(settings, { text, mood: devotional.mood, direction: "shorten" });
@@ -2149,13 +2120,10 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
       <div className="flex items-center justify-between">
         <div>
           <div className="text-lg font-extrabold text-slate-900">Share</div>
-          <div className="text-sm text-slate-500 mt-1">Choose where this goes next — socials, email, text, or download.</div>
-          <button type="button" onClick={onBackToWrite} className="mt-2 text-xs font-extrabold text-slate-600 underline underline-offset-2">
-            Back to Edit
-          </button>
+          <div className="text-sm text-slate-500 mt-1">Choose where this goes next.</div>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          <SmallButton onClick={() => void shareNow()} icon={CTA_ICONS.shareNow} disabled={shareBusy}>
+          <SmallButton onClick={() => void shareNow()} icon={Share2} disabled={shareBusy}>
             {shareBusy ? "Sharing..." : "Share Now"}
           </SmallButton>
           <SmallButton onClick={copy} icon={Copy}>
@@ -2243,14 +2211,12 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
         <div className="max-w-md mx-auto px-4">
           <div className="rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-2 shadow-lg">
             <div className="grid grid-cols-2 gap-2">
-              <SmallButton onClick={() => void shareNow()} icon={CTA_ICONS.shareNow} disabled={shareBusy} tone="primary">
+              <SmallButton onClick={() => void shareNow()} icon={Share2} disabled={shareBusy} tone="primary">
                 {shareBusy ? "Sharing..." : "Share Now"}
               </SmallButton>
               <SmallButton onClick={copy} icon={Copy}>Copy</SmallButton>
               <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
               <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
-              <SmallButton onClick={shareToFacebook}>Facebook</SmallButton>
-              <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
             </div>
           </div>
         </div>
@@ -2559,7 +2525,7 @@ function AuthView({ onBack, onContinue }) {
           </div>
 
           <div className="mt-4 grid gap-3">
-            <PrimaryButton onClick={() => onContinue({ mode: "signed-in", name: name.trim() || "Friend" })} icon={User} disabled={name.trim().length < 2}>
+            <PrimaryButton onClick={() => onContinue({ mode: "signed-in", name: name.trim() || "Friend" })} icon={User}>
               Sign in
             </PrimaryButton>
             <button
@@ -2880,9 +2846,9 @@ function AppInner({ session, starterMood, onLogout }) {
                 {navCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
               </button>
               <div className={cn("grid gap-2 flex-1", navCollapsed ? "grid-cols-5" : "grid-cols-5")}>
-                <NavButton collapsed={navCollapsed} active={view === "home"} onClick={() => setView("home")} icon={NAV_ICONS.home} label="Home" />
-                <NavButton collapsed={navCollapsed} active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={NAV_ICONS.write} label="Write" />
-                <NavButton collapsed={navCollapsed} active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={NAV_ICONS.compile} label="Compile" />
+                <NavButton collapsed={navCollapsed} active={view === "home"} onClick={() => setView("home")} icon={PenTool} label="Home" />
+                <NavButton collapsed={navCollapsed} active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={PenTool} label="Write" />
+                <NavButton collapsed={navCollapsed} active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={Share2} label="Compile" />
                 <NavButton collapsed={navCollapsed} active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
                 <NavButton collapsed={navCollapsed} active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
               </div>
