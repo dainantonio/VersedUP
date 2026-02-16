@@ -162,7 +162,7 @@ async function openAiChat({ apiKey, prompt }) {
 }
 
 async function geminiGenerate({ apiKey, prompt }) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${encodeURIComponent(
     apiKey
   )}`;
   const res = await fetch(url, {
