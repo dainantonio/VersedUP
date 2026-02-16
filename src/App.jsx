@@ -2496,7 +2496,7 @@ function AuthView({ onBack, onContinue }) {
           </div>
 
           <div className="mt-4 grid gap-3">
-            <PrimaryButton onClick={() => onContinue({ mode: "signed-in", name: name.trim() || "Friend" })} icon={User} disabled={name.trim().length < 2}>
+            <PrimaryButton onClick={() => onContinue({ mode: "signed-in", name: name.trim() || "Friend" })} icon={User}>
               Sign in
             </PrimaryButton>
             <button
