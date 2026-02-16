@@ -900,7 +900,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
         </div>
         <div className="text-3xl font-extrabold text-slate-900 mt-1">{getTimeGreeting(displayName)}</div>
-        <div className="text-sm text-slate-500 mt-2">Start a devotional or pick a verse to reflect.</div>
+        <div className="text-sm text-slate-500 mt-2">{hasActive ? "Continue your last entry below." : "Start a devotional or pick a verse to reflect."}</div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -2427,6 +2427,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
       {mode === "text" ? (
         <Card>
           <div className="text-xs font-extrabold text-slate-500">OUTPUT</div>
+          <div className="text-sm text-slate-500 mt-2">Tip: Tap Copy, then paste into TikTok/IG. Keep it under {limit} characters for {platform}.</div>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
