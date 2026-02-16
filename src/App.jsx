@@ -488,7 +488,9 @@ function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
           <div className="relative flex items-center justify-between">
             <div>
               <div className="text-xs font-extrabold text-slate-500">CURRENT STREAK</div>
-              <div className="text-3xl font-extrabold text-slate-900 mt-1">{streak.count} <span className="text-slate-500 text-lg">days</span></div>
+              <div className="text-3xl font-extrabold text-slate-900 mt-1">
+                {streak.count} <span className="text-slate-500 text-lg">days</span>
+              </div>
               <div className="text-xs text-slate-500 mt-1">Keep showing up — God meets you here.</div>
             </div>
             <button
@@ -1165,7 +1167,6 @@ function SocialPreview({ platform, devotional, settings, text }) {
     );
   }
 
-  // TikTok / Generic -> use "phone" mock card
   return (
     <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       <div className="p-4 flex items-center justify-between border-b border-slate-200 bg-slate-50">
@@ -1468,14 +1469,21 @@ function AppInner() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-slate-50 to-sky-50">
+      {/* UPDATED HEADER (logo left + tagline) */}
       <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/70 px-4 py-3">
-        <div className="max-w-md mx-auto flex items-center justify-center">
+        <div className="max-w-md mx-auto flex items-center gap-3">
           <img
             src={`${import.meta.env.BASE_URL}logo.png`}
             alt="VersedUP"
-            className="h-14 w-auto object-contain drop-shadow-sm"
+            className="h-16 w-auto object-contain drop-shadow-sm"
             draggable="false"
           />
+          <div className="min-w-0 leading-tight">
+            <div className="text-sm font-extrabold text-slate-900">
+              Rooted in Christ, growing in his fruit.
+            </div>
+            <div className="text-xs font-bold text-slate-500">(John 15:5)</div>
+          </div>
         </div>
       </div>
 
