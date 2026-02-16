@@ -26,9 +26,9 @@ import {
  *
  * Added in this version:
  * - Guided Mode toggle (Settings) to show/hide helper hints everywhere
- * - Topic Chips now support "Guided Fill" (Title/Reflection/Prayer/Questions) in one click
- *   - Works with OpenAI/Gemini/mock
- *   - Also provides a non-AI quick fill fallback (templates)
+ * - Topic Chips support "Guided Fill" (Title/Reflection/Prayer/Questions) in one click
+ * - NEW: "Auto-fill empty sections on Topic tap" setting (Prayer/Questions/Title)
+ * - NEW: "Fill + Generate TikTok Script" one-click flow (Guided Fill modal)
  */
 
 const APP_ID = "versedup_v1";
@@ -55,44 +55,37 @@ const TOPIC_CHIPS = [
   {
     id: "gratitude",
     label: "Gratitude",
-    prompt:
-      "What is one specific thing I can thank God for today? How does it change my perspective?\n",
+    prompt: "What is one specific thing I can thank God for today? How does it change my perspective?\n",
   },
   {
     id: "anxiety",
     label: "Anxiety",
-    prompt:
-      "What am I anxious about right now? What truth from Scripture counters that fear?\n",
+    prompt: "What am I anxious about right now? What truth from Scripture counters that fear?\n",
   },
   {
     id: "identity",
     label: "Identity",
-    prompt:
-      "Who does God say I am in Christ? Where have I been believing a lie instead?\n",
+    prompt: "Who does God say I am in Christ? Where have I been believing a lie instead?\n",
   },
   {
     id: "forgiveness",
     label: "Forgiveness",
-    prompt:
-      "Is there someone I need to forgive (or ask forgiveness from)? What step can I take today?\n",
+    prompt: "Is there someone I need to forgive (or ask forgiveness from)? What step can I take today?\n",
   },
   {
     id: "purpose",
     label: "Purpose",
-    prompt:
-      "What might God be inviting me to do or become in this season? What is one obedient next step?\n",
+    prompt: "What might God be inviting me to do or become in this season? What is one obedient next step?\n",
   },
   {
     id: "discipline",
     label: "Discipline",
-    prompt:
-      "What habit would help me stay rooted in Christ this week? How can I make it simple and consistent?\n",
+    prompt: "What habit would help me stay rooted in Christ this week? How can I make it simple and consistent?\n",
   },
   {
     id: "relationships",
     label: "Relationships",
-    prompt:
-      "Where do I need to love like Jesus in my relationships? What would humility look like today?\n",
+    prompt: "Where do I need to love like Jesus in my relationships? What would humility look like today?\n",
   },
 ];
 
@@ -108,6 +101,11 @@ const DEFAULT_SETTINGS = {
   ocrEndpoint: "",
   ocrAutoStructure: true,
   guidedMode: true,
+
+  // NEW
+  autoFillEmptyOnTopicTap: true, // title/prayer/questions templates on topic click
+  guidedAutoGenerateTikTok: true, // in Guided Fill modal: Apply also generates TikTok script
+
   exportPrefs: {
     tiktokTemplate: "minimalLight",
     includeTitle: true,
@@ -238,7 +236,11 @@ function templateGuidedFill({ topicLabel, verseRef, mood }) {
     "Grow Your fruit in my life, and lead me into one clear step of obedience.",
     "Amen.",
   ].join("\n");
-  const questions = ["1) What truth from this passage do I need to remember today?", "2) What is one action I can take within 24 hours?", "3) Who can I encourage with what I’m learning?"].join("\n");
+  const questions = [
+    "1) What truth from this passage do I need to remember today?",
+    "2) What is one action I can take within 24 hours?",
+    "3) Who can I encourage with what I’m learning?",
+  ].join("\n");
   return { title, reflection, prayer, questions };
 }
 
@@ -266,12 +268,15 @@ class ErrorBoundary extends React.Component {
             <AlertTriangle className="w-6 h-6 text-amber-500 mt-0.5" />
             <div>
               <div className="text-lg font-extrabold text-slate-900">Something went wrong</div>
-              <div className="text-sm text-slate-600 mt-1">Try refreshing. If this keeps happening, reset local data.</div>
+              <div className="text-sm text-slate-600 mt-1">
+                Try refreshing. If this keeps happening, reset local data.
+              </div>
               <div className="mt-3 text-xs font-mono text-slate-500 whitespace-pre-wrap">{this.state.message}</div>
               <div className="mt-5 flex gap-2">
                 <button
                   className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-extrabold hover:bg-slate-50"
                   onClick={() => location.reload()}
+                  type="button"
                 >
                   Refresh
                 </button>
@@ -283,6 +288,7 @@ class ErrorBoundary extends React.Component {
                     localStorage.removeItem(STORAGE_STREAK);
                     location.reload();
                   }}
+                  type="button"
                 >
                   Reset data
                 </button>
@@ -541,9 +547,7 @@ function splitSectionsFromOcr(text) {
   const verseRef = detectVerseRef(raw);
 
   const title =
-    nonEmpty.find(
-      (l) => l.length <= 60 && (!verseRef || !l.toLowerCase().includes(verseRef.toLowerCase()))
-    ) || "";
+    nonEmpty.find((l) => l.length <= 60 && (!verseRef || !l.toLowerCase().includes(verseRef.toLowerCase()))) || "";
 
   const prayerIdx = lines.findIndex((l) => /^prayer[:\s]/i.test(l));
   const questionsIdx = lines.findIndex((l) => /^(questions|reflection questions)[:\s]/i.test(l));
@@ -613,6 +617,7 @@ function PrimaryButton({ children, onClick, disabled, icon: Icon }) {
         "active:scale-[0.985] will-change-transform",
         disabled && "opacity-50 cursor-not-allowed"
       )}
+      type="button"
     >
       {Icon ? <Icon className="w-5 h-5" /> : null}
       {children}
@@ -631,6 +636,7 @@ function Chip({ active, onClick, children }) {
           ? "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
           : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
       )}
+      type="button"
     >
       {children}
     </button>
@@ -965,12 +971,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
           <div className="text-xs font-extrabold text-slate-500">UPLOAD OR CAPTURE</div>
           <div className="mt-3 flex flex-wrap gap-2">
             <label className="cursor-pointer">
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-              />
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
               <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-xs font-extrabold hover:bg-slate-50 active:scale-[0.98]">
                 <Camera className="w-4 h-4" />
                 Upload
@@ -995,11 +996,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
               {busy ? "..." : "Run OCR"}
             </SmallButton>
 
-            <SmallButton
-              onClick={() => void generateStructure({ fromParsed: true })}
-              disabled={aiBusy || (!parsed.reflection && !rawText)}
-              icon={Wand2}
-            >
+            <SmallButton onClick={() => void generateStructure({ fromParsed: true })} disabled={aiBusy || (!parsed.reflection && !rawText)} icon={Wand2}>
               Structure
             </SmallButton>
           </div>
@@ -1144,13 +1141,15 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [fetching, setFetching] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
 
-  const [topicBusy, setTopicBusy] = useState(false);
   const [guidedBusy, setGuidedBusy] = useState(false);
   const [guidedOpen, setGuidedOpen] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState(TOPIC_CHIPS[0]?.id || "");
 
   const [guidedDraft, setGuidedDraft] = useState({ title: "", reflection: "", prayer: "", questions: "" });
   const [guidedApply, setGuidedApply] = useState({ title: true, reflection: true, prayer: true, questions: true });
+
+  const [guidedScriptBusy, setGuidedScriptBusy] = useState(false);
+  const [guidedGenerateScript, setGuidedGenerateScript] = useState(Boolean(settings.guidedAutoGenerateTikTok));
 
   const reflectionRef = useRef(null);
 
@@ -1242,6 +1241,46 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     setGuidedOpen(false);
   };
 
+  const applyGuidedDraftAndScript = async () => {
+    const patch = {};
+    if (guidedApply.title) patch.title = guidedDraft.title;
+    if (guidedApply.reflection) patch.reflection = guidedDraft.reflection;
+    if (guidedApply.prayer) patch.prayer = guidedDraft.prayer;
+    if (guidedApply.questions) patch.questions = guidedDraft.questions;
+
+    onUpdate(patch);
+
+    if (!guidedGenerateScript) {
+      setGuidedOpen(false);
+      return;
+    }
+
+    setGuidedScriptBusy(true);
+    try {
+      const verseRef = String(devotional.verseRef || "").trim();
+      const verseText = String(devotional.verseText || "").trim();
+      const reflection = String(patch.reflection ?? devotional.reflection ?? "").trim();
+
+      const out = await aiTikTokScript(settings, {
+        verseRef,
+        verseText,
+        reflection,
+        mood: devotional.mood,
+        baseScript: "",
+        mode: "regenerate",
+      });
+
+      onUpdate({ tiktokScript: out });
+      setGuidedOpen(false);
+      alert("Applied + generated TikTok script ✅ (see Compile → TikTok Script)");
+    } catch (e) {
+      setGuidedOpen(false);
+      alert(e?.message || "Applied, but TikTok script generation failed.");
+    } finally {
+      setGuidedScriptBusy(false);
+    }
+  };
+
   const openGuidedDraftFromTemplate = () => {
     const draft = templateGuidedFill({
       topicLabel: topic?.label || "",
@@ -1250,6 +1289,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     });
     setGuidedDraft(draft);
     setGuidedApply({ title: true, reflection: true, prayer: true, questions: true });
+    setGuidedGenerateScript(Boolean(settings.guidedAutoGenerateTikTok));
     setGuidedOpen(true);
   };
 
@@ -1264,6 +1304,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       });
       setGuidedDraft(out);
       setGuidedApply({ title: true, reflection: true, prayer: true, questions: true });
+      setGuidedGenerateScript(Boolean(settings.guidedAutoGenerateTikTok));
       setGuidedOpen(true);
     } catch (e) {
       alert(e?.message || "AI failed.");
@@ -1278,16 +1319,13 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     const next = insertAtCursor(reflectionRef.current, devotional.reflection || "", `${t.prompt}\n`);
     const patch = { reflection: next };
 
-    if (guidedMode) {
-      if (!String(devotional.prayer || "").trim()) {
-        patch.prayer = templateGuidedFill({ topicLabel: t.label, verseRef: devotional.verseRef, mood: devotional.mood }).prayer;
-      }
-      if (!String(devotional.questions || "").trim()) {
-        patch.questions = templateGuidedFill({ topicLabel: t.label, verseRef: devotional.verseRef, mood: devotional.mood }).questions;
-      }
-      if (!String(devotional.title || "").trim()) {
-        patch.title = templateGuidedFill({ topicLabel: t.label, verseRef: devotional.verseRef, mood: devotional.mood }).title;
-      }
+    const autoFillEmpty = Boolean(settings.autoFillEmptyOnTopicTap);
+
+    if (guidedMode && autoFillEmpty) {
+      const templ = templateGuidedFill({ topicLabel: t.label, verseRef: devotional.verseRef, mood: devotional.mood });
+      if (!String(devotional.prayer || "").trim()) patch.prayer = templ.prayer;
+      if (!String(devotional.questions || "").trim()) patch.questions = templ.questions;
+      if (!String(devotional.title || "").trim()) patch.title = templ.title;
     }
 
     onUpdate(patch);
@@ -1326,11 +1364,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             </Chip>
           ))}
         </div>
-        {guidedMode ? (
-          <div className="mt-3 text-xs text-slate-500">
-            Guided Mode: mood gently affects AI tone (comforting, hopeful, etc.).
-          </div>
-        ) : null}
+        {guidedMode ? <div className="mt-3 text-xs text-slate-500">Guided Mode: mood gently affects AI tone.</div> : null}
       </Card>
 
       <Card>
@@ -1428,11 +1462,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           <div>
             <div className="flex items-end justify-between gap-3">
               <label className="text-xs font-extrabold text-slate-400">REFLECTION / BODY</label>
-              {guidedMode ? (
-                <div className="text-[11px] font-bold text-slate-500">
-                  Topic → insert prompt, then Guided Fill for full entry
-                </div>
-              ) : null}
+              {guidedMode ? <div className="text-[11px] font-bold text-slate-500">Topic → prompt, then Guided Fill</div> : null}
             </div>
 
             <div className="mt-2 flex gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -1473,9 +1503,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             />
 
             {guidedMode && !hasReflection ? (
-              <div className="mt-2 text-xs font-bold text-slate-500">
-                Starter: “What is God showing me about this verse today?”
-              </div>
+              <div className="mt-2 text-xs font-bold text-slate-500">Starter: “What is God showing me about this verse today?”</div>
             ) : null}
 
             <div className="mt-2 flex flex-wrap gap-2">
@@ -1512,11 +1540,6 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               autoCapitalize="sentences"
               className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
             />
-            {guidedMode && !String(devotional.prayer || "").trim() ? (
-              <div className="mt-2 text-[11px] font-bold text-slate-500">
-                Tip: Guided Fill can draft a prayer for you.
-              </div>
-            ) : null}
           </div>
 
           <div>
@@ -1580,11 +1603,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-extrabold text-slate-500 uppercase">{k}</div>
                   <label className="text-xs font-extrabold text-slate-600 flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={apply[k]}
-                      onChange={(e) => setApply((s) => ({ ...s, [k]: e.target.checked }))}
-                    />
+                    <input type="checkbox" checked={apply[k]} onChange={(e) => setApply((s) => ({ ...s, [k]: e.target.checked }))} />
                     Replace
                   </label>
                 </div>
@@ -1600,17 +1619,41 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           title={`Guided Fill Preview — ${topic?.label || "Topic"}`}
           onClose={() => setGuidedOpen(false)}
           footer={
-            <div className="flex gap-2">
-              <SmallButton
-                onClick={() => setGuidedApply({ title: true, reflection: true, prayer: true, questions: true })}
-              >
-                Apply all
-              </SmallButton>
-              <div className="flex-1" />
-              <SmallButton onClick={() => setGuidedOpen(false)}>Cancel</SmallButton>
-              <SmallButton onClick={applyGuidedDraft} tone="primary">
-                Apply
-              </SmallButton>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-xs font-extrabold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={guidedGenerateScript}
+                    onChange={(e) => setGuidedGenerateScript(e.target.checked)}
+                  />
+                  Also generate TikTok script
+                </label>
+                <div className="text-xs text-slate-500">
+                  {guidedScriptBusy ? "Generating..." : guidedGenerateScript ? "One-click: Apply + Script" : "Apply only"}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <SmallButton onClick={() => setGuidedApply({ title: true, reflection: true, prayer: true, questions: true })}>
+                  Apply all
+                </SmallButton>
+                <div className="flex-1" />
+                <SmallButton onClick={() => setGuidedOpen(false)}>Cancel</SmallButton>
+                <SmallButton
+                  onClick={() => void applyGuidedDraftAndScript()}
+                  tone="primary"
+                  disabled={guidedScriptBusy || (guidedGenerateScript && aiNeedsKey)}
+                >
+                  {guidedGenerateScript ? "Apply + Script" : "Apply"}
+                </SmallButton>
+              </div>
+
+              {guidedGenerateScript && aiNeedsKey ? (
+                <div className="text-xs font-bold text-amber-700">
+                  Add an AI key in <b>Settings</b> (or toggle off script generation).
+                </div>
+              ) : null}
             </div>
           }
         >
@@ -1631,12 +1674,6 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                 onChange={(v) => setGuidedDraft((s) => ({ ...s, [k]: v }))}
               />
             ))}
-            <Card className="p-4">
-              <div className="text-xs font-extrabold text-slate-600">CHOICES</div>
-              <div className="mt-2 text-xs text-slate-500">
-                Use <b>Guided Fill</b> for fast templates, or <b>AI Guided</b> for a custom draft. Everything stays editable before applying.
-              </div>
-            </Card>
           </div>
         </Modal>
       ) : null}
@@ -1766,13 +1803,43 @@ function SettingsView({ settings, onUpdate, onReset }) {
             <div className="text-xs text-slate-500 mt-1">Show helpful hints and suggested flows across the app.</div>
           </div>
           <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
-            <input
-              type="checkbox"
-              checked={Boolean(settings.guidedMode)}
-              onChange={(e) => onUpdate({ guidedMode: e.target.checked })}
-            />
+            <input type="checkbox" checked={Boolean(settings.guidedMode)} onChange={(e) => onUpdate({ guidedMode: e.target.checked })} />
             On
           </label>
+        </div>
+      </Card>
+
+      <Card className="border-slate-200">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-extrabold text-slate-900">Auto-fill empty sections on Topic tap</div>
+              <div className="text-xs text-slate-500 mt-1">When you tap a Topic Chip, auto-fill Title/Prayer/Questions if empty.</div>
+            </div>
+            <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
+              <input
+                type="checkbox"
+                checked={Boolean(settings.autoFillEmptyOnTopicTap)}
+                onChange={(e) => onUpdate({ autoFillEmptyOnTopicTap: e.target.checked })}
+              />
+              On
+            </label>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-extrabold text-slate-900">Guided Fill: auto-generate TikTok script</div>
+              <div className="text-xs text-slate-500 mt-1">Default for the “Apply + Script” checkbox in Guided Fill.</div>
+            </div>
+            <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
+              <input
+                type="checkbox"
+                checked={Boolean(settings.guidedAutoGenerateTikTok)}
+                onChange={(e) => onUpdate({ guidedAutoGenerateTikTok: e.target.checked })}
+              />
+              On
+            </label>
+          </div>
         </div>
       </Card>
 
@@ -1832,17 +1899,11 @@ function SettingsView({ settings, onUpdate, onReset }) {
             <div className="mt-3 flex items-center justify-between">
               <div className="text-xs font-extrabold text-slate-600">AUTO STRUCTURE AFTER SCAN</div>
               <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={Boolean(settings.ocrAutoStructure)}
-                  onChange={(e) => onUpdate({ ocrAutoStructure: e.target.checked })}
-                />
+                <input type="checkbox" checked={Boolean(settings.ocrAutoStructure)} onChange={(e) => onUpdate({ ocrAutoStructure: e.target.checked })} />
                 On
               </label>
             </div>
-            <div className="text-xs text-slate-500 mt-1">
-              After OCR, generate an AI Structured preview (editable + apply per section).
-            </div>
+            <div className="text-xs text-slate-500 mt-1">After OCR, generate an AI Structured preview (editable + apply per section).</div>
           </div>
 
           <div>
@@ -2013,9 +2074,7 @@ function CompileView({ devotional, settings, onUpdate }) {
         <SocialPreview platform={platform} devotional={devotional} settings={settings} text={text} />
       )}
 
-      {scriptOpen ? (
-        <TikTokScriptModal devotional={devotional} settings={settings} onClose={() => setScriptOpen(false)} onUpdate={onUpdate} />
-      ) : null}
+      {scriptOpen ? <TikTokScriptModal devotional={devotional} settings={settings} onClose={() => setScriptOpen(false)} onUpdate={onUpdate} /> : null}
 
       {exportOpen ? <TikTokExportModal devotional={devotional} settings={settings} onClose={() => setExportOpen(false)} /> : null}
     </div>
@@ -2300,7 +2359,6 @@ function AppInner() {
   const [view, setView] = useState("home"); // home | write | polish | compile | library | settings
 
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
-
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
 
   useEffect(() => {
