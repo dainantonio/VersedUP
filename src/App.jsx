@@ -18,6 +18,7 @@ import {
   Trash2,
   Wand2,
   X,
+  ScanLine,
 } from "lucide-react";
 
 /**
@@ -67,6 +68,7 @@ const DEFAULT_SETTINGS = {
   openaiKey: "",
   geminiKey: "",
   defaultBibleVersion: "KJV",
+  ocrEndpoint: "", // e.g. https://YOUR-VERCEL-APP.vercel.app/api/ocr
   exportPrefs: {
     tiktokTemplate: "minimalLight",
     includeTitle: true,
@@ -345,6 +347,115 @@ async function aiTikTokScript(settings, { verseRef, verseText, reflection, mood,
   return ai(settings, prompt);
 }
 
+/* ---------------- OCR helpers ---------------- */
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read image."));
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      const base64 = result.includes(",") ? result.split(",")[1] : result;
+      resolve(base64);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function callOcr(endpoint, file) {
+  const base64 = await readFileAsBase64(file);
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ imageBase64: base64 }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return String(data?.text || "");
+}
+
+function normalizeOcrText(t) {
+  return String(t || "")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function detectVerseRef(text) {
+  const t = String(text || "");
+  const re =
+    /\b((?:[1-3]\s*)?(?:[A-Za-z]+(?:\s+[A-Za-z]+){0,3}))\s+(\d{1,3})(?::(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?)?(?:\s*[-–]\s*(\d{1,3})(?::(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?)?)?\b/;
+  const m = t.match(re);
+  if (!m) return "";
+  const book = m[1].replace(/\s+/g, " ").trim();
+  const chapter = m[2];
+  const v1 = m[3];
+  const v2 = m[4];
+  const ch2 = m[5];
+  const vv1 = m[6];
+  const vv2 = m[7];
+
+  if (!v1) return `${book} ${chapter}`;
+  if (ch2) {
+    const end = vv2 ? `${ch2}:${vv1}-${vv2}` : `${ch2}:${vv1 || ""}`.replace(/:$/, "");
+    return `${book} ${chapter}:${v1}-${end}`;
+  }
+  return v2 ? `${book} ${chapter}:${v1}-${v2}` : `${book} ${chapter}:${v1}`;
+}
+
+function splitSectionsFromOcr(text) {
+  const raw = normalizeOcrText(text);
+  const lines = raw.split("\n").map((l) => l.trim());
+  const nonEmpty = lines.filter(Boolean);
+
+  const verseRef = detectVerseRef(raw);
+
+  const title =
+    nonEmpty.find((l) => l.length <= 60 && (!verseRef || !l.toLowerCase().includes(verseRef.toLowerCase()))) || "";
+
+  const prayerIdx = lines.findIndex((l) => /^prayer[:\s]/i.test(l));
+  const questionsIdx = lines.findIndex((l) => /^(questions|reflection questions)[:\s]/i.test(l));
+  const verseTextHintIdx = lines.findIndex((l) => /^verse[:\s]/i.test(l) || /^scripture[:\s]/i.test(l));
+
+  let verseText = "";
+  if (verseTextHintIdx >= 0) {
+    verseText = lines.slice(verseTextHintIdx + 1, verseTextHintIdx + 10).join("\n").trim();
+  }
+
+  const startBodyIdx = Math.max(0, verseTextHintIdx >= 0 ? verseTextHintIdx + 1 : 0);
+  const endBodyIdx = [prayerIdx, questionsIdx].filter((x) => x >= 0).sort((a, b) => a - b)[0] ?? lines.length;
+
+  let reflection = lines.slice(startBodyIdx, endBodyIdx).join("\n").trim();
+
+  let prayer = "";
+  if (prayerIdx >= 0) {
+    const end = questionsIdx >= 0 ? questionsIdx : lines.length;
+    prayer = lines.slice(prayerIdx + 1, end).join("\n").trim();
+  }
+
+  let questions = "";
+  if (questionsIdx >= 0) {
+    questions = lines.slice(questionsIdx + 1).join("\n").trim();
+  }
+
+  if (!verseText && verseRef) {
+    const idx = lines.findIndex((l) => l.toLowerCase().includes(verseRef.toLowerCase()));
+    if (idx >= 0) verseText = lines.slice(idx + 1, idx + 12).join("\n").trim();
+  }
+
+  if (reflection === title) reflection = "";
+
+  return {
+    verseRef,
+    verseText,
+    title,
+    reflection,
+    prayer,
+    questions,
+  };
+}
+
 /* ---------------- UI primitives ---------------- */
 
 function Card({ children, className }) {
@@ -395,7 +506,7 @@ function Chip({ active, onClick, children }) {
   );
 }
 
-function SmallButton({ children, onClick, disabled, icon: Icon, tone = "neutral" }) {
+function SmallButton({ children, onClick, disabled, icon: Icon, tone = "neutral", type = "button" }) {
   const base =
     "px-3 py-2 rounded-xl text-xs font-extrabold border transition flex items-center gap-2 justify-center active:scale-[0.98] will-change-transform";
   const variants = {
@@ -405,6 +516,7 @@ function SmallButton({ children, onClick, disabled, icon: Icon, tone = "neutral"
   };
   return (
     <button
+      type={type}
       onClick={onClick}
       disabled={disabled}
       className={cn(base, variants[tone], disabled && "opacity-50 cursor-not-allowed")}
@@ -533,12 +645,198 @@ function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
   );
 }
 
+function OcrScanModal({ settings, onClose, onApplyToDevotional }) {
+  const [busy, setBusy] = useState(false);
+  const [file, setFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [rawText, setRawText] = useState("");
+  const [parsed, setParsed] = useState({
+    verseRef: "",
+    verseText: "",
+    title: "",
+    reflection: "",
+    prayer: "",
+    questions: "",
+  });
+  const [apply, setApply] = useState({
+    verseRef: true,
+    verseText: true,
+    title: true,
+    reflection: true,
+    prayer: true,
+    questions: true,
+  });
+
+  useEffect(() => {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const canRun = Boolean(settings.ocrEndpoint?.trim());
+
+  const runOcr = async () => {
+    if (!canRun) {
+      alert("Set OCR Endpoint in Settings first (Vercel /api/ocr).");
+      return;
+    }
+    if (!file) {
+      alert("Select an image first.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const text = await callOcr(settings.ocrEndpoint.trim(), file);
+      const normalized = normalizeOcrText(text);
+      setRawText(normalized);
+      const p = splitSectionsFromOcr(normalized);
+      setParsed(p);
+      setApply({
+        verseRef: Boolean(p.verseRef),
+        verseText: Boolean(p.verseText),
+        title: Boolean(p.title),
+        reflection: Boolean(p.reflection),
+        prayer: Boolean(p.prayer),
+        questions: Boolean(p.questions),
+      });
+    } catch (e) {
+      alert(e?.message || "OCR failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applyFields = () => {
+    const patch = {};
+    if (apply.verseRef) patch.verseRef = parsed.verseRef;
+    if (apply.verseText) patch.verseText = parsed.verseText;
+    if (apply.title) patch.title = parsed.title;
+    if (apply.reflection) patch.reflection = parsed.reflection;
+    if (apply.prayer) patch.prayer = parsed.prayer;
+    if (apply.questions) patch.questions = parsed.questions;
+
+    onApplyToDevotional(patch);
+    onClose();
+  };
+
+  return (
+    <Modal
+      title="Scan (OCR)"
+      onClose={onClose}
+      footer={
+        <div className="flex gap-2 items-center">
+          <div className="text-xs text-slate-500">{busy ? "Reading..." : ""}</div>
+          <div className="flex-1" />
+          <SmallButton onClick={onClose}>Close</SmallButton>
+          <SmallButton onClick={applyFields} tone="primary" disabled={!rawText}>
+            Apply
+          </SmallButton>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <Card className="p-4">
+          <div className="text-xs font-extrabold text-slate-500">UPLOAD OR CAPTURE</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+              />
+              <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-xs font-extrabold hover:bg-slate-50 active:scale-[0.98]">
+                <Camera className="w-4 h-4" />
+                Upload
+              </span>
+            </label>
+
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+              />
+              <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-xs font-extrabold hover:bg-slate-50 active:scale-[0.98]">
+                <ScanLine className="w-4 h-4" />
+                Camera
+              </span>
+            </label>
+
+            <SmallButton onClick={() => void runOcr()} disabled={busy || !file} tone="primary" icon={busy ? Loader2 : null}>
+              {busy ? "..." : "Run OCR"}
+            </SmallButton>
+          </div>
+
+          {!canRun ? (
+            <div className="mt-3 text-xs font-bold text-amber-700">
+              Set OCR Endpoint in Settings (Vercel /api/ocr) to enable best-quality scan.
+            </div>
+          ) : null}
+
+          {previewUrl ? (
+            <div className="mt-4 rounded-2xl overflow-hidden border border-slate-200">
+              <img src={previewUrl} alt="Scan preview" className="w-full h-auto" />
+            </div>
+          ) : null}
+        </Card>
+
+        {rawText ? (
+          <div className="space-y-3">
+            <Card className="p-4">
+              <div className="text-xs font-extrabold text-slate-500">OCR TEXT (RAW)</div>
+              <div className="mt-2 text-xs whitespace-pre-wrap text-slate-600 max-h-40 overflow-auto">
+                {rawText}
+              </div>
+            </Card>
+
+            <div className="space-y-3">
+              {[
+                ["verseRef", "Verse Ref"],
+                ["verseText", "Verse Text"],
+                ["title", "Title"],
+                ["reflection", "Reflection"],
+                ["prayer", "Prayer"],
+                ["questions", "Questions"],
+              ].map(([k, label]) => (
+                <Card key={k} className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-extrabold text-slate-700">{label}</div>
+                    <label className="text-xs font-extrabold text-slate-600 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={apply[k]}
+                        onChange={(e) => setApply((s) => ({ ...s, [k]: e.target.checked }))}
+                      />
+                      Apply
+                    </label>
+                  </div>
+                  <textarea
+                    value={parsed[k]}
+                    onChange={(e) => setParsed((p) => ({ ...p, [k]: e.target.value }))}
+                    rows={k === "reflection" ? 5 : 3}
+                    className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+                  />
+                </Card>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
 function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
   const [structureDraft, setStructureDraft] = useState({ title: "", reflection: "", prayer: "", questions: "" });
   const [apply, setApply] = useState({ title: true, reflection: true, prayer: true, questions: true });
   const [fetching, setFetching] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
 
   const version = devotional.bibleVersion || settings.defaultBibleVersion || "KJV";
 
@@ -637,12 +935,17 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               <div className="text-xs font-extrabold text-slate-500 flex items-center gap-2">
                 <BookOpen className="w-4 h-4" /> VERSE
               </div>
-              <SmallButton
-                onClick={() => window.open(youVersionSearchUrl(devotional.verseRef), "_blank", "noopener,noreferrer")}
-                disabled={!devotional.verseRef}
-              >
-                Open YouVersion
-              </SmallButton>
+              <div className="flex gap-2">
+                <SmallButton onClick={() => setScanOpen(true)} icon={ScanLine}>
+                  Scan
+                </SmallButton>
+                <SmallButton
+                  onClick={() => window.open(youVersionSearchUrl(devotional.verseRef), "_blank", "noopener,noreferrer")}
+                  disabled={!devotional.verseRef}
+                >
+                  Open YouVersion
+                </SmallButton>
+              </div>
             </div>
 
             <div className="flex gap-2">
@@ -820,6 +1123,14 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           </div>
         </Modal>
       ) : null}
+
+      {scanOpen ? (
+        <OcrScanModal
+          settings={settings}
+          onClose={() => setScanOpen(false)}
+          onApplyToDevotional={(patch) => onUpdate(patch)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -951,6 +1262,19 @@ function SettingsView({ settings, onUpdate, onReset }) {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-extrabold text-slate-500">OCR ENDPOINT (Vercel)</label>
+            <input
+              value={settings.ocrEndpoint || ""}
+              onChange={(e) => onUpdate({ ocrEndpoint: e.target.value })}
+              placeholder="https://your-vercel-app.vercel.app/api/ocr"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+            />
+            <div className="text-xs text-slate-500 mt-2">
+              Enables best-quality Scan using Google Vision OCR (camera/upload).
+            </div>
           </div>
 
           <div>
