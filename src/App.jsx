@@ -1467,18 +1467,23 @@ function AppInner() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-slate-50 to-sky-50">
-      <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/70 px-4 py-3">
-        <div className="max-w-md mx-auto flex items-center justify-center">
-          <img
-            src={`${import.meta.env.BASE_URL}logo.png`}
-            alt="VersedUP"
-            className="h-14 w-auto object-contain drop-shadow-sm"
-            draggable="false"
-          />
-        </div>
-      </div>
+    <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/70 px-4 py-3">
+  <div className="max-w-md mx-auto flex items-center gap-3">
+    <img
+      src={`${import.meta.env.BASE_URL}logo.png`}
+      alt="VersedUP"
+      className="h-16 w-auto object-contain drop-shadow-sm"
+      draggable="false"
+    />
 
+    <div className="min-w-0 leading-tight">
+      <div className="text-sm font-extrabold text-slate-900 truncate">
+        Rooted in Christ, growing in his fruit.
+      </div>
+      <div className="text-xs font-bold text-slate-500">(John 15:5)</div>
+    </div>
+  </div>
+</div>
       <main className="max-w-md mx-auto px-4 pt-6">
         {view === "home" ? (
           <HomeView
