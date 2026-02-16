@@ -5,39 +5,43 @@ import {
   BookOpen,
   Camera,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Copy,
-  Download,
-  FileDown,
   Library,
   Loader2,
-  Mail,
   PenTool,
   Plus,
   RefreshCw,
-  Save,
   Search,
   Settings,
   Share2,
   Sparkles,
   Trash2,
-  Video,
   Wand2,
   X,
 } from "lucide-react";
 
 /**
- * VersedUP (single-file app)
- * - Write (scripture + title + reflection + prayer + questions)
- * - AI: Fix, Structure (preview/apply per section), Shorten/Lengthen
- * - Compile: platform text + TikTok Script editor + one-screen PNG export
- * - Library + Settings
+ * VersedUP — single file app
+ * Stability:
+ * - ErrorBoundary
+ * - Defensive localStorage schema
+ *
+ * UX "Glow Up":
+ * - Bento Home dashboard (streak + quick actions + verse of day)
+ * - Mood chips ("How is your heart?") influences AI prompts
+ * - Compile Text/Preview toggle (TikTok/Instagram/Email mockups)
+ * - Glass bottom nav + bouncy interactions
+ *
+ * Pro:
+ * - TikTok script engine (regen from devotional + improve script)
+ * - Editable script + char counter + save back toggle
+ * - TikTok PNG export (one-screen safe margins)
  */
 
 const APP_ID = "versedup_v1";
 const STORAGE_SETTINGS = `${APP_ID}_settings`;
 const STORAGE_DEVOTIONALS = `${APP_ID}_devotionals`;
+const STORAGE_STREAK = `${APP_ID}_streak`;
 
 const PLATFORM_LIMITS = {
   tiktok: 2200,
@@ -50,8 +54,8 @@ const PLATFORM_LIMITS = {
 const MOODS = [
   { id: "grateful", label: "Gratitude" },
   { id: "anxious", label: "Anxiety" },
-  { id: "strong", label: "Strength" },
-  { id: "peace", label: "Peace" },
+  { id: "hopeful", label: "Hopeful" },
+  { id: "weary", label: "Weary" },
 ];
 
 const BIBLE_VERSIONS = ["KJV", "NLT", "ESV", "NKJV"];
@@ -90,24 +94,35 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function createDevotional() {
+function todayKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function addDaysKey(dateKey, days) {
+  const [y, m, d] = dateKey.split("-").map((n) => Number(n));
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  return todayKey(dt);
+}
+
+function createDevotional(settings) {
   return {
     id: crypto.randomUUID(),
     createdAt: nowIso(),
     updatedAt: nowIso(),
     mood: "",
     verseRef: "",
-    bibleVersion: "",
+    bibleVersion: settings?.defaultBibleVersion || "KJV",
     verseText: "",
-    verseTextEdited: false, // override indicator
+    verseTextEdited: false,
     title: "",
     reflection: "",
     prayer: "",
     questions: "",
-    // platform versions
     tiktokScript: "",
-    instagramCaption: "",
-    genericExport: "",
     status: "draft",
   };
 }
@@ -133,15 +148,72 @@ async function fetchKjvFromBibleApi(passage) {
   return String(data.text).trim();
 }
 
-/* ---------------- AI (OpenAI/Gemini optional; Mock fallback) ---------------- */
+/* ---------------- Error Boundary ---------------- */
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, message: "" };
+  }
+  static getDerivedStateFromError(err) {
+    return { hasError: true, message: String(err?.message || err || "Unknown error") };
+  }
+  componentDidCatch(err) {
+    // eslint-disable-next-line no-console
+    console.error("ErrorBoundary caught:", err);
+  }
+  render() {
+    if (!this.state.hasError) return this.props.children;
+
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 to-slate-50 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-amber-500 mt-0.5" />
+            <div>
+              <div className="text-lg font-extrabold text-slate-900">Something went wrong</div>
+              <div className="text-sm text-slate-600 mt-1">
+                Try refreshing. If this keeps happening, reset local data.
+              </div>
+              <div className="mt-3 text-xs font-mono text-slate-500 whitespace-pre-wrap">
+                {this.state.message}
+              </div>
+              <div className="mt-5 flex gap-2">
+                <button
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-extrabold hover:bg-slate-50"
+                  onClick={() => location.reload()}
+                >
+                  Refresh
+                </button>
+                <button
+                  className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-extrabold hover:bg-emerald-700"
+                  onClick={() => {
+                    localStorage.removeItem(STORAGE_SETTINGS);
+                    localStorage.removeItem(STORAGE_DEVOTIONALS);
+                    localStorage.removeItem(STORAGE_STREAK);
+                    location.reload();
+                  }}
+                >
+                  Reset data
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+}
+
+/* ---------------- AI (OpenAI Responses + Gemini v1 + fallback-to-mock) ---------------- */
 
 function buildMoodHint(mood) {
   if (!mood) return "";
   const map = {
     grateful: "Tone: grateful, joyful, thankful.",
     anxious: "Tone: calm, reassuring, comforting for anxiety.",
-    strong: "Tone: bold, strengthening, empowering.",
-    peace: "Tone: peaceful, gentle, grounded.",
+    hopeful: "Tone: hopeful, uplifting, forward-looking.",
+    weary: "Tone: gentle, comforting, restorative.",
   };
   return map[mood] || "";
 }
@@ -149,10 +221,7 @@ function buildMoodHint(mood) {
 async function openAiResponseText({ apiKey, prompt }) {
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "gpt-4o-mini",
       input: prompt,
@@ -164,19 +233,18 @@ async function openAiResponseText({ apiKey, prompt }) {
 
   const data = await res.json();
 
-  // Preferred: `output_text` (provided by Responses API)
   if (typeof data.output_text === "string" && data.output_text.length) return data.output_text;
 
-  // Fallback parsing (just in case)
   const parts =
     data.output?.flatMap((item) => item.content || [])?.filter((c) => c.type === "output_text") || [];
   return parts.map((p) => p.text).join("") || "";
 }
 
 async function geminiGenerate({ apiKey, prompt }) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${encodeURIComponent(
-    apiKey
-  )}`;
+  const url =
+    "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=" +
+    encodeURIComponent(apiKey);
+
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -185,37 +253,43 @@ async function geminiGenerate({ apiKey, prompt }) {
       generationConfig: { temperature: 0.4 },
     }),
   });
+
   if (!res.ok) throw new Error(await res.text());
+
   const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 }
 
 async function ai(settings, prompt) {
   const provider = settings.aiProvider;
 
-  // OpenAI
   if (provider === "openai" && settings.openaiKey) {
     try {
       return await openAiResponseText({ apiKey: settings.openaiKey, prompt });
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.warn("OpenAI failed; falling back to mock:", e);
-      return await ai({ ...settings, aiProvider: "mock" }, prompt);
+      return ai({ ...settings, aiProvider: "mock" }, prompt);
     }
   }
 
-  // Gemini
   if (provider === "gemini" && settings.geminiKey) {
     try {
       return await geminiGenerate({ apiKey: settings.geminiKey, prompt });
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.warn("Gemini failed; falling back to mock:", e);
-      return await ai({ ...settings, aiProvider: "mock" }, prompt);
+      return ai({ ...settings, aiProvider: "mock" }, prompt);
     }
   }
 
-  // Mock
   await new Promise((r) => setTimeout(r, 650));
-  return `(${provider || "mock"}) ${prompt}`.slice(0, 3000);
+  return prompt.slice(0, 2800);
+}
+
+async function aiFixGrammar(settings, { text, mood }) {
+  const prompt = `Fix grammar and spelling. ${buildMoodHint(mood)} Return ONLY corrected text.\n\nTEXT:\n${text}`;
+  return ai(settings, prompt);
 }
 
 async function aiStructure(settings, { verseRef, verseText, reflection, mood }) {
@@ -243,9 +317,7 @@ Return JSON exactly:
   const raw = await ai(settings, prompt);
   const cleaned = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
   const parsed = safeParseJson(cleaned, null);
-  if (!parsed) {
-    return { title: "", reflection: raw, prayer: "", questions: "" };
-  }
+  if (!parsed) return { title: "", reflection: raw, prayer: "", questions: "" };
   return {
     title: String(parsed.title || ""),
     reflection: String(parsed.reflection || ""),
@@ -257,8 +329,8 @@ Return JSON exactly:
 async function aiRewriteLength(settings, { text, mood, direction }) {
   const prompt =
     direction === "shorten"
-      ? `Shorten this while keeping meaning. ${buildMoodHint(mood)} Return only the shortened text.\n\n${text}`
-      : `Lengthen this with more depth and clarity. ${buildMoodHint(mood)} Return only the expanded text.\n\n${text}`;
+      ? `Shorten this while keeping meaning. ${buildMoodHint(mood)} Return ONLY text.\n\n${text}`
+      : `Lengthen this with more depth and clarity. ${buildMoodHint(mood)} Return ONLY text.\n\n${text}`;
   return ai(settings, prompt);
 }
 
@@ -269,14 +341,24 @@ async function aiTikTokScript(settings, { verseRef, verseText, reflection, mood,
     mode === "improve"
       ? `Improve this existing TikTok script without changing the meaning too much:\n\n${baseScript}`
       : `Source content:\nVerse: ${verseRef}\nVerse text:\n${verseText}\nReflection:\n${reflection}`;
-  const prompt = `${style}\n${buildMoodHint(mood)}\n\n${base}\n\nReturn only the script text.`;
+  const prompt = `${style}\n${buildMoodHint(mood)}\n\n${base}\n\nReturn ONLY the script text.`;
   return ai(settings, prompt);
 }
 
 /* ---------------- UI primitives ---------------- */
 
-function Card({ children }) {
-  return <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5">{children}</div>;
+function Card({ children, className }) {
+  return (
+    <div
+      className={cn(
+        "bg-white rounded-3xl border border-slate-200 shadow-sm p-5",
+        "backdrop-blur-sm",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 function PrimaryButton({ children, onClick, disabled, icon: Icon }) {
@@ -286,6 +368,7 @@ function PrimaryButton({ children, onClick, disabled, icon: Icon }) {
       disabled={disabled}
       className={cn(
         "w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 transition",
+        "active:scale-[0.985] will-change-transform",
         disabled && "opacity-50 cursor-not-allowed"
       )}
     >
@@ -301,7 +384,10 @@ function Chip({ active, onClick, children }) {
       onClick={onClick}
       className={cn(
         "px-3 py-2 rounded-full border text-xs font-bold transition whitespace-nowrap",
-        active ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+        "active:scale-[0.98] will-change-transform",
+        active
+          ? "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
+          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
       )}
     >
       {children}
@@ -310,21 +396,24 @@ function Chip({ active, onClick, children }) {
 }
 
 function SmallButton({ children, onClick, disabled, icon: Icon, tone = "neutral" }) {
-  const base = "px-3 py-2 rounded-xl text-xs font-extrabold border transition flex items-center gap-2 justify-center";
+  const base =
+    "px-3 py-2 rounded-xl text-xs font-extrabold border transition flex items-center gap-2 justify-center active:scale-[0.98] will-change-transform";
   const variants = {
     neutral: "bg-white border-slate-200 text-slate-700 hover:bg-slate-50",
     primary: "bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700",
     danger: "bg-white border-slate-200 text-red-600 hover:bg-red-50",
   };
   return (
-    <button onClick={onClick} disabled={disabled} className={cn(base, variants[tone], disabled && "opacity-50 cursor-not-allowed")}>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(base, variants[tone], disabled && "opacity-50 cursor-not-allowed")}
+    >
       {Icon ? <Icon className="w-4 h-4" /> : null}
       {children}
     </button>
   );
 }
-
-/* ---------------- Modals ---------------- */
 
 function Modal({ title, onClose, children, footer }) {
   return (
@@ -332,7 +421,7 @@ function Modal({ title, onClose, children, footer }) {
       <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
           <div className="font-extrabold text-slate-900">{title}</div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100">
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 active:scale-[0.98]">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -343,36 +432,97 @@ function Modal({ title, onClose, children, footer }) {
   );
 }
 
+/* ---------------- Streak model ---------------- */
+
+function loadStreak() {
+  const raw = localStorage.getItem(STORAGE_STREAK);
+  const parsed = safeParseJson(raw, { count: 0, lastDay: "" });
+  if (!parsed || typeof parsed !== "object") return { count: 0, lastDay: "" };
+  const count = Number(parsed.count || 0);
+  const lastDay = String(parsed.lastDay || "");
+  return { count: Number.isFinite(count) ? count : 0, lastDay };
+}
+
+function saveStreak(streak) {
+  localStorage.setItem(STORAGE_STREAK, JSON.stringify(streak));
+}
+
+function bumpStreakOnSave() {
+  const streak = loadStreak();
+  const today = todayKey();
+
+  if (!streak.lastDay) {
+    const next = { count: 1, lastDay: today };
+    saveStreak(next);
+    return next;
+  }
+
+  if (streak.lastDay === today) return streak;
+
+  const yesterday = addDaysKey(today, -1);
+  const next =
+    streak.lastDay === yesterday
+      ? { count: streak.count + 1, lastDay: today }
+      : { count: 1, lastDay: today };
+
+  saveStreak(next);
+  return next;
+}
+
 /* ---------------- Views ---------------- */
 
-function HomeView({ onNew, onLibrary }) {
+function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
   return (
     <div className="space-y-6 pb-28">
       <div>
-        <div className="text-sm text-slate-500">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</div>
+        <div className="text-sm text-slate-500">
+          {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+        </div>
         <div className="text-3xl font-extrabold text-slate-900 mt-1">Good Evening</div>
       </div>
 
+      {/* Bento */}
       <div className="grid grid-cols-2 gap-4">
-        <button onClick={onNew} className="bg-white rounded-3xl border border-slate-200 p-5 text-left hover:bg-slate-50 transition">
+        <div className="col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm p-5 overflow-hidden relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-200/40 via-transparent to-sky-200/30 pointer-events-none" />
+          <div className="relative flex items-center justify-between">
+            <div>
+              <div className="text-xs font-extrabold text-slate-500">CURRENT STREAK</div>
+              <div className="text-3xl font-extrabold text-slate-900 mt-1">{streak.count} <span className="text-slate-500 text-lg">days</span></div>
+              <div className="text-xs text-slate-500 mt-1">Keep showing up — God meets you here.</div>
+            </div>
+            <button
+              onClick={hasActive ? onContinue : onNew}
+              className="px-4 py-3 rounded-2xl bg-emerald-600 text-white font-extrabold shadow-lg hover:bg-emerald-700 active:scale-[0.985]"
+            >
+              {hasActive ? "Continue" : "Check In"}
+            </button>
+          </div>
+        </div>
+
+        <button onClick={onNew} className="bg-white rounded-3xl border border-slate-200 p-5 text-left hover:bg-slate-50 transition active:scale-[0.99]">
           <div className="font-extrabold text-slate-900">New Entry</div>
           <div className="text-xs text-slate-500 mt-1">Start fresh</div>
         </button>
-        <button onClick={onLibrary} className="bg-white rounded-3xl border border-slate-200 p-5 text-left hover:bg-slate-50 transition">
+
+        <button onClick={onLibrary} className="bg-white rounded-3xl border border-slate-200 p-5 text-left hover:bg-slate-50 transition active:scale-[0.99]">
           <div className="font-extrabold text-slate-900">Library</div>
           <div className="text-xs text-slate-500 mt-1">View archive</div>
         </button>
       </div>
 
-      <Card>
+      {/* Verse of the Day */}
+      <Card className="overflow-hidden">
         <div className="flex items-center justify-between">
           <div className="font-extrabold text-slate-900">Verse of the Day</div>
           <div className="text-xs font-bold text-emerald-700">Daily</div>
         </div>
-        <div className="mt-3 bg-gradient-to-br from-emerald-400 to-emerald-700 rounded-3xl p-6 text-white">
-          <div className="text-2xl leading-snug font-semibold">“The Lord is my shepherd; I shall not want...”</div>
+        <div className="mt-3 bg-gradient-to-br from-emerald-400 via-emerald-600 to-emerald-800 rounded-3xl p-6 text-white shadow-sm">
+          <div className="text-2xl leading-snug font-semibold">
+            “The Lord is my shepherd; I shall not want. He makes me lie down in green pastures.”
+          </div>
           <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90">PSALM 23:1-2</div>
-          <button onClick={onNew} className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/25 text-xs font-extrabold">
+          <button onClick={onNew} className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/25 text-xs font-extrabold active:scale-[0.985]">
             Reflect on this
           </button>
         </div>
@@ -381,7 +531,7 @@ function HomeView({ onNew, onLibrary }) {
   );
 }
 
-function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish }) {
+function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [structureOpen, setStructureOpen] = useState(false);
   const [structureDraft, setStructureDraft] = useState({ title: "", reflection: "", prayer: "", questions: "" });
@@ -462,36 +612,33 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish }) 
   return (
     <div className="space-y-6 pb-28">
       <div>
-        <div className="text-sm text-slate-500">Journal</div>
+        <div className="text-lg font-extrabold text-slate-900">New Entry</div>
         <div className="text-xs font-bold text-slate-400 mt-1">CAPTURE WHAT GOD IS SPEAKING</div>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-        {MOODS.map((m) => (
-          <Chip key={m.id} active={devotional.mood === m.id} onClick={() => onUpdate({ mood: devotional.mood === m.id ? "" : m.id })}>
-            {m.label}
-          </Chip>
-        ))}
-      </div>
+      <Card className="overflow-hidden">
+        <div className="text-xs font-extrabold text-slate-500">HOW IS YOUR HEART?</div>
+        <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          {MOODS.map((m) => (
+            <Chip key={m.id} active={devotional.mood === m.id} onClick={() => onUpdate({ mood: devotional.mood === m.id ? "" : m.id })}>
+              {m.label}
+            </Chip>
+          ))}
+        </div>
+      </Card>
 
       <Card>
         <div className="space-y-4">
-          <div>
-            <label className="text-xs font-extrabold text-slate-400">TITLE (OPTIONAL)</label>
-            <input
-              value={devotional.title}
-              onChange={(e) => onUpdate({ title: e.target.value })}
-              placeholder="Give it a holy title..."
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
-            />
-          </div>
-
+          {/* Verse on top flow */}
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="text-xs font-extrabold text-slate-500 flex items-center gap-2">
                 <BookOpen className="w-4 h-4" /> VERSE
               </div>
-              <SmallButton onClick={() => window.open(youVersionSearchUrl(devotional.verseRef), "_blank", "noopener,noreferrer")} disabled={!devotional.verseRef}>
+              <SmallButton
+                onClick={() => window.open(youVersionSearchUrl(devotional.verseRef), "_blank", "noopener,noreferrer")}
+                disabled={!devotional.verseRef}
+              >
                 Open YouVersion
               </SmallButton>
             </div>
@@ -535,8 +682,20 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish }) 
                 rows={4}
                 className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 bg-white resize-none"
               />
-              {devotional.verseTextEdited ? <div className="mt-2 text-[11px] font-bold text-amber-700">Edited override</div> : null}
+              {devotional.verseTextEdited ? (
+                <div className="mt-2 text-[11px] font-bold text-amber-700">Edited override</div>
+              ) : null}
             </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-extrabold text-slate-400">TITLE (OPTIONAL)</label>
+            <input
+              value={devotional.title}
+              onChange={(e) => onUpdate({ title: e.target.value })}
+              placeholder="Give it a holy title..."
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+            />
           </div>
 
           <div>
@@ -558,10 +717,10 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish }) 
               <SmallButton onClick={doStructure} disabled={busy} icon={Wand2}>
                 Structure
               </SmallButton>
-              <SmallButton onClick={() => void doLength("shorten")} disabled={busy} icon={ChevronLeft}>
+              <SmallButton onClick={() => void doLength("shorten")} disabled={busy}>
                 Shorten
               </SmallButton>
-              <SmallButton onClick={() => void doLength("lengthen")} disabled={busy} icon={ChevronRight}>
+              <SmallButton onClick={() => void doLength("lengthen")} disabled={busy}>
                 Lengthen
               </SmallButton>
             </div>
@@ -597,10 +756,23 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish }) 
         </div>
       </Card>
 
-      <PrimaryButton onClick={onGoPolish} icon={Save}>
+      <PrimaryButton
+        onClick={() => {
+          onSaved();
+          onGoPolish();
+        }}
+        icon={Check}
+      >
         Save & Polish
       </PrimaryButton>
-      <PrimaryButton onClick={onGoCompile} icon={Share2}>
+
+      <PrimaryButton
+        onClick={() => {
+          onSaved();
+          onGoCompile();
+        }}
+        icon={Share2}
+      >
         Compile for Socials
       </PrimaryButton>
 
@@ -610,7 +782,10 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish }) 
           onClose={() => setStructureOpen(false)}
           footer={
             <div className="flex gap-2">
-              <SmallButton onClick={() => setApply({ title: true, reflection: true, prayer: true, questions: true })} tone="neutral">
+              <SmallButton
+                onClick={() => setApply({ title: true, reflection: true, prayer: true, questions: true })}
+                tone="neutral"
+              >
                 Replace all
               </SmallButton>
               <div className="flex-1" />
@@ -629,7 +804,11 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish }) 
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-extrabold text-slate-500 uppercase">{k}</div>
                   <label className="text-xs font-extrabold text-slate-600 flex items-center gap-2">
-                    <input type="checkbox" checked={apply[k]} onChange={(e) => setApply((s) => ({ ...s, [k]: e.target.checked }))} />
+                    <input
+                      type="checkbox"
+                      checked={apply[k]}
+                      onChange={(e) => setApply((s) => ({ ...s, [k]: e.target.checked }))}
+                    />
                     Replace
                   </label>
                 </div>
@@ -716,7 +895,7 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
         {filtered.map((d) => (
           <div key={d.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5">
             <div className="flex items-start justify-between gap-3">
-              <button onClick={() => onOpen(d.id)} className="text-left flex-1">
+              <button onClick={() => onOpen(d.id)} className="text-left flex-1 active:scale-[0.995]">
                 <div className="font-extrabold text-slate-900">{d.title || "Untitled"}</div>
                 <div className="text-xs font-bold text-slate-500 mt-1">{d.verseRef || "No scripture"}</div>
                 <div className="text-xs text-slate-400 mt-1">{new Date(d.updatedAt).toLocaleDateString()}</div>
@@ -784,7 +963,7 @@ function SettingsView({ settings, onUpdate, onReset }) {
               <option value="gemini">Gemini</option>
             </select>
             <div className="text-xs text-slate-500 mt-2">
-              Real grammar/spelling correction requires an API key. Without a key, output is a mock fallback.
+              Note: keys are stored locally. If an AI call fails, the app falls back to offline mode automatically.
             </div>
           </div>
 
@@ -821,7 +1000,7 @@ function SettingsView({ settings, onUpdate, onReset }) {
   );
 }
 
-/* ---------------- Compile + TikTok Script + PNG export ---------------- */
+/* ---------------- Compile + Pro previews ---------------- */
 
 function compileForPlatform(platform, d, settings) {
   const verseLine = d.verseRef ? `“${d.verseText || ""}”\n— ${d.verseRef}\n\n` : "";
@@ -831,13 +1010,13 @@ function compileForPlatform(platform, d, settings) {
   const questions = d.questions ? `\n\nQuestions:\n${d.questions}` : "";
 
   if (platform === "tiktok") {
-    return d.tiktokScript || `POV: You needed this today ✨\n\n${d.verseRef}\n\n${body}\n\nSave this for later ❤️`;
+    return (
+      d.tiktokScript ||
+      `POV: You needed this today ✨\n\n${d.verseRef || ""}\n\n${body}\n\nSave this for later ❤️\n#Faith #Devotional`
+    ).trim();
   }
   if (platform === "instagram") {
-    return `${titleLine}${verseLine}${body}${questions}${prayer}\n\n#Faith #Devotional`;
-  }
-  if (platform === "youtube") {
-    return `${d.title || "Daily Devotional"} | ${d.verseRef || ""}\n\n${body}`;
+    return `${titleLine}${verseLine}${body}${questions}${prayer}\n\n#Faith #Devotional`.trim();
   }
   if (platform === "email") {
     return `Subject: ${d.verseRef || "Encouragement"}\n\nHi friend,\n\n${verseLine}${body}${prayer}\n\nBlessings,\n${settings.username || ""}`.trim();
@@ -847,6 +1026,7 @@ function compileForPlatform(platform, d, settings) {
 
 function CompileView({ devotional, settings, onUpdate }) {
   const [platform, setPlatform] = useState("tiktok");
+  const [mode, setMode] = useState("preview"); // preview | text
   const [text, setText] = useState("");
   const [scriptOpen, setScriptOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -868,7 +1048,7 @@ function CompileView({ devotional, settings, onUpdate }) {
       <div className="flex items-center justify-between">
         <div>
           <div className="text-lg font-extrabold text-slate-900">Compile</div>
-          <div className="text-sm text-slate-500 mt-1">Export for socials.</div>
+          <div className="text-sm text-slate-500 mt-1">Preview like a real post.</div>
         </div>
         <div className="flex gap-2">
           <SmallButton onClick={copy} icon={Copy}>
@@ -884,7 +1064,6 @@ function CompileView({ devotional, settings, onUpdate }) {
         {[
           { id: "tiktok", label: "TikTok" },
           { id: "instagram", label: "Instagram" },
-          { id: "youtube", label: "YouTube" },
           { id: "email", label: "Email" },
           { id: "generic", label: "Generic" },
         ].map((p) => (
@@ -892,6 +1071,21 @@ function CompileView({ devotional, settings, onUpdate }) {
             {p.label}
           </Chip>
         ))}
+      </div>
+
+      <div className="flex gap-2">
+        <Chip active={mode === "preview"} onClick={() => setMode("preview")}>
+          Preview
+        </Chip>
+        <Chip active={mode === "text"} onClick={() => setMode("text")}>
+          Text
+        </Chip>
+        <div className="flex-1" />
+        {platform === "tiktok" ? (
+          <SmallButton onClick={() => setScriptOpen(true)} icon={Wand2}>
+            TikTok Script
+          </SmallButton>
+        ) : null}
       </div>
 
       {over ? (
@@ -908,31 +1102,89 @@ function CompileView({ devotional, settings, onUpdate }) {
         </Card>
       ) : null}
 
-      <Card>
-        <div className="flex items-center justify-between">
+      {mode === "text" ? (
+        <Card>
           <div className="text-xs font-extrabold text-slate-500">OUTPUT</div>
-          {platform === "tiktok" ? (
-            <SmallButton onClick={() => setScriptOpen(true)} icon={Wand2} tone="neutral">
-              TikTok Script
-            </SmallButton>
-          ) : null}
-        </div>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={16}
-          className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
-        />
-        <div className="mt-2 text-xs font-bold text-slate-500">
-          {text.length} / {limit}
-        </div>
-      </Card>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={16}
+            className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+          />
+          <div className={cn("mt-2 text-xs font-bold", over ? "text-red-600" : "text-slate-500")}>
+            {text.length} / {limit}
+          </div>
+        </Card>
+      ) : (
+        <SocialPreview platform={platform} devotional={devotional} settings={settings} text={text} />
+      )}
 
       {scriptOpen ? (
-        <TikTokScriptModal devotional={devotional} settings={settings} onClose={() => setScriptOpen(false)} onUpdate={onUpdate} />
+        <TikTokScriptModal
+          devotional={devotional}
+          settings={settings}
+          onClose={() => setScriptOpen(false)}
+          onUpdate={onUpdate}
+        />
       ) : null}
 
       {exportOpen ? <TikTokExportModal devotional={devotional} settings={settings} onClose={() => setExportOpen(false)} /> : null}
+    </div>
+  );
+}
+
+function SocialPreview({ platform, devotional, settings, text }) {
+  if (platform === "instagram") {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="p-4 flex items-center gap-3 border-b border-slate-200 bg-slate-50">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-sky-500" />
+          <div className="flex-1">
+            <div className="text-sm font-extrabold text-slate-900">{settings.username || "yourprofile"}</div>
+            <div className="text-xs text-slate-500">Instagram</div>
+          </div>
+        </div>
+        <div className="p-4">
+          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (platform === "email") {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-slate-200 bg-slate-50">
+          <div className="text-xs font-extrabold text-slate-500">EMAIL PREVIEW</div>
+          <div className="text-sm font-extrabold text-slate-900 mt-1">To: {settings.username || "you@example.com"}</div>
+        </div>
+        <div className="p-4">
+          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // TikTok / Generic -> use "phone" mock card
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="p-4 flex items-center justify-between border-b border-slate-200 bg-slate-50">
+        <div>
+          <div className="text-sm font-extrabold text-slate-900">TikTok Preview</div>
+          <div className="text-xs text-slate-500">Hook + short lines + CTA</div>
+        </div>
+        <div className="text-xs font-extrabold text-emerald-700">{devotional.mood ? `Mood: ${devotional.mood}` : "No mood"}</div>
+      </div>
+
+      <div className="p-4">
+        <div className="rounded-3xl bg-gradient-to-b from-black/5 to-black/0 p-5 border border-slate-200">
+          <div className="text-sm whitespace-pre-wrap text-slate-900 leading-relaxed">{text}</div>
+          <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+            <span>{settings.username || "@yourname"}</span>
+            <span>❤️  •  💬  •  🔖</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1009,7 +1261,7 @@ function TikTokScriptModal({ devotional, settings, onClose, onUpdate }) {
           <SmallButton onClick={() => void generate("improve")} disabled={busy} icon={Sparkles}>
             Improve this script
           </SmallButton>
-          <SmallButton onClick={() => void shorten()} disabled={busy} icon={ChevronLeft}>
+          <SmallButton onClick={() => void shorten()} disabled={busy}>
             Shorten
           </SmallButton>
         </div>
@@ -1081,8 +1333,14 @@ function TikTokExportModal({ devotional, settings, onClose }) {
               <div className="space-y-10">
                 {(includeTitle || includeDate) && (
                   <div className="space-y-2">
-                    {includeTitle ? <div className="text-6xl font-extrabold tracking-tight">{devotional.title || "Untitled Devotional"}</div> : null}
-                    {includeDate ? <div className="text-2xl font-semibold text-slate-600">{new Date(devotional.updatedAt || devotional.createdAt).toLocaleDateString()}</div> : null}
+                    {includeTitle ? (
+                      <div className="text-6xl font-extrabold tracking-tight">{devotional.title || "Untitled Devotional"}</div>
+                    ) : null}
+                    {includeDate ? (
+                      <div className="text-2xl font-semibold text-slate-600">
+                        {new Date(devotional.updatedAt || devotional.createdAt).toLocaleDateString()}
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
@@ -1092,11 +1350,15 @@ function TikTokExportModal({ devotional, settings, onClose }) {
                       <div className="text-2xl font-extrabold">{devotional.verseRef || "Scripture"}</div>
                       <div className="text-xl font-semibold text-slate-600">{devotional.bibleVersion || settings.defaultBibleVersion || "KJV"}</div>
                     </div>
-                    {devotional.verseText ? <div className="text-3xl leading-snug mt-6 whitespace-pre-wrap text-slate-600">{devotional.verseText}</div> : null}
+                    {devotional.verseText ? (
+                      <div className="text-3xl leading-snug mt-6 whitespace-pre-wrap text-slate-600">{devotional.verseText}</div>
+                    ) : null}
                   </div>
                 ) : null}
 
-                <div className="text-3xl leading-snug whitespace-pre-wrap">{devotional.tiktokScript || compileForPlatform("tiktok", devotional, settings)}</div>
+                <div className="text-3xl leading-snug whitespace-pre-wrap">
+                  {devotional.tiktokScript || compileForPlatform("tiktok", devotional, settings)}
+                </div>
               </div>
 
               <div className="flex items-center justify-between">
@@ -1114,43 +1376,62 @@ function TikTokExportModal({ devotional, settings, onClose }) {
 
 /* ---------------- App shell ---------------- */
 
-export default function App() {
+function NavButton({ active, onClick, icon: Icon, label }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex flex-col items-center justify-center gap-1 rounded-2xl p-2 transition active:scale-[0.98]",
+        active ? "bg-white/50 text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
+      )}
+    >
+      <Icon className="w-5 h-5" />
+      <span className="text-[10px] font-extrabold">{label}</span>
+    </button>
+  );
+}
+
+function AppInner() {
   const [settings, setSettings] = useState(() => {
-  const raw = localStorage.getItem(STORAGE_SETTINGS);
-  const parsed = safeParseJson(raw, DEFAULT_SETTINGS);
-  return parsed && typeof parsed === "object"
-    ? { ...DEFAULT_SETTINGS, ...parsed }
-    : DEFAULT_SETTINGS;
-});
+    const raw = localStorage.getItem(STORAGE_SETTINGS);
+    const parsed = safeParseJson(raw, DEFAULT_SETTINGS);
+    return parsed && typeof parsed === "object" ? { ...DEFAULT_SETTINGS, ...parsed } : DEFAULT_SETTINGS;
+  });
+
   const [devotionals, setDevotionals] = useState(() => {
-  const raw = localStorage.getItem(STORAGE_DEVOTIONALS);
-  const parsed = safeParseJson(raw, []);
-  return Array.isArray(parsed) ? parsed : [];
-});
-  const [activeId, setActiveId] = useState(() => devotionals?.[0]?.id || "");
+    const raw = localStorage.getItem(STORAGE_DEVOTIONALS);
+    const parsed = safeParseJson(raw, []);
+    return Array.isArray(parsed) ? parsed : [];
+  });
+
+  const [streak, setStreak] = useState(() => loadStreak());
+  const [activeId, setActiveId] = useState(() => (Array.isArray(devotionals) && devotionals[0] ? devotionals[0].id : ""));
   const [view, setView] = useState("home"); // home | write | polish | compile | library | settings
 
-  const active = useMemo(() => devotionals.find((d) => d.id === activeId) || null, [devotionals, activeId]);
+  const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
+
+  const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(settings));
   }, [settings]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_DEVOTIONALS, JSON.stringify(devotionals));
-  }, [devotionals]);
+    localStorage.setItem(STORAGE_DEVOTIONALS, JSON.stringify(safeDevotionals));
+  }, [safeDevotionals]);
 
   const updateSettings = (patch) => setSettings((s) => ({ ...s, ...patch }));
 
   const updateDevotional = (patch) => {
     if (!active) return;
-    setDevotionals((list) => list.map((d) => (d.id === active.id ? { ...d, ...patch, updatedAt: nowIso() } : d)));
+    setDevotionals((list) =>
+      (Array.isArray(list) ? list : []).map((d) => (d.id === active.id ? { ...d, ...patch, updatedAt: nowIso() } : d))
+    );
   };
 
   const newEntry = () => {
-    const d = createDevotional();
-    d.bibleVersion = settings.defaultBibleVersion || "KJV";
-    setDevotionals((list) => [d, ...list]);
+    const d = createDevotional(settings);
+    setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
     setActiveId(d.id);
     setView("write");
   };
@@ -1161,7 +1442,7 @@ export default function App() {
   };
 
   const deleteEntry = (id) => {
-    setDevotionals((list) => list.filter((d) => d.id !== id));
+    setDevotionals((list) => (Array.isArray(list) ? list : []).filter((d) => d.id !== id));
     if (activeId === id) {
       setActiveId("");
       setView("home");
@@ -1172,51 +1453,82 @@ export default function App() {
     if (!confirm("Reset local data?")) return;
     localStorage.removeItem(STORAGE_SETTINGS);
     localStorage.removeItem(STORAGE_DEVOTIONALS);
+    localStorage.removeItem(STORAGE_STREAK);
     setSettings(DEFAULT_SETTINGS);
     setDevotionals([]);
+    setStreak({ count: 0, lastDay: "" });
     setActiveId("");
     setView("home");
   };
 
+  const onSaved = () => {
+    const next = bumpStreakOnSave();
+    setStreak(next);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 to-slate-50">
-      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-slate-200 px-4 py-3">
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-slate-50 to-sky-50">
+      <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/70 px-4 py-3">
         <div className="max-w-md mx-auto flex items-center justify-center">
-          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="VersedUP" className="h-14 w-auto object-contain" draggable="false" />
+          <img
+            src={`${import.meta.env.BASE_URL}logo.png`}
+            alt="VersedUP"
+            className="h-14 w-auto object-contain drop-shadow-sm"
+            draggable="false"
+          />
         </div>
       </div>
 
       <main className="max-w-md mx-auto px-4 pt-6">
-        {view === "home" ? <HomeView onNew={newEntry} onLibrary={() => setView("library")} /> : null}
+        {view === "home" ? (
+          <HomeView
+            onNew={newEntry}
+            onLibrary={() => setView("library")}
+            onContinue={() => setView(active ? "write" : "home")}
+            hasActive={Boolean(active)}
+            streak={streak}
+          />
+        ) : null}
 
         {view === "write" && active ? (
-          <WriteView devotional={active} settings={settings} onUpdate={updateDevotional} onGoCompile={() => setView("compile")} onGoPolish={() => setView("polish")} />
+          <WriteView
+            devotional={active}
+            settings={settings}
+            onUpdate={updateDevotional}
+            onGoCompile={() => setView("compile")}
+            onGoPolish={() => setView("polish")}
+            onSaved={onSaved}
+          />
         ) : null}
 
         {view === "polish" && active ? <PolishView devotional={active} /> : null}
 
         {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} /> : null}
 
-        {view === "library" ? <LibraryView devotionals={devotionals} onOpen={openEntry} onDelete={deleteEntry} /> : null}
+        {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} /> : null}
 
         {view === "settings" ? <SettingsView settings={settings} onUpdate={updateSettings} onReset={reset} /> : null}
       </main>
 
+      {/* Glass bottom nav */}
       <div className="fixed bottom-0 left-0 right-0 z-40">
-        <div className="max-w-md mx-auto bg-white/80 backdrop-blur border-t border-slate-200 px-4 py-3">
-          <div className="grid grid-cols-5 gap-2">
-            <NavButton active={view === "home"} onClick={() => setView("home")} icon={PenTool} label="Home" />
-            <NavButton active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={PenTool} label="Write" />
-            <NavButton active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={Share2} label="Compile" />
-            <NavButton active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
-            <NavButton active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
+        <div className="max-w-md mx-auto px-4 pb-4">
+          <div className="bg-white/55 backdrop-blur-2xl border border-slate-200/70 shadow-[0_18px_60px_-25px_rgba(0,0,0,0.35)] rounded-3xl px-3 py-2">
+            <div className="grid grid-cols-5 gap-2">
+              <NavButton active={view === "home"} onClick={() => setView("home")} icon={PenTool} label="Home" />
+              <NavButton active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={PenTool} label="Write" />
+              <NavButton active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={Share2} label="Compile" />
+              <NavButton active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
+              <NavButton active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
+            </div>
           </div>
         </div>
       </div>
 
+      {/* Floating new */}
       <button
         onClick={newEntry}
-        className="fixed bottom-20 right-5 z-50 w-14 h-14 rounded-full bg-emerald-600 text-white shadow-2xl flex items-center justify-center hover:bg-emerald-700"
+        className="fixed bottom-28 right-6 z-50 w-14 h-14 rounded-full bg-emerald-600 text-white shadow-2xl flex items-center justify-center hover:bg-emerald-700 active:scale-[0.985]"
         title="New Entry"
       >
         <Plus className="w-7 h-7" />
@@ -1225,17 +1537,10 @@ export default function App() {
   );
 }
 
-function NavButton({ active, onClick, icon: Icon, label }) {
+export default function App() {
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex flex-col items-center justify-center gap-1 rounded-2xl p-2 transition",
-        active ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:text-slate-800"
-      )}
-    >
-      <Icon className="w-5 h-5" />
-      <span className="text-[10px] font-extrabold">{label}</span>
-    </button>
+    <ErrorBoundary>
+      <AppInner />
+    </ErrorBoundary>
   );
 }
