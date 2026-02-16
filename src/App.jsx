@@ -1651,7 +1651,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           onSaved();
           onGoCompile();
         }}
-        icon={Share2}
+        icon={Camera}
       >
         Compile for Socials
       </PrimaryButton>
