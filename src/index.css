@@ -7,7 +7,6 @@
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-
 @keyframes versedup-marquee {
   0% { transform: translateX(100%); }
   100% { transform: translateX(-100%); }
@@ -18,4 +17,3 @@
   white-space: nowrap;
   animation: versedup-marquee 6s linear infinite;
 }
-
