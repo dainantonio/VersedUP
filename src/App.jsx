@@ -57,6 +57,8 @@ const FRUIT_LABELS = Object.freeze([
   "Gentleness",
   "Self-Control",
 ]);
+
+
 const ToastContext = React.createContext({ pushToast: () => {} });
 
 function useToast() {
@@ -353,13 +355,16 @@ function scoreTextMatch(query, candidate) {
 function inferVerseRefFromText(queryText, candidates) {
   const query = normalizeVerseText(queryText);
   if (!query || query.length < 18) return null;
+
   let best = { score: 0, verseRef: "" };
   (Array.isArray(candidates) ? candidates : []).forEach((c) => {
     const s = scoreTextMatch(query, c.verseText);
     if (s > best.score) best = { score: s, verseRef: c.verseRef };
   });
+
   return best.score >= 0.45 ? best.verseRef : null;
 }
+
 
 function templateGuidedFill({ topicLabel, verseRef, mood }) {
   const moodLine = mood ? `Mood: ${mood}` : "";
@@ -886,7 +891,7 @@ function bumpStreakOnSave() {
 
 /* ---------------- Views ---------------- */
 
-function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak, onApplyMoodVerse }) {
+function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak }) {
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
   const moodVerse = MOOD_VERSES[moodVerseKey] || MOOD_VERSES.joy;
@@ -991,13 +996,6 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
         <div className="mt-4 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950 rounded-3xl p-6 text-white shadow-sm">
           <div className="text-xl leading-snug font-semibold">{`“${moodVerse.verseText}”`}</div>
           <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90">{moodVerse.verseRef.toUpperCase()}</div>
-          <button
-            onClick={() => onApplyMoodVerse && onApplyMoodVerse(moodVerseKey)}
-            className="mt-4 px-4 py-2 rounded-full bg-white/10 hover:bg-white/15 text-xs font-extrabold active:scale-[0.985]"
-            type="button"
-          >
-            Apply to entry
-          </button>
         </div>
       </Card>
 
@@ -1600,7 +1598,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             </Chip>
           ))}
         </div>
-
+        {guidedMode ? <div className="mt-3 text-xs text-slate-500">
         <div className="mt-4">
           <div className="text-xs font-extrabold text-slate-500">LABEL (FRUIT OF THE SPIRIT)</div>
           <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -1611,7 +1609,8 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             ))}
           </div>
         </div>
-        {guidedMode ? <div className="mt-3 text-xs text-slate-500">Guided Mode: mood gently affects AI tone.</div> : null}
+
+Guided Mode: mood gently affects AI tone.</div> : null}
       </Card>
 
       <Card>
@@ -1681,7 +1680,10 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                   onUpdate({ verseText: nextText, verseTextEdited: true });
                   if (!String(devotional.verseRef || "").trim()) {
                     const inferred = inferVerseRefFromText(nextText, verseCandidates);
-                    if (inferred) onUpdate({ verseRef: inferred });
+                    if (inferred) {
+                      onUpdate({ verseRef: inferred });
+                      pushToast(`Found reference: ${inferred}`);
+                    }
                   }
                 }}
                 placeholder={
@@ -2021,15 +2023,7 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
             placeholder="Search..."
             className="w-full rounded-2xl border border-slate-200 pl-9 pr-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
           />
-        </div>
           <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            <button
-              type="button"
-              onClick={() => setQ("")}
-              className="px-3 py-2 rounded-full text-xs font-extrabold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-[0.985]"
-            >
-              Clear
-            </button>
             {FRUIT_LABELS.map((lbl) => (
               <button
                 key={lbl}
@@ -2041,6 +2035,7 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
               </button>
             ))}
           </div>
+
         </div>
       </Card>
 
@@ -2319,7 +2314,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text);
-      pushToast("Copied • tap caption to edit");
+      pushToast("Copied");
     } catch {
       pushToast("Copy failed");
     }
@@ -2988,36 +2983,40 @@ function AppInner({ session, starterMood, onLogout }) {
 
   const pushToast = (message, durationMs = 2800) => {
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
-
-  // greeting on login
-  useEffect(() => {
-    const raw = String(session?.name || "").trim();
-    if (!raw) return;
-    const name = raw.replace(/^@/, "").trim();
-    if (!name) return;
-    const hour = new Date().getHours();
-    const msg =
-      hour >= 5 && hour < 12
-        ? `Good morning, ${name}.`
-        : `This is the day the Lord has made; let us rejoice and be glad in it, ${name}.`;
-    pushToast(msg, 4500);
-  }, [session?.name]);
     const next = { id: crypto.randomUUID(), message: String(message || "") };
     setToast(next);
     toastTimerRef.current = window.setTimeout(() => setToast(null), durationMs);
+
+  // greetingOnLogin
+  useEffect(() => {
+    const raw = String(session?.name || settings.username || "").trim();
+    const name = raw.replace(/^@/, "").trim();
+    if (!name) return;
+
+    const hour = new Date().getHours();
+    const message =
+      hour >= 5 && hour < 12
+        ? `Good morning, ${name}.`
+        : `This is the day the Lord has made; let us rejoice and be glad in it, ${name}.`;
+
+    pushToast(message, 4500);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.id]);
+
   };
 
 
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
-
-  const verseCandidates = useMemo(() => {
+const verseCandidates = useMemo(() => {
     const seeds = [
       { verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText },
       ...MOOD_VERSE_ORDER.map((k) => ({ verseRef: MOOD_VERSES[k].verseRef, verseText: MOOD_VERSES[k].verseText })),
     ];
+
     const fromLibrary = safeDevotionals
       .filter((d) => d && d.verseRef && d.verseText)
       .map((d) => ({ verseRef: d.verseRef, verseText: d.verseText }));
+
     const seen = new Set();
     return [...seeds, ...fromLibrary].filter((v) => {
       const key = `${v.verseRef}__${v.verseText}`;
@@ -3026,7 +3025,8 @@ function AppInner({ session, starterMood, onLogout }) {
       return true;
     });
   }, [safeDevotionals]);
-  const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
+
+    const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
 
   useEffect(() => {
     if (!starterMood) return;
@@ -3072,40 +3072,6 @@ function AppInner({ session, starterMood, onLogout }) {
     setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
     setActiveId(d.id);
     setView("write");
-  };
-
-
-  const applyMoodVerse = (moodKey) => {
-    const v = MOOD_VERSES[moodKey] || MOOD_VERSES.joy;
-    if (!v) return;
-    if (!active) {
-      createAndActivate();
-      // active not yet set this tick; queue update after next paint
-      requestAnimationFrame(() => {
-        setDevotionals((list) => {
-          const nextList = Array.isArray(list) ? [...list] : [];
-          if (!nextList[0]) return nextList;
-          nextList[0] = {
-            ...nextList[0],
-            mood: nextList[0].mood || moodKey,
-            verseRef: v.verseRef,
-            verseText: nextList[0].verseTextEdited ? nextList[0].verseText : v.verseText,
-            updatedAt: nowIso(),
-          };
-          return nextList;
-        });
-      });
-      setView("write");
-      pushToast(`${v.label} verse applied.`);
-      return;
-    }
-    updateDevotional({
-      mood: active.mood || moodKey,
-      verseRef: v.verseRef,
-      verseText: active.verseTextEdited ? active.verseText : v.verseText,
-    });
-    setView("write");
-    pushToast(`${v.label} verse applied.`);
   };
 
   const openEntry = (id) => {
@@ -3154,7 +3120,7 @@ function AppInner({ session, starterMood, onLogout }) {
           <div className="min-w-0 leading-tight flex-1">
             <div className="text-sm font-extrabold text-slate-900">Rooted in Christ, growing in his fruit.</div>
             <div className="text-xs font-bold text-slate-500">(John 15:5)</div>
-            <div className="text-[11px] font-bold text-emerald-700 mt-1">{session?.mode === "guest" ? "Guest session" : `Signed in as ${session?.name || "Friend"}`}</div>
+            <div className="text-[11px] font-bold text-emerald-700 mt-1"></div>
           </div>
           <button type="button" onClick={onLogout} className="text-xs font-extrabold text-slate-600 border border-slate-200 rounded-xl px-2 py-1 bg-white">
             Logout
@@ -3171,7 +3137,6 @@ function AppInner({ session, starterMood, onLogout }) {
             onReflectVerseOfDay={reflectVerseOfDay}
             hasActive={Boolean(active)}
             streak={streak}
-              onApplyMoodVerse={applyMoodVerse}
           />
         ) : null}
 
@@ -3184,7 +3149,6 @@ function AppInner({ session, starterMood, onLogout }) {
             onGoPolish={() => setView("polish")}
             onSaved={onSaved}
             onGoSettings={() => setView("settings")}
-              verseCandidates={verseCandidates}
           />
         ) : null}
 
