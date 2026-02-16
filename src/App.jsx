@@ -25,16 +25,10 @@ import {
  * VersedUP — single file app
  *
  * Added in this version:
- * - Smart Writer Topic Chips (insert prompts into Reflection)
- * - Empty-state guidance (Verse examples, OCR endpoint guidance, AI key reminders)
- *
- * Existing:
- * - Error boundary + defensive localStorage
- * - Bento home + streak
- * - Mood selector influences AI
- * - Compile Preview/Text toggle
- * - TikTok script modal + PNG export
- * - OCR modal (Google Vision via Vercel endpoint)
+ * - Guided Mode toggle (Settings) to show/hide helper hints everywhere
+ * - Topic Chips now support "Guided Fill" (Title/Reflection/Prayer/Questions) in one click
+ *   - Works with OpenAI/Gemini/mock
+ *   - Also provides a non-AI quick fill fallback (templates)
  */
 
 const APP_ID = "versedup_v1";
@@ -111,8 +105,9 @@ const DEFAULT_SETTINGS = {
   openaiKey: "",
   geminiKey: "",
   defaultBibleVersion: "KJV",
-  ocrEndpoint: "", // e.g. https://YOUR-VERCEL-APP.vercel.app/api/ocr
+  ocrEndpoint: "",
   ocrAutoStructure: true,
+  guidedMode: true,
   exportPrefs: {
     tiktokTemplate: "minimalLight",
     includeTitle: true,
@@ -222,6 +217,31 @@ function insertAtCursor(textareaEl, currentValue, insertText) {
   return next;
 }
 
+function templateGuidedFill({ topicLabel, verseRef, mood }) {
+  const moodLine = mood ? `Mood: ${mood}` : "";
+  const title = topicLabel ? `${topicLabel} — Rooted & Growing` : "Rooted & Growing";
+  const reflection = [
+    topicLabel ? `Today’s focus: ${topicLabel}.` : "Today’s focus:",
+    verseRef ? `Scripture: ${verseRef}.` : "",
+    moodLine,
+    "",
+    "What is God highlighting in my heart right now?",
+    "What is one belief I need to release, and one truth I need to hold?",
+    "What is one small obedient step I can take today?",
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+  const prayer = [
+    "Lord Jesus,",
+    "Root me in You today. Help me trust Your word more than my feelings.",
+    "Grow Your fruit in my life, and lead me into one clear step of obedience.",
+    "Amen.",
+  ].join("\n");
+  const questions = ["1) What truth from this passage do I need to remember today?", "2) What is one action I can take within 24 hours?", "3) Who can I encourage with what I’m learning?"].join("\n");
+  return { title, reflection, prayer, questions };
+}
+
 /* ---------------- Error Boundary ---------------- */
 
 class ErrorBoundary extends React.Component {
@@ -246,9 +266,7 @@ class ErrorBoundary extends React.Component {
             <AlertTriangle className="w-6 h-6 text-amber-500 mt-0.5" />
             <div>
               <div className="text-lg font-extrabold text-slate-900">Something went wrong</div>
-              <div className="text-sm text-slate-600 mt-1">
-                Try refreshing. If this keeps happening, reset local data.
-              </div>
+              <div className="text-sm text-slate-600 mt-1">Try refreshing. If this keeps happening, reset local data.</div>
               <div className="mt-3 text-xs font-mono text-slate-500 whitespace-pre-wrap">{this.state.message}</div>
               <div className="mt-5 flex gap-2">
                 <button
@@ -398,6 +416,47 @@ Return JSON exactly:
   };
 }
 
+async function aiGuidedFill(settings, { topicLabel, verseRef, verseText, mood }) {
+  const prompt = `You are helping a Christian create a devotional journal entry.
+
+Goal: produce ALL four sections: Title, Reflection, Prayer, Questions.
+Constraints:
+- Keep Reflection 120-220 words.
+- Prayer 40-80 words.
+- Questions: 2-3 questions, each on its own line.
+- If Scripture is missing, still produce something but encourage adding a verse reference.
+- Use the topic as the lens for the reflection.
+- Return JSON only.
+
+Topic: ${topicLabel}
+Scripture reference: ${verseRef || "(not provided)"}
+Verse text:
+${verseText || "(none)"}
+
+${buildMoodHint(mood)}
+
+Return JSON exactly:
+{
+  "title": "...",
+  "reflection": "...",
+  "prayer": "...",
+  "questions": "..."
+}`;
+  const raw = await ai(settings, prompt);
+  const cleaned = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
+  const parsed = safeParseJson(cleaned, null);
+  if (!parsed) {
+    const fallback = templateGuidedFill({ topicLabel, verseRef, mood });
+    return fallback;
+  }
+  return {
+    title: String(parsed.title || ""),
+    reflection: String(parsed.reflection || ""),
+    prayer: String(parsed.prayer || ""),
+    questions: String(parsed.questions || ""),
+  };
+}
+
 async function aiRewriteLength(settings, { text, mood, direction }) {
   const prompt =
     direction === "shorten"
@@ -414,20 +473,6 @@ async function aiTikTokScript(settings, { verseRef, verseText, reflection, mood,
       ? `Improve this existing TikTok script without changing the meaning too much:\n\n${baseScript}`
       : `Source content:\nVerse: ${verseRef}\nVerse text:\n${verseText}\nReflection:\n${reflection}`;
   const prompt = `${style}\n${buildMoodHint(mood)}\n\n${base}\n\nReturn ONLY the script text.`;
-  return ai(settings, prompt);
-}
-
-async function aiGenerateTopicPrompt(settings, { topicLabel, verseRef, verseText, mood }) {
-  const prompt = `Generate ONE short journaling prompt (3-6 lines max) for a devotional reflection.
-
-Topic: ${topicLabel}
-Scripture reference: ${verseRef || "(not provided)"}
-Verse text (optional):
-${verseText || ""}
-
-${buildMoodHint(mood)}
-
-Return ONLY the prompt text.`;
   return ai(settings, prompt);
 }
 
@@ -619,7 +664,7 @@ function Modal({ title, onClose, children, footer }) {
       <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
           <div className="font-extrabold text-slate-900">{title}</div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 active:scale-[0.98]">
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 active:scale-[0.98]" type="button">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -713,6 +758,7 @@ function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
             <button
               onClick={hasActive ? onContinue : onNew}
               className="px-4 py-3 rounded-2xl bg-emerald-600 text-white font-extrabold shadow-lg hover:bg-emerald-700 active:scale-[0.985]"
+              type="button"
             >
               {hasActive ? "Continue" : "Check In"}
             </button>
@@ -722,6 +768,7 @@ function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
         <button
           onClick={onNew}
           className="bg-white rounded-3xl border border-slate-200 p-5 text-left hover:bg-slate-50 transition active:scale-[0.99]"
+          type="button"
         >
           <div className="font-extrabold text-slate-900">New Entry</div>
           <div className="text-xs text-slate-500 mt-1">Start fresh</div>
@@ -730,6 +777,7 @@ function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
         <button
           onClick={onLibrary}
           className="bg-white rounded-3xl border border-slate-200 p-5 text-left hover:bg-slate-50 transition active:scale-[0.99]"
+          type="button"
         >
           <div className="font-extrabold text-slate-900">Library</div>
           <div className="text-xs text-slate-500 mt-1">View archive</div>
@@ -749,6 +797,7 @@ function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
           <button
             onClick={onNew}
             className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/25 text-xs font-extrabold active:scale-[0.985]"
+            type="button"
           >
             Reflect on this
           </button>
@@ -764,7 +813,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [rawText, setRawText] = useState("");
-  const [tab, setTab] = useState("parsed"); // parsed | structured
+  const [tab, setTab] = useState("parsed");
 
   const [parsed, setParsed] = useState({
     verseRef: "",
@@ -1077,13 +1126,6 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
                     onToggle={(v) => setApplyStructured((s) => ({ ...s, questions: v }))}
                     onChange={(v) => setStructured((p) => ({ ...p, questions: v }))}
                   />
-
-                  <Card className="p-4">
-                    <div className="text-xs font-extrabold text-slate-500">FALLBACK</div>
-                    <div className="mt-2 text-xs text-slate-600">
-                      If you uncheck an AI section, the app uses the Parsed section for that field instead.
-                    </div>
-                  </Card>
                 </>
               )}
             </div>
@@ -1101,12 +1143,19 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [apply, setApply] = useState({ title: true, reflection: true, prayer: true, questions: true });
   const [fetching, setFetching] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+
   const [topicBusy, setTopicBusy] = useState(false);
-  const [selectedTopic, setSelectedTopic] = useState("");
+  const [guidedBusy, setGuidedBusy] = useState(false);
+  const [guidedOpen, setGuidedOpen] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState(TOPIC_CHIPS[0]?.id || "");
+
+  const [guidedDraft, setGuidedDraft] = useState({ title: "", reflection: "", prayer: "", questions: "" });
+  const [guidedApply, setGuidedApply] = useState({ title: true, reflection: true, prayer: true, questions: true });
 
   const reflectionRef = useRef(null);
 
   const version = devotional.bibleVersion || settings.defaultBibleVersion || "KJV";
+  const guidedMode = Boolean(settings.guidedMode);
 
   const aiNeedsKey =
     (settings.aiProvider === "openai" && !settings.openaiKey) ||
@@ -1181,29 +1230,67 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     }
   };
 
-  const onTopicClick = (topic) => {
-    setSelectedTopic(topic.id);
-    const next = insertAtCursor(reflectionRef.current, devotional.reflection || "", `${topic.prompt}\n`);
-    onUpdate({ reflection: next });
+  const topic = TOPIC_CHIPS.find((t) => t.id === selectedTopic) || TOPIC_CHIPS[0];
+
+  const applyGuidedDraft = () => {
+    const patch = {};
+    if (guidedApply.title) patch.title = guidedDraft.title;
+    if (guidedApply.reflection) patch.reflection = guidedDraft.reflection;
+    if (guidedApply.prayer) patch.prayer = guidedDraft.prayer;
+    if (guidedApply.questions) patch.questions = guidedDraft.questions;
+    onUpdate(patch);
+    setGuidedOpen(false);
   };
 
-  const generateTopicPrompt = async () => {
-    const topic = TOPIC_CHIPS.find((t) => t.id === selectedTopic) || TOPIC_CHIPS[0];
-    setTopicBusy(true);
+  const openGuidedDraftFromTemplate = () => {
+    const draft = templateGuidedFill({
+      topicLabel: topic?.label || "",
+      verseRef: devotional.verseRef,
+      mood: devotional.mood,
+    });
+    setGuidedDraft(draft);
+    setGuidedApply({ title: true, reflection: true, prayer: true, questions: true });
+    setGuidedOpen(true);
+  };
+
+  const openGuidedDraftFromAI = async () => {
+    setGuidedBusy(true);
     try {
-      const out = await aiGenerateTopicPrompt(settings, {
-        topicLabel: topic?.label || "Devotional",
+      const out = await aiGuidedFill(settings, {
+        topicLabel: topic?.label || "",
         verseRef: devotional.verseRef,
         verseText: devotional.verseText,
         mood: devotional.mood,
       });
-      const next = insertAtCursor(reflectionRef.current, devotional.reflection || "", `${out.trim()}\n\n`);
-      onUpdate({ reflection: next });
+      setGuidedDraft(out);
+      setGuidedApply({ title: true, reflection: true, prayer: true, questions: true });
+      setGuidedOpen(true);
     } catch (e) {
       alert(e?.message || "AI failed.");
     } finally {
-      setTopicBusy(false);
+      setGuidedBusy(false);
     }
+  };
+
+  const onTopicClick = (t) => {
+    setSelectedTopic(t.id);
+
+    const next = insertAtCursor(reflectionRef.current, devotional.reflection || "", `${t.prompt}\n`);
+    const patch = { reflection: next };
+
+    if (guidedMode) {
+      if (!String(devotional.prayer || "").trim()) {
+        patch.prayer = templateGuidedFill({ topicLabel: t.label, verseRef: devotional.verseRef, mood: devotional.mood }).prayer;
+      }
+      if (!String(devotional.questions || "").trim()) {
+        patch.questions = templateGuidedFill({ topicLabel: t.label, verseRef: devotional.verseRef, mood: devotional.mood }).questions;
+      }
+      if (!String(devotional.title || "").trim()) {
+        patch.title = templateGuidedFill({ topicLabel: t.label, verseRef: devotional.verseRef, mood: devotional.mood }).title;
+      }
+    }
+
+    onUpdate(patch);
   };
 
   const openScan = () => {
@@ -1239,6 +1326,11 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             </Chip>
           ))}
         </div>
+        {guidedMode ? (
+          <div className="mt-3 text-xs text-slate-500">
+            Guided Mode: mood gently affects AI tone (comforting, hopeful, etc.).
+          </div>
+        ) : null}
       </Card>
 
       <Card>
@@ -1292,7 +1384,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               </SmallButton>
             </div>
 
-            {!hasVerseRef ? (
+            {guidedMode && !hasVerseRef ? (
               <div className="text-xs font-bold text-slate-500">
                 Try: <span className="font-extrabold text-slate-700">John 3:16-18</span> or{" "}
                 <span className="font-extrabold text-slate-700">Psalm 23</span>
@@ -1312,7 +1404,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                 rows={4}
                 className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 bg-white resize-none"
               />
-              {!hasVerseText && hasVerseRef ? (
+              {guidedMode && !hasVerseText && hasVerseRef ? (
                 <div className="mt-2 text-[11px] font-bold text-slate-500">
                   Tip: Press <span className="font-extrabold">FETCH</span> to fill KJV automatically (or use YouVersion).
                 </div>
@@ -1336,9 +1428,11 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           <div>
             <div className="flex items-end justify-between gap-3">
               <label className="text-xs font-extrabold text-slate-400">REFLECTION / BODY</label>
-              <div className="text-[11px] font-bold text-slate-500">
-                Topic prompts → click to insert
-              </div>
+              {guidedMode ? (
+                <div className="text-[11px] font-bold text-slate-500">
+                  Topic → insert prompt, then Guided Fill for full entry
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-2 flex gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -1348,18 +1442,21 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                 </Chip>
               ))}
               <div className="flex-1" />
+              <SmallButton onClick={openGuidedDraftFromTemplate} icon={Wand2}>
+                Guided Fill
+              </SmallButton>
               <SmallButton
-                onClick={() => void generateTopicPrompt()}
-                disabled={topicBusy || aiNeedsKey}
-                icon={topicBusy ? Loader2 : Sparkles}
+                onClick={() => void openGuidedDraftFromAI()}
+                disabled={guidedBusy || aiNeedsKey}
+                icon={guidedBusy ? Loader2 : Sparkles}
               >
-                {topicBusy ? "..." : "AI Prompt"}
+                {guidedBusy ? "..." : "AI Guided"}
               </SmallButton>
             </div>
 
-            {aiNeedsKey ? (
+            {guidedMode && aiNeedsKey ? (
               <div className="mt-2 text-xs font-bold text-amber-700">
-                AI is selected but no key is set. Go to <b>Settings</b> to add a key (or switch to Built-in).
+                AI selected but no key. Go to <b>Settings</b> to add a key (or switch to Built-in).
               </div>
             ) : null}
 
@@ -1375,9 +1472,9 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
             />
 
-            {!hasReflection ? (
+            {guidedMode && !hasReflection ? (
               <div className="mt-2 text-xs font-bold text-slate-500">
-                Starter idea: “What is God showing me about this verse today?”
+                Starter: “What is God showing me about this verse today?”
               </div>
             ) : null}
 
@@ -1396,7 +1493,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               </SmallButton>
             </div>
 
-            {!hasReflection ? (
+            {guidedMode && !hasReflection ? (
               <div className="mt-2 text-[11px] font-bold text-slate-500">
                 Tip: write 3–6 lines, then tap <span className="font-extrabold">Structure</span>.
               </div>
@@ -1415,6 +1512,11 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               autoCapitalize="sentences"
               className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
             />
+            {guidedMode && !String(devotional.prayer || "").trim() ? (
+              <div className="mt-2 text-[11px] font-bold text-slate-500">
+                Tip: Guided Fill can draft a prayer for you.
+              </div>
+            ) : null}
           </div>
 
           <div>
@@ -1489,6 +1591,52 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                 <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800">{structureDraft[k] || "—"}</div>
               </div>
             ))}
+          </div>
+        </Modal>
+      ) : null}
+
+      {guidedOpen ? (
+        <Modal
+          title={`Guided Fill Preview — ${topic?.label || "Topic"}`}
+          onClose={() => setGuidedOpen(false)}
+          footer={
+            <div className="flex gap-2">
+              <SmallButton
+                onClick={() => setGuidedApply({ title: true, reflection: true, prayer: true, questions: true })}
+              >
+                Apply all
+              </SmallButton>
+              <div className="flex-1" />
+              <SmallButton onClick={() => setGuidedOpen(false)}>Cancel</SmallButton>
+              <SmallButton onClick={applyGuidedDraft} tone="primary">
+                Apply
+              </SmallButton>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            {[
+              { k: "title", label: "Title" },
+              { k: "reflection", label: "Reflection" },
+              { k: "prayer", label: "Prayer" },
+              { k: "questions", label: "Questions" },
+            ].map(({ k, label }) => (
+              <ApplySectionCard
+                key={k}
+                k={k}
+                label={label}
+                value={guidedDraft[k]}
+                checked={guidedApply[k]}
+                onToggle={(v) => setGuidedApply((s) => ({ ...s, [k]: v }))}
+                onChange={(v) => setGuidedDraft((s) => ({ ...s, [k]: v }))}
+              />
+            ))}
+            <Card className="p-4">
+              <div className="text-xs font-extrabold text-slate-600">CHOICES</div>
+              <div className="mt-2 text-xs text-slate-500">
+                Use <b>Guided Fill</b> for fast templates, or <b>AI Guided</b> for a custom draft. Everything stays editable before applying.
+              </div>
+            </Card>
           </div>
         </Modal>
       ) : null}
@@ -1578,7 +1726,7 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
         {filtered.map((d) => (
           <div key={d.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5">
             <div className="flex items-start justify-between gap-3">
-              <button onClick={() => onOpen(d.id)} className="text-left flex-1 active:scale-[0.995]">
+              <button onClick={() => onOpen(d.id)} className="text-left flex-1 active:scale-[0.995]" type="button">
                 <div className="font-extrabold text-slate-900">{d.title || "Untitled"}</div>
                 <div className="text-xs font-bold text-slate-500 mt-1">{d.verseRef || "No scripture"}</div>
                 <div className="text-xs text-slate-400 mt-1">{new Date(d.updatedAt).toLocaleDateString()}</div>
@@ -1608,7 +1756,24 @@ function SettingsView({ settings, onUpdate, onReset }) {
     <div className="space-y-6 pb-28">
       <Card>
         <div className="text-lg font-extrabold text-slate-900">Settings</div>
-        <div className="text-sm text-slate-500 mt-1">AI keys, defaults, OCR.</div>
+        <div className="text-sm text-slate-500 mt-1">AI keys, defaults, OCR, guidance.</div>
+      </Card>
+
+      <Card className="border-slate-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-extrabold text-slate-900">Guided Mode</div>
+            <div className="text-xs text-slate-500 mt-1">Show helpful hints and suggested flows across the app.</div>
+          </div>
+          <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
+            <input
+              type="checkbox"
+              checked={Boolean(settings.guidedMode)}
+              onChange={(e) => onUpdate({ guidedMode: e.target.checked })}
+            />
+            On
+          </label>
+        </div>
       </Card>
 
       {aiNeedsKey && settings.aiProvider !== "mock" ? (
@@ -1661,9 +1826,7 @@ function SettingsView({ settings, onUpdate, onReset }) {
                 placeholder="https://your-vercel-app.vercel.app/api/ocr"
                 className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200 bg-white"
               />
-              <div className="text-xs text-slate-500 mt-2">
-                Best quality OCR uses Google Vision behind this endpoint.
-              </div>
+              <div className="text-xs text-slate-500 mt-2">Best quality OCR uses Google Vision behind this endpoint.</div>
             </div>
 
             <div className="mt-3 flex items-center justify-between">
@@ -1757,7 +1920,7 @@ function compileForPlatform(platform, d, settings) {
 
 function CompileView({ devotional, settings, onUpdate }) {
   const [platform, setPlatform] = useState("tiktok");
-  const [mode, setMode] = useState("preview"); // preview | text
+  const [mode, setMode] = useState("preview");
   const [text, setText] = useState("");
   const [scriptOpen, setScriptOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -2111,6 +2274,7 @@ function NavButton({ active, onClick, icon: Icon, label }) {
         "flex flex-col items-center justify-center gap-1 rounded-2xl p-2 transition active:scale-[0.98]",
         active ? "bg-white/50 text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
       )}
+      type="button"
     >
       <Icon className="w-5 h-5" />
       <span className="text-[10px] font-extrabold">{label}</span>
@@ -2260,6 +2424,7 @@ function AppInner() {
         onClick={newEntry}
         className="fixed bottom-28 right-6 z-50 w-14 h-14 rounded-full bg-emerald-600 text-white shadow-2xl flex items-center justify-center hover:bg-emerald-700 active:scale-[0.985]"
         title="New Entry"
+        type="button"
       >
         <Plus className="w-7 h-7" />
       </button>
