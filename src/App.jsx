@@ -1171,6 +1171,8 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
 
   const [guidedScriptBusy, setGuidedScriptBusy] = useState(false);
   const [guidedGenerateScript, setGuidedGenerateScript] = useState(Boolean(settings.guidedAutoGenerateTikTok));
+  const [shareReadyBusy, setShareReadyBusy] = useState(false);
+  const [shareReadyStep, setShareReadyStep] = useState("");
 
   const reflectionRef = useRef(null);
 
@@ -1247,6 +1249,46 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       alert(e?.message || "AI failed.");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const doShareReady = async () => {
+    const hasSource = Boolean((devotional.reflection || "").trim() || (devotional.verseRef || "").trim());
+    if (!hasSource) {
+      alert("Add a verse reference or reflection first.");
+      return;
+    }
+
+    setShareReadyBusy(true);
+    try {
+      setShareReadyStep("Correcting grammar & spelling...");
+      const fixed = (devotional.reflection || "").trim()
+        ? await aiFixGrammar(settings, { text: devotional.reflection || "", mood: devotional.mood })
+        : devotional.reflection || "";
+
+      setShareReadyStep("Structuring your devotional...");
+      const structured = await aiStructure(settings, {
+        verseRef: devotional.verseRef,
+        verseText: devotional.verseText,
+        reflection: fixed,
+        mood: devotional.mood,
+      });
+
+      setShareReadyStep("Preparing share-ready draft...");
+      onUpdate({
+        reflection: structured.reflection || fixed,
+        title: structured.title || devotional.title,
+        prayer: structured.prayer || devotional.prayer,
+        questions: structured.questions || devotional.questions,
+      });
+
+      onSaved();
+      onGoCompile();
+    } catch (e) {
+      alert(e?.message || "We couldn’t complete the share-ready flow. Continue manually.");
+    } finally {
+      setShareReadyBusy(false);
+      setShareReadyStep("");
     }
   };
 
@@ -1527,17 +1569,28 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               <div className="mt-2 text-xs font-bold text-slate-500">Starter: “What is God showing me about this verse today?”</div>
             ) : null}
 
+            <div className="mt-3">
+              <PrimaryButton
+                onClick={() => void doShareReady()}
+                disabled={shareReadyBusy || busy || (!hasReflection && !hasVerseRef)}
+                icon={shareReadyBusy ? Loader2 : Share2}
+              >
+                {shareReadyBusy ? "Making Share-Ready..." : "Make Share-Ready"}
+              </PrimaryButton>
+              {shareReadyStep ? <div className="mt-2 text-xs font-bold text-emerald-700">{shareReadyStep}</div> : null}
+            </div>
+
             <div className="mt-2 flex flex-wrap gap-2">
-              <SmallButton onClick={doFixReflection} disabled={busy || !hasReflection} icon={Sparkles}>
+              <SmallButton onClick={doFixReflection} disabled={busy || shareReadyBusy || !hasReflection} icon={Sparkles}>
                 Fix grammar
               </SmallButton>
-              <SmallButton onClick={doStructure} disabled={busy || (!hasReflection && !hasVerseRef)} icon={Wand2}>
+              <SmallButton onClick={doStructure} disabled={busy || shareReadyBusy || (!hasReflection && !hasVerseRef)} icon={Wand2}>
                 Structure
               </SmallButton>
-              <SmallButton onClick={() => void doLength("shorten")} disabled={busy || !hasReflection}>
+              <SmallButton onClick={() => void doLength("shorten")} disabled={busy || shareReadyBusy || !hasReflection}>
                 Shorten
               </SmallButton>
-              <SmallButton onClick={() => void doLength("lengthen")} disabled={busy || !hasReflection}>
+              <SmallButton onClick={() => void doLength("lengthen")} disabled={busy || shareReadyBusy || !hasReflection}>
                 Lengthen
               </SmallButton>
             </div>
@@ -2006,6 +2059,7 @@ function CompileView({ devotional, settings, onUpdate }) {
   const [text, setText] = useState("");
   const [scriptOpen, setScriptOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
 
   useEffect(() => {
     setText(compileForPlatform(platform, devotional, settings));
@@ -2019,19 +2073,62 @@ function CompileView({ devotional, settings, onUpdate }) {
     alert("Copied");
   };
 
+  const shareNow = async () => {
+    setShareBusy(true);
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: devotional.title || devotional.verseRef || "Devotional",
+          text,
+        });
+      } else {
+        await copy();
+      }
+    } catch {
+      // no-op when user cancels native share
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const openEmailDraft = () => {
+    const subject = encodeURIComponent(devotional.title || devotional.verseRef || "Encouragement");
+    const body = encodeURIComponent(text);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const openTextDraft = () => {
+    const body = encodeURIComponent(text);
+    window.location.href = `sms:?&body=${body}`;
+  };
+
+  const autoShorten = async () => {
+    try {
+      const out = await aiRewriteLength(settings, { text, mood: devotional.mood, direction: "shorten" });
+      setText(out);
+    } catch (e) {
+      alert(e?.message || "Could not shorten automatically.");
+    }
+  };
+
   return (
     <div className="space-y-6 pb-28">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-lg font-extrabold text-slate-900">Compile</div>
-          <div className="text-sm text-slate-500 mt-1">Preview like a real post.</div>
+          <div className="text-lg font-extrabold text-slate-900">Share</div>
+          <div className="text-sm text-slate-500 mt-1">Choose where this goes next.</div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
+          <SmallButton onClick={() => void shareNow()} icon={Share2} disabled={shareBusy}>
+            {shareBusy ? "Sharing..." : "Share Now"}
+          </SmallButton>
           <SmallButton onClick={copy} icon={Copy}>
             Copy
           </SmallButton>
+          <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
+          <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
           <SmallButton onClick={() => setExportOpen(true)} icon={Camera}>
-            PNG
+            Download PNG
           </SmallButton>
         </div>
       </div>
@@ -2068,12 +2165,13 @@ function CompileView({ devotional, settings, onUpdate }) {
         <Card>
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
-            <div>
-              <div className="font-extrabold text-slate-900">Over limit</div>
+            <div className="flex-1">
+              <div className="font-extrabold text-slate-900">Over limit for {platform}</div>
               <div className="text-sm text-slate-500">
                 {text.length} / {limit}
               </div>
             </div>
+            <SmallButton onClick={() => void autoShorten()}>Auto-Shorten</SmallButton>
           </div>
         </Card>
       ) : null}
