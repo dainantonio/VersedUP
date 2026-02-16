@@ -79,7 +79,8 @@ function cn(...classes) {
 
 function safeParseJson(value, fallback) {
   try {
-    return JSON.parse(value);
+    const parsed = JSON.parse(value);
+    return parsed == null ? fallback : parsed;
   } catch {
     return fallback;
   }
@@ -1087,8 +1088,18 @@ function TikTokExportModal({ devotional, settings, onClose }) {
 /* ---------------- App shell ---------------- */
 
 export default function App() {
-  const [settings, setSettings] = useState(() => safeParseJson(localStorage.getItem(STORAGE_SETTINGS), DEFAULT_SETTINGS));
-  const [devotionals, setDevotionals] = useState(() => safeParseJson(localStorage.getItem(STORAGE_DEVOTIONALS), []));
+  const [settings, setSettings] = useState(() => {
+  const raw = localStorage.getItem(STORAGE_SETTINGS);
+  const parsed = safeParseJson(raw, DEFAULT_SETTINGS);
+  return parsed && typeof parsed === "object"
+    ? { ...DEFAULT_SETTINGS, ...parsed }
+    : DEFAULT_SETTINGS;
+});
+  const [devotionals, setDevotionals] = useState(() => {
+  const raw = localStorage.getItem(STORAGE_DEVOTIONALS);
+  const parsed = safeParseJson(raw, []);
+  return Array.isArray(parsed) ? parsed : [];
+});
   const [activeId, setActiveId] = useState(() => devotionals?.[0]?.id || "");
   const [view, setView] = useState("home"); // home | write | polish | compile | library | settings
 
