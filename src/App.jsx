@@ -37,6 +37,11 @@ import {
  * - TikTok script engine (regen from devotional + improve script)
  * - Editable script + char counter + save back toggle
  * - TikTok PNG export (one-screen safe margins)
+ *
+ * OCR:
+ * - Scan via file input (camera/upload)
+ * - Calls your Vercel OCR endpoint (Google Vision)
+ * - Parsed fields + optional AI Structure preview + Apply per section
  */
 
 const APP_ID = "versedup_v1";
@@ -69,6 +74,7 @@ const DEFAULT_SETTINGS = {
   geminiKey: "",
   defaultBibleVersion: "KJV",
   ocrEndpoint: "", // e.g. https://YOUR-VERCEL-APP.vercel.app/api/ocr
+  ocrAutoStructure: true, // when OCR runs, also generate AI structure preview
   exportPrefs: {
     tiktokTemplate: "minimalLight",
     includeTitle: true,
@@ -177,9 +183,7 @@ class ErrorBoundary extends React.Component {
               <div className="text-sm text-slate-600 mt-1">
                 Try refreshing. If this keeps happening, reset local data.
               </div>
-              <div className="mt-3 text-xs font-mono text-slate-500 whitespace-pre-wrap">
-                {this.state.message}
-              </div>
+              <div className="mt-3 text-xs font-mono text-slate-500 whitespace-pre-wrap">{this.state.message}</div>
               <div className="mt-5 flex gap-2">
                 <button
                   className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-extrabold hover:bg-slate-50"
@@ -412,7 +416,9 @@ function splitSectionsFromOcr(text) {
   const verseRef = detectVerseRef(raw);
 
   const title =
-    nonEmpty.find((l) => l.length <= 60 && (!verseRef || !l.toLowerCase().includes(verseRef.toLowerCase()))) || "";
+    nonEmpty.find(
+      (l) => l.length <= 60 && (!verseRef || !l.toLowerCase().includes(verseRef.toLowerCase()))
+    ) || "";
 
   const prayerIdx = lines.findIndex((l) => /^prayer[:\s]/i.test(l));
   const questionsIdx = lines.findIndex((l) => /^(questions|reflection questions)[:\s]/i.test(l));
@@ -544,6 +550,26 @@ function Modal({ title, onClose, children, footer }) {
   );
 }
 
+function ApplySectionCard({ k, label, value, checked, onToggle, onChange }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 p-3 bg-white">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-extrabold text-slate-700">{label}</div>
+        <label className="text-xs font-extrabold text-slate-600 flex items-center gap-2">
+          <input type="checkbox" checked={checked} onChange={(e) => onToggle(e.target.checked)} />
+          Apply
+        </label>
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={k === "reflection" ? 5 : k === "verseText" ? 4 : 3}
+        className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+      />
+    </div>
+  );
+}
+
 /* ---------------- Streak model ---------------- */
 
 function loadStreak() {
@@ -593,7 +619,6 @@ function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
         <div className="text-3xl font-extrabold text-slate-900 mt-1">Good Evening</div>
       </div>
 
-      {/* Bento */}
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm p-5 overflow-hidden relative">
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-200/40 via-transparent to-sky-200/30 pointer-events-none" />
@@ -614,18 +639,23 @@ function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
           </div>
         </div>
 
-        <button onClick={onNew} className="bg-white rounded-3xl border border-slate-200 p-5 text-left hover:bg-slate-50 transition active:scale-[0.99]">
+        <button
+          onClick={onNew}
+          className="bg-white rounded-3xl border border-slate-200 p-5 text-left hover:bg-slate-50 transition active:scale-[0.99]"
+        >
           <div className="font-extrabold text-slate-900">New Entry</div>
           <div className="text-xs text-slate-500 mt-1">Start fresh</div>
         </button>
 
-        <button onClick={onLibrary} className="bg-white rounded-3xl border border-slate-200 p-5 text-left hover:bg-slate-50 transition active:scale-[0.99]">
+        <button
+          onClick={onLibrary}
+          className="bg-white rounded-3xl border border-slate-200 p-5 text-left hover:bg-slate-50 transition active:scale-[0.99]"
+        >
           <div className="font-extrabold text-slate-900">Library</div>
           <div className="text-xs text-slate-500 mt-1">View archive</div>
         </button>
       </div>
 
-      {/* Verse of the Day */}
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between">
           <div className="font-extrabold text-slate-900">Verse of the Day</div>
@@ -636,7 +666,10 @@ function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
             “The Lord is my shepherd; I shall not want. He makes me lie down in green pastures.”
           </div>
           <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90">PSALM 23:1-2</div>
-          <button onClick={onNew} className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/25 text-xs font-extrabold active:scale-[0.985]">
+          <button
+            onClick={onNew}
+            className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/25 text-xs font-extrabold active:scale-[0.985]"
+          >
             Reflect on this
           </button>
         </div>
@@ -645,11 +678,14 @@ function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
   );
 }
 
-function OcrScanModal({ settings, onClose, onApplyToDevotional }) {
+function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [rawText, setRawText] = useState("");
+  const [tab, setTab] = useState("parsed"); // parsed | structured
+
   const [parsed, setParsed] = useState({
     verseRef: "",
     verseText: "",
@@ -658,9 +694,24 @@ function OcrScanModal({ settings, onClose, onApplyToDevotional }) {
     prayer: "",
     questions: "",
   });
-  const [apply, setApply] = useState({
+
+  const [structured, setStructured] = useState({
+    title: "",
+    reflection: "",
+    prayer: "",
+    questions: "",
+  });
+
+  const [applyParsed, setApplyParsed] = useState({
     verseRef: true,
     verseText: true,
+    title: true,
+    reflection: true,
+    prayer: true,
+    questions: true,
+  });
+
+  const [applyStructured, setApplyStructured] = useState({
     title: true,
     reflection: true,
     prayer: true,
@@ -675,6 +726,30 @@ function OcrScanModal({ settings, onClose, onApplyToDevotional }) {
   }, [file]);
 
   const canRun = Boolean(settings.ocrEndpoint?.trim());
+
+  const generateStructure = async ({ fromParsed }) => {
+    const src = fromParsed ? parsed : { ...parsed, ...structured };
+    const verseRef = String(src.verseRef || "").trim();
+    const verseText = String(src.verseText || "").trim();
+    const reflection = String(src.reflection || "").trim();
+
+    if (!verseRef && !reflection && !verseText) {
+      alert("Scan first (or paste text) so there is something to structure.");
+      return;
+    }
+
+    setAiBusy(true);
+    try {
+      const out = await aiStructure(settings, { verseRef, verseText, reflection, mood });
+      setStructured(out);
+      setApplyStructured({ title: true, reflection: true, prayer: true, questions: true });
+      setTab("structured");
+    } catch (e) {
+      alert(e?.message || "AI failed.");
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   const runOcr = async () => {
     if (!canRun) {
@@ -692,7 +767,7 @@ function OcrScanModal({ settings, onClose, onApplyToDevotional }) {
       setRawText(normalized);
       const p = splitSectionsFromOcr(normalized);
       setParsed(p);
-      setApply({
+      setApplyParsed({
         verseRef: Boolean(p.verseRef),
         verseText: Boolean(p.verseText),
         title: Boolean(p.title),
@@ -700,6 +775,11 @@ function OcrScanModal({ settings, onClose, onApplyToDevotional }) {
         prayer: Boolean(p.prayer),
         questions: Boolean(p.questions),
       });
+      setTab("parsed");
+
+      if (settings.ocrAutoStructure) {
+        await generateStructure({ fromParsed: true });
+      }
     } catch (e) {
       alert(e?.message || "OCR failed.");
     } finally {
@@ -709,12 +789,28 @@ function OcrScanModal({ settings, onClose, onApplyToDevotional }) {
 
   const applyFields = () => {
     const patch = {};
-    if (apply.verseRef) patch.verseRef = parsed.verseRef;
-    if (apply.verseText) patch.verseText = parsed.verseText;
-    if (apply.title) patch.title = parsed.title;
-    if (apply.reflection) patch.reflection = parsed.reflection;
-    if (apply.prayer) patch.prayer = parsed.prayer;
-    if (apply.questions) patch.questions = parsed.questions;
+
+    if (applyParsed.verseRef) patch.verseRef = parsed.verseRef;
+    if (applyParsed.verseText) patch.verseText = parsed.verseText;
+
+    if (tab === "structured") {
+      if (applyStructured.title) patch.title = structured.title;
+      else if (applyParsed.title) patch.title = parsed.title;
+
+      if (applyStructured.reflection) patch.reflection = structured.reflection;
+      else if (applyParsed.reflection) patch.reflection = parsed.reflection;
+
+      if (applyStructured.prayer) patch.prayer = structured.prayer;
+      else if (applyParsed.prayer) patch.prayer = parsed.prayer;
+
+      if (applyStructured.questions) patch.questions = structured.questions;
+      else if (applyParsed.questions) patch.questions = parsed.questions;
+    } else {
+      if (applyParsed.title) patch.title = parsed.title;
+      if (applyParsed.reflection) patch.reflection = parsed.reflection;
+      if (applyParsed.prayer) patch.prayer = parsed.prayer;
+      if (applyParsed.questions) patch.questions = parsed.questions;
+    }
 
     onApplyToDevotional(patch);
     onClose();
@@ -726,7 +822,7 @@ function OcrScanModal({ settings, onClose, onApplyToDevotional }) {
       onClose={onClose}
       footer={
         <div className="flex gap-2 items-center">
-          <div className="text-xs text-slate-500">{busy ? "Reading..." : ""}</div>
+          <div className="text-xs text-slate-500">{busy ? "Reading..." : aiBusy ? "Structuring..." : ""}</div>
           <div className="flex-1" />
           <SmallButton onClick={onClose}>Close</SmallButton>
           <SmallButton onClick={applyFields} tone="primary" disabled={!rawText}>
@@ -769,6 +865,14 @@ function OcrScanModal({ settings, onClose, onApplyToDevotional }) {
             <SmallButton onClick={() => void runOcr()} disabled={busy || !file} tone="primary" icon={busy ? Loader2 : null}>
               {busy ? "..." : "Run OCR"}
             </SmallButton>
+
+            <SmallButton
+              onClick={() => void generateStructure({ fromParsed: true })}
+              disabled={aiBusy || (!parsed.reflection && !rawText)}
+              icon={Wand2}
+            >
+              Structure
+            </SmallButton>
           </div>
 
           {!canRun ? (
@@ -788,40 +892,120 @@ function OcrScanModal({ settings, onClose, onApplyToDevotional }) {
           <div className="space-y-3">
             <Card className="p-4">
               <div className="text-xs font-extrabold text-slate-500">OCR TEXT (RAW)</div>
-              <div className="mt-2 text-xs whitespace-pre-wrap text-slate-600 max-h-40 overflow-auto">
-                {rawText}
-              </div>
+              <div className="mt-2 text-xs whitespace-pre-wrap text-slate-600 max-h-40 overflow-auto">{rawText}</div>
             </Card>
 
+            <div className="flex gap-2">
+              <Chip active={tab === "parsed"} onClick={() => setTab("parsed")}>
+                Parsed
+              </Chip>
+              <Chip active={tab === "structured"} onClick={() => setTab("structured")}>
+                Structured (AI)
+              </Chip>
+              <div className="flex-1" />
+              {tab === "structured" ? (
+                <SmallButton onClick={() => void generateStructure({ fromParsed: false })} disabled={aiBusy} icon={RefreshCw}>
+                  Regenerate
+                </SmallButton>
+              ) : null}
+            </div>
+
             <div className="space-y-3">
-              {[
-                ["verseRef", "Verse Ref"],
-                ["verseText", "Verse Text"],
-                ["title", "Title"],
-                ["reflection", "Reflection"],
-                ["prayer", "Prayer"],
-                ["questions", "Questions"],
-              ].map(([k, label]) => (
-                <Card key={k} className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs font-extrabold text-slate-700">{label}</div>
-                    <label className="text-xs font-extrabold text-slate-600 flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={apply[k]}
-                        onChange={(e) => setApply((s) => ({ ...s, [k]: e.target.checked }))}
-                      />
-                      Apply
-                    </label>
-                  </div>
-                  <textarea
-                    value={parsed[k]}
-                    onChange={(e) => setParsed((p) => ({ ...p, [k]: e.target.value }))}
-                    rows={k === "reflection" ? 5 : 3}
-                    className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+              <ApplySectionCard
+                k="verseRef"
+                label="Verse Ref"
+                value={parsed.verseRef}
+                checked={applyParsed.verseRef}
+                onToggle={(v) => setApplyParsed((s) => ({ ...s, verseRef: v }))}
+                onChange={(v) => setParsed((p) => ({ ...p, verseRef: v }))}
+              />
+              <ApplySectionCard
+                k="verseText"
+                label="Verse Text"
+                value={parsed.verseText}
+                checked={applyParsed.verseText}
+                onToggle={(v) => setApplyParsed((s) => ({ ...s, verseText: v }))}
+                onChange={(v) => setParsed((p) => ({ ...p, verseText: v }))}
+              />
+
+              {tab === "parsed" ? (
+                <>
+                  <ApplySectionCard
+                    k="title"
+                    label="Title"
+                    value={parsed.title}
+                    checked={applyParsed.title}
+                    onToggle={(v) => setApplyParsed((s) => ({ ...s, title: v }))}
+                    onChange={(v) => setParsed((p) => ({ ...p, title: v }))}
                   />
-                </Card>
-              ))}
+                  <ApplySectionCard
+                    k="reflection"
+                    label="Reflection"
+                    value={parsed.reflection}
+                    checked={applyParsed.reflection}
+                    onToggle={(v) => setApplyParsed((s) => ({ ...s, reflection: v }))}
+                    onChange={(v) => setParsed((p) => ({ ...p, reflection: v }))}
+                  />
+                  <ApplySectionCard
+                    k="prayer"
+                    label="Prayer"
+                    value={parsed.prayer}
+                    checked={applyParsed.prayer}
+                    onToggle={(v) => setApplyParsed((s) => ({ ...s, prayer: v }))}
+                    onChange={(v) => setParsed((p) => ({ ...p, prayer: v }))}
+                  />
+                  <ApplySectionCard
+                    k="questions"
+                    label="Questions"
+                    value={parsed.questions}
+                    checked={applyParsed.questions}
+                    onToggle={(v) => setApplyParsed((s) => ({ ...s, questions: v }))}
+                    onChange={(v) => setParsed((p) => ({ ...p, questions: v }))}
+                  />
+                </>
+              ) : (
+                <>
+                  <ApplySectionCard
+                    k="title"
+                    label="Title (AI)"
+                    value={structured.title}
+                    checked={applyStructured.title}
+                    onToggle={(v) => setApplyStructured((s) => ({ ...s, title: v }))}
+                    onChange={(v) => setStructured((p) => ({ ...p, title: v }))}
+                  />
+                  <ApplySectionCard
+                    k="reflection"
+                    label="Reflection (AI)"
+                    value={structured.reflection}
+                    checked={applyStructured.reflection}
+                    onToggle={(v) => setApplyStructured((s) => ({ ...s, reflection: v }))}
+                    onChange={(v) => setStructured((p) => ({ ...p, reflection: v }))}
+                  />
+                  <ApplySectionCard
+                    k="prayer"
+                    label="Prayer (AI)"
+                    value={structured.prayer}
+                    checked={applyStructured.prayer}
+                    onToggle={(v) => setApplyStructured((s) => ({ ...s, prayer: v }))}
+                    onChange={(v) => setStructured((p) => ({ ...p, prayer: v }))}
+                  />
+                  <ApplySectionCard
+                    k="questions"
+                    label="Questions (AI)"
+                    value={structured.questions}
+                    checked={applyStructured.questions}
+                    onToggle={(v) => setApplyStructured((s) => ({ ...s, questions: v }))}
+                    onChange={(v) => setStructured((p) => ({ ...p, questions: v }))}
+                  />
+
+                  <Card className="p-4">
+                    <div className="text-xs font-extrabold text-slate-500">FALLBACK</div>
+                    <div className="mt-2 text-xs text-slate-600">
+                      If you uncheck an AI section, the app will use the Parsed section for that field instead.
+                    </div>
+                  </Card>
+                </>
+              )}
             </div>
           </div>
         ) : null}
@@ -920,7 +1104,11 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
         <div className="text-xs font-extrabold text-slate-500">HOW IS YOUR HEART?</div>
         <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {MOODS.map((m) => (
-            <Chip key={m.id} active={devotional.mood === m.id} onClick={() => onUpdate({ mood: devotional.mood === m.id ? "" : m.id })}>
+            <Chip
+              key={m.id}
+              active={devotional.mood === m.id}
+              onClick={() => onUpdate({ mood: devotional.mood === m.id ? "" : m.id })}
+            >
               {m.label}
             </Chip>
           ))}
@@ -929,7 +1117,6 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
 
       <Card>
         <div className="space-y-4">
-          {/* Verse on top flow */}
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="text-xs font-extrabold text-slate-500 flex items-center gap-2">
@@ -969,7 +1156,12 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                   </option>
                 ))}
               </select>
-              <SmallButton onClick={doFetch} disabled={!devotional.verseRef || fetching} icon={fetching ? Loader2 : null} tone="primary">
+              <SmallButton
+                onClick={doFetch}
+                disabled={!devotional.verseRef || fetching}
+                icon={fetching ? Loader2 : null}
+                tone="primary"
+              >
                 {fetching ? "..." : "FETCH"}
               </SmallButton>
             </div>
@@ -987,9 +1179,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                 rows={4}
                 className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 bg-white resize-none"
               />
-              {devotional.verseTextEdited ? (
-                <div className="mt-2 text-[11px] font-bold text-amber-700">Edited override</div>
-              ) : null}
+              {devotional.verseTextEdited ? <div className="mt-2 text-[11px] font-bold text-amber-700">Edited override</div> : null}
             </div>
           </div>
 
@@ -1087,10 +1277,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           onClose={() => setStructureOpen(false)}
           footer={
             <div className="flex gap-2">
-              <SmallButton
-                onClick={() => setApply({ title: true, reflection: true, prayer: true, questions: true })}
-                tone="neutral"
-              >
+              <SmallButton onClick={() => setApply({ title: true, reflection: true, prayer: true, questions: true })} tone="neutral">
                 Replace all
               </SmallButton>
               <div className="flex-1" />
@@ -1127,6 +1314,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       {scanOpen ? (
         <OcrScanModal
           settings={settings}
+          mood={devotional.mood}
           onClose={() => setScanOpen(false)}
           onApplyToDevotional={(patch) => onUpdate(patch)}
         />
@@ -1234,7 +1422,7 @@ function SettingsView({ settings, onUpdate, onReset }) {
     <div className="space-y-6 pb-28">
       <Card>
         <div className="text-lg font-extrabold text-slate-900">Settings</div>
-        <div className="text-sm text-slate-500 mt-1">AI keys, defaults, export.</div>
+        <div className="text-sm text-slate-500 mt-1">AI keys, defaults, OCR.</div>
       </Card>
 
       <Card>
@@ -1264,17 +1452,32 @@ function SettingsView({ settings, onUpdate, onReset }) {
             </select>
           </div>
 
-          <div>
-            <label className="text-xs font-extrabold text-slate-500">OCR ENDPOINT (Vercel)</label>
-            <input
-              value={settings.ocrEndpoint || ""}
-              onChange={(e) => onUpdate({ ocrEndpoint: e.target.value })}
-              placeholder="https://your-vercel-app.vercel.app/api/ocr"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
-            />
-            <div className="text-xs text-slate-500 mt-2">
-              Enables best-quality Scan using Google Vision OCR (camera/upload).
+          <div className="rounded-2xl border border-slate-200 p-4 bg-slate-50">
+            <div className="text-xs font-extrabold text-slate-600">SCAN / OCR</div>
+
+            <div className="mt-3">
+              <label className="text-xs font-extrabold text-slate-500">OCR ENDPOINT (Vercel)</label>
+              <input
+                value={settings.ocrEndpoint || ""}
+                onChange={(e) => onUpdate({ ocrEndpoint: e.target.value })}
+                placeholder="https://your-vercel-app.vercel.app/api/ocr"
+                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200 bg-white"
+              />
+              <div className="text-xs text-slate-500 mt-2">Best quality OCR uses Google Vision behind this endpoint.</div>
             </div>
+
+            <div className="mt-3 flex items-center justify-between">
+              <div className="text-xs font-extrabold text-slate-600">AUTO STRUCTURE AFTER SCAN</div>
+              <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings.ocrAutoStructure)}
+                  onChange={(e) => onUpdate({ ocrAutoStructure: e.target.checked })}
+                />
+                On
+              </label>
+            </div>
+            <div className="text-xs text-slate-500 mt-1">After OCR, immediately generate an AI Structured preview (editable + apply per section).</div>
           </div>
 
           <div>
@@ -1289,7 +1492,7 @@ function SettingsView({ settings, onUpdate, onReset }) {
               <option value="gemini">Gemini</option>
             </select>
             <div className="text-xs text-slate-500 mt-2">
-              Note: keys are stored locally. If an AI call fails, the app falls back to offline mode automatically.
+              Keys are stored locally. If an AI call fails, the app falls back to offline mode automatically.
             </div>
           </div>
 
@@ -1446,12 +1649,7 @@ function CompileView({ devotional, settings, onUpdate }) {
       )}
 
       {scriptOpen ? (
-        <TikTokScriptModal
-          devotional={devotional}
-          settings={settings}
-          onClose={() => setScriptOpen(false)}
-          onUpdate={onUpdate}
-        />
+        <TikTokScriptModal devotional={devotional} settings={settings} onClose={() => setScriptOpen(false)} onUpdate={onUpdate} />
       ) : null}
 
       {exportOpen ? <TikTokExportModal devotional={devotional} settings={settings} onClose={() => setExportOpen(false)} /> : null}
@@ -1673,7 +1871,9 @@ function TikTokExportModal({ devotional, settings, onClose }) {
                   <div className="rounded-3xl border border-slate-200 p-10">
                     <div className="flex items-center justify-between gap-4">
                       <div className="text-2xl font-extrabold">{devotional.verseRef || "Scripture"}</div>
-                      <div className="text-xl font-semibold text-slate-600">{devotional.bibleVersion || settings.defaultBibleVersion || "KJV"}</div>
+                      <div className="text-xl font-semibold text-slate-600">
+                        {devotional.bibleVersion || settings.defaultBibleVersion || "KJV"}
+                      </div>
                     </div>
                     {devotional.verseText ? (
                       <div className="text-3xl leading-snug mt-6 whitespace-pre-wrap text-slate-600">{devotional.verseText}</div>
@@ -1793,7 +1993,6 @@ function AppInner() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-slate-50 to-sky-50">
-      {/* UPDATED HEADER (logo left + tagline) */}
       <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/70 px-4 py-3">
         <div className="max-w-md mx-auto flex items-center gap-3">
           <img
@@ -1803,9 +2002,7 @@ function AppInner() {
             draggable="false"
           />
           <div className="min-w-0 leading-tight">
-            <div className="text-sm font-extrabold text-slate-900">
-              Rooted in Christ, growing in his fruit.
-            </div>
+            <div className="text-sm font-extrabold text-slate-900">Rooted in Christ, growing in his fruit.</div>
             <div className="text-xs font-bold text-slate-500">(John 15:5)</div>
           </div>
         </div>
@@ -1842,7 +2039,6 @@ function AppInner() {
         {view === "settings" ? <SettingsView settings={settings} onUpdate={updateSettings} onReset={reset} /> : null}
       </main>
 
-      {/* Glass bottom nav */}
       <div className="fixed bottom-0 left-0 right-0 z-40">
         <div className="max-w-md mx-auto px-4 pb-4">
           <div className="bg-white/55 backdrop-blur-2xl border border-slate-200/70 shadow-[0_18px_60px_-25px_rgba(0,0,0,0.35)] rounded-3xl px-3 py-2">
@@ -1857,7 +2053,6 @@ function AppInner() {
         </div>
       </div>
 
-      {/* Floating new */}
       <button
         onClick={newEntry}
         className="fixed bottom-28 right-6 z-50 w-14 h-14 rounded-full bg-emerald-600 text-white shadow-2xl flex items-center justify-center hover:bg-emerald-700 active:scale-[0.985]"
