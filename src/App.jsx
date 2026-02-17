@@ -15,6 +15,7 @@ import {
   Settings,
   Share2,
   Sparkles,
+  MoreVertical,
   Trash2,
   Wand2,
   X,
@@ -740,14 +741,14 @@ function bumpStreakOnSave() {
 
 /* ---------------- Views ---------------- */
 
-function HomeView({ onNew, onLibrary, onContinue, hasActive, streak }) {
+function HomeView({ onNew, onLibrary, onContinue, hasActive, streak, greetingName }) {
   return (
     <div className="space-y-6 pb-28">
       <div>
         <div className="text-sm text-slate-500">
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
         </div>
-        <div className="text-3xl font-extrabold text-slate-900 mt-1">Good Evening</div>
+        <div className="text-3xl font-extrabold text-slate-900 mt-1">Good morning, {greetingName || "Friend"}</div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -2360,6 +2361,7 @@ function AppInner() {
 
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
+  const greetingName = (settings.username || "Friend").replace(/^@/, "");
 
   useEffect(() => {
     localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(settings));
@@ -2422,13 +2424,21 @@ function AppInner() {
           <img
             src={`${import.meta.env.BASE_URL}logo.png`}
             alt="VersedUP"
-            className="h-16 w-auto object-contain drop-shadow-sm"
+            className="h-12 w-auto object-contain drop-shadow-sm"
             draggable="false"
           />
-          <div className="min-w-0 leading-tight">
-            <div className="text-sm font-extrabold text-slate-900">Rooted in Christ, growing in his fruit.</div>
-            <div className="text-xs font-bold text-slate-500">(John 15:5)</div>
+          <div className="min-w-0 leading-tight flex-1">
+            <div className="text-base font-extrabold text-slate-900">Good morning, {greetingName}</div>
+            <div className="text-xs font-bold text-slate-500">{new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</div>
           </div>
+          <button
+            type="button"
+            onClick={() => setView("settings")}
+            className="h-10 w-10 rounded-xl border border-slate-200 bg-white text-slate-600 flex items-center justify-center"
+            title="More"
+          >
+            <MoreVertical className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
@@ -2440,6 +2450,7 @@ function AppInner() {
             onContinue={() => setView(active ? "write" : "home")}
             hasActive={Boolean(active)}
             streak={streak}
+            greetingName={greetingName}
           />
         ) : null}
 
@@ -2467,12 +2478,11 @@ function AppInner() {
       <div className="fixed bottom-0 left-0 right-0 z-40">
         <div className="max-w-md mx-auto px-4 pb-4">
           <div className="bg-white/55 backdrop-blur-2xl border border-slate-200/70 shadow-[0_18px_60px_-25px_rgba(0,0,0,0.35)] rounded-3xl px-3 py-2">
-            <div className="grid grid-cols-5 gap-2">
-              <NavButton active={view === "home"} onClick={() => setView("home")} icon={PenTool} label="Home" />
+            <div className="grid grid-cols-4 gap-2">
+              <NavButton active={view === "home"} onClick={() => setView("home")} icon={BookOpen} label="Home" />
               <NavButton active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={PenTool} label="Write" />
-              <NavButton active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={Share2} label="Compile" />
+              <NavButton active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ScanLine} label="Compile" />
               <NavButton active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
-              <NavButton active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
             </div>
           </div>
         </div>
