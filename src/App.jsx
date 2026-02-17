@@ -324,6 +324,21 @@ function persistSession(session) {
   localStorage.setItem(STORAGE_SESSION, JSON.stringify(session));
 }
 
+function loadSession() {
+  const raw = localStorage.getItem(STORAGE_SESSION);
+  const parsed = safeParseJson(raw, null);
+  if (!parsed || typeof parsed !== "object") return null;
+  return parsed;
+}
+
+function persistSession(session) {
+  if (!session) {
+    localStorage.removeItem(STORAGE_SESSION);
+    return;
+  }
+  localStorage.setItem(STORAGE_SESSION, JSON.stringify(session));
+}
+
 function todayKey(date = new Date()) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -2307,6 +2322,15 @@ return (
       <PrimaryButton onClick={onReset} icon={Trash2}>
         Reset Local Data
       </PrimaryButton>
+
+      <Card className="border-slate-200">
+        <div className="space-y-3">
+          <div className="text-sm font-extrabold text-slate-900">Session</div>
+          <div className="text-xs text-slate-500">Sign out is placed here to avoid accidental taps while writing.</div>
+          <SmallButton onClick={onLogout} tone="danger">Logout</SmallButton>
+        </div>
+      </Card>
+
     </div>
   );
 }
@@ -2424,6 +2448,61 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
       setText(out);
     } catch (e) {
       pushToast(e?.message || "Could not shorten automatically.");
+    }
+  };
+
+  const shareNow = async () => {
+    setShareBusy(true);
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: devotional.title || devotional.verseRef || "Devotional",
+          text,
+        });
+      } else {
+        await copy();
+      }
+    } catch {
+      // no-op when user cancels native share
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const openEmailDraft = () => {
+    const subject = encodeURIComponent(devotional.title || devotional.verseRef || "Encouragement");
+    const body = encodeURIComponent(text);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const openTextDraft = () => {
+    const body = encodeURIComponent(text);
+    window.location.href = `sms:?&body=${body}`;
+  };
+
+  const shareToFacebook = () => {
+    const shareUrl = encodeURIComponent(window.location.href);
+    const quote = encodeURIComponent(text.slice(0, 280));
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${shareUrl}&quote=${quote}`, "_blank", "noopener,noreferrer");
+  };
+
+  const shareToX = () => {
+    const tweet = encodeURIComponent(text.slice(0, 280));
+    window.open(`https://twitter.com/intent/tweet?text=${tweet}`, "_blank", "noopener,noreferrer");
+  };
+
+  const shareToTikTok = async () => {
+    await copy();
+    window.open("https://www.tiktok.com/upload?lang=en", "_blank", "noopener,noreferrer");
+    alert("Caption copied. Paste it into your TikTok post.");
+  };
+
+  const autoShorten = async () => {
+    try {
+      const out = await aiRewriteLength(settings, { text, mood: devotional.mood, direction: "shorten" });
+      setText(out);
+    } catch (e) {
+      alert(e?.message || "Could not shorten automatically.");
     }
   };
 
@@ -3049,6 +3128,18 @@ function AppInner({ session, starterMood, onLogout }) {
 
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
+  const greetingName = (settings.username || session?.name || "Friend").replace(/^@/, "");
+
+  useEffect(() => {
+    if (!starterMood) return;
+    if (safeDevotionals.length > 0) return;
+    const d = createDevotional(settings);
+    d.mood = starterMood;
+    d.title = `A ${starterMood} start with Jesus`;
+    d.reflection = "I can begin from this mood, but I don’t have to stay here alone. Jesus meets me here.";
+    setDevotionals([d]);
+    setActiveId(d.id);
+  }, [starterMood, safeDevotionals.length]);
 
   useEffect(() => {
     if (!starterMood) return;
