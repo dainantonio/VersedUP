@@ -274,8 +274,6 @@ function getPublicBaseUrl() {
 }
 
 function assetUrl(path) {
-  // Just return the path directly for this preview, or a placeholder if it's the logo
-  if (path === "logo.png") return "https://lucide.dev/logo.svg"; // Fallback to a generic url or handle in onError
   const base = getPublicBaseUrl();
   const p = String(path || "").replace(/^\//, "");
   return `${base}${p}`;
@@ -3087,19 +3085,6 @@ function AppInner({ session, starterMood, onLogout }) {
     toastTimerRef.current = window.setTimeout(() => setToast(null), durationMs);
   };
 
-
-// versedup_login_greeting
-useEffect(() => {
-  const name = getDisplayName(session, settings);
-  if (!name) return;
-  const hour = new Date().getHours();
-  const message =
-    hour >= 5 && hour < 12
-      ? `Good morning, ${name}.`
-      : `This is the day the Lord has made; let us rejoice and be glad in it, ${name}.`;
-  pushToast(message, 4500);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
 
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
