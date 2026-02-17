@@ -1408,10 +1408,15 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [fetching, setFetching] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
 
   const [guidedBusy, setGuidedBusy] = useState(false);
   const [guidedOpen, setGuidedOpen] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState(TOPIC_CHIPS[0]?.id || "");
+
+useEffect(() => {
+  setIsDirty(false);
+}, [devotional?.id]);
 
   const [guidedDraft, setGuidedDraft] = useState({ title: "", reflection: "", prayer: "", questions: "" });
   const [guidedApply, setGuidedApply] = useState({ title: true, reflection: true, prayer: true, questions: true });
@@ -1432,11 +1437,18 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
 
   const handleSave = () => {
       onSaved();
+      setIsDirty(false);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
   }
 
-  const doFetch = async () => {
+  
+  const updateDevotional = (patch) => {
+    setIsDirty(true);
+    updateDevotional(patch);
+  };
+
+const doFetch = async () => {
     setFetching(true);
     try {
       if (!isKjv(version)) {
@@ -1444,7 +1456,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
         return;
       }
       const text = await fetchKjvFromBibleApi(devotional.verseRef);
-      onUpdate({ verseText: text, verseTextEdited: false });
+      updateDevotional({ verseText: text, verseTextEdited: false });
     } catch (e) {
       pushToast(e?.message || "Fetch failed.");
     } finally {
@@ -1456,7 +1468,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     setBusy(true);
     try {
       const fixed = await aiFixGrammar(settings, { text: devotional.reflection || "", mood: devotional.mood });
-      onUpdate({ reflection: fixed });
+      updateDevotional({ reflection: fixed });
     } catch (e) {
       pushToast(e?.message || "AI failed.");
     } finally {
@@ -1489,7 +1501,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     if (apply.reflection) patch.reflection = structureDraft.reflection;
     if (apply.prayer) patch.prayer = structureDraft.prayer;
     if (apply.questions) patch.questions = structureDraft.questions;
-    onUpdate(patch);
+    updateDevotional(patch);
     setStructureOpen(false);
   };
 
@@ -1497,7 +1509,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     setBusy(true);
     try {
       const out = await aiRewriteLength(settings, { text: devotional.reflection || "", mood: devotional.mood, direction });
-      onUpdate({ reflection: out });
+      updateDevotional({ reflection: out });
     } catch (e) {
       pushToast(e?.message || "AI failed.");
     } finally {
@@ -1528,7 +1540,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       });
 
       setShareReadyStep("Preparing share-ready draft...");
-      onUpdate({
+      updateDevotional({
         reflection: structured.reflection || fixed,
         title: structured.title || devotional.title,
         prayer: structured.prayer || devotional.prayer,
@@ -1553,7 +1565,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     if (guidedApply.reflection) patch.reflection = guidedDraft.reflection;
     if (guidedApply.prayer) patch.prayer = guidedDraft.prayer;
     if (guidedApply.questions) patch.questions = guidedDraft.questions;
-    onUpdate(patch);
+    updateDevotional(patch);
     setGuidedOpen(false);
   };
 
@@ -1564,7 +1576,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     if (guidedApply.prayer) patch.prayer = guidedDraft.prayer;
     if (guidedApply.questions) patch.questions = guidedDraft.questions;
 
-    onUpdate(patch);
+    updateDevotional(patch);
 
     if (!guidedGenerateScript) {
       setGuidedOpen(false);
@@ -1586,7 +1598,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
         mode: "regenerate",
       });
 
-      onUpdate({ tiktokScript: out });
+      updateDevotional({ tiktokScript: out });
       setGuidedOpen(false);
       pushToast("Applied + generated TikTok script ✅ (see Compile → TikTok Script)");
     } catch (e) {
@@ -1644,7 +1656,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       if (!String(devotional.title || "").trim()) patch.title = templ.title;
     }
 
-    onUpdate(patch);
+    updateDevotional(patch);
   };
 
   const openScan = () => {
@@ -1677,7 +1689,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             <Chip
               key={m.id}
               active={devotional.mood === m.id}
-              onClick={() => onUpdate({ mood: devotional.mood === m.id ? "" : m.id })}
+              onClick={() => updateDevotional({ mood: devotional.mood === m.id ? "" : m.id })}
             >
               {m.label}
             </Chip>
@@ -1709,7 +1721,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             <div className="flex gap-2">
               <input
                 value={devotional.verseRef}
-                onChange={(e) => onUpdate({ verseRef: e.target.value })}
+                onChange={(e) => updateDevotional({ verseRef: e.target.value })}
                 placeholder="Verse reference (e.g., Psalm 23)"
                 className="flex-1 rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 bg-white transition-all shadow-sm focus:border-emerald-300"
                 onKeyDown={(e) => {
@@ -1718,7 +1730,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               />
               <select
                 value={version}
-                onChange={(e) => onUpdate({ bibleVersion: e.target.value })}
+                onChange={(e) => updateDevotional({ bibleVersion: e.target.value })}
                 className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-extrabold bg-white"
               >
                 {BIBLE_VERSIONS.map((v) => (
@@ -1748,7 +1760,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">VERSE TEXT</label>
               <textarea
                 value={devotional.verseText}
-                onChange={(e) => onUpdate({ verseText: e.target.value, verseTextEdited: true })}
+                onChange={(e) => updateDevotional({ verseText: e.target.value, verseTextEdited: true })}
                 placeholder={
                   isKjv(version)
                     ? "Fetch KJV to auto-fill..."
@@ -1772,7 +1784,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TITLE (OPTIONAL)</label>
             <input
               value={devotional.title}
-              onChange={(e) => onUpdate({ title: e.target.value })}
+              onChange={(e) => updateDevotional({ title: e.target.value })}
               placeholder="Give it a holy title..."
               className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow focus:border-emerald-300"
             />
@@ -1812,7 +1824,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             <textarea
               ref={reflectionRef}
               value={devotional.reflection}
-              onChange={(e) => onUpdate({ reflection: e.target.value })}
+              onChange={(e) => updateDevotional({ reflection: e.target.value })}
               placeholder="Start writing... (or tap a Topic Chip above)"
               rows={8}
               spellCheck
@@ -1862,7 +1874,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">PRAYER</label>
             <textarea
               value={devotional.prayer}
-              onChange={(e) => onUpdate({ prayer: e.target.value })}
+              onChange={(e) => updateDevotional({ prayer: e.target.value })}
               placeholder="Lord, help me..."
               rows={4}
               spellCheck
@@ -1876,7 +1888,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">REFLECTION QUESTIONS</label>
             <textarea
               value={devotional.questions}
-              onChange={(e) => onUpdate({ questions: e.target.value })}
+              onChange={(e) => updateDevotional({ questions: e.target.value })}
               placeholder={"1) ...\n2) ..."}
               rows={3}
               spellCheck
@@ -1908,6 +1920,10 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       >
         Compile for Socials
       </PrimaryButton>
+
+      <div className="text-[11px] font-extrabold text-slate-500 -mt-2">
+        {isDirty ? "Unsaved changes" : "All changes saved"}
+      </div>
 
       {structureOpen ? (
         <Modal
@@ -2015,7 +2031,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           settings={settings}
           mood={devotional.mood}
           onClose={() => setScanOpen(false)}
-          onApplyToDevotional={(patch) => onUpdate(patch)}
+          onApplyToDevotional={(patch) => updateDevotional(patch)}
         />
       ) : null}
     </div>
