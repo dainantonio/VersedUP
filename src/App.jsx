@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { toPng } from "html-to-image";
 import {
   AlertTriangle,
   BookOpen,
@@ -24,7 +23,58 @@ import {
   X,
   ScanLine,
   Flame,
+  ArrowRight
 } from "lucide-react";
+
+/* --- Mocks & Global Styles for Preview --- */
+
+// Mock html-to-image since it's not available in this environment
+const toPng = async (node, options) => {
+  console.log("Mock export triggered. (html-to-image is not available in preview)");
+  alert("PNG Export is mocked in this preview environment.");
+  return ""; // Return empty string
+};
+
+const GlobalStyles = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&family=Inter:wght@400;500;600;800&display=swap');
+
+    /* Safe area padding for mobile spacing */
+    .pb-safe {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    
+    /* Utility for hiding scrollbars (used in your code) */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Animation Keyframes */
+    @keyframes fadeSlideUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .animate-enter {
+      animation: fadeSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Serif class for scripture */
+    .font-serif-scripture {
+      font-family: 'Merriweather', serif;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+  `}</style>
+);
+
+/* --- Original App.jsx Code --- */
 
 /**
  * Centralized icon mapping (enforced)
@@ -54,9 +104,9 @@ function useToast() {
 function ToastTicker({ toast }) {
   if (!toast) return null;
   return (
-    <div className="fixed top-0 left-0 right-0 z-50">
+    <div className="fixed top-0 left-0 right-0 z-50 pointer-events-none">
       <div className="max-w-md mx-auto px-4 pt-3">
-        <div className="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur-xl shadow-sm px-4 py-2">
+        <div className="rounded-full border border-slate-200 bg-white/90 backdrop-blur-xl shadow-lg px-6 py-3 flex items-center justify-center animate-enter">
           <div className="text-xs font-extrabold text-slate-700">{toast.message}</div>
         </div>
       </div>
@@ -64,14 +114,14 @@ function ToastTicker({ toast }) {
   );
 }
 
+function PageTransition({ children, className }) {
+  // Key helps react reset the animation when content changes significantly if needed, 
+  // but for simple routing, just rendering creates the animation via CSS class.
+  return <div className={cn("animate-enter", className)}>{children}</div>;
+}
+
 /**
  * VersedUP — single file app
- *
- * Added in this version:
- * - Guided Mode toggle (Settings) to show/hide helper hints everywhere
- * - Topic Chips support "Guided Fill" (Title/Reflection/Prayer/Questions) in one click
- * - NEW: "Auto-fill empty sections on Topic tap" setting (Prayer/Questions/Title)
- * - NEW: "Fill + Generate TikTok Script" one-click flow (Guided Fill modal)
  */
 
 const APP_ID = "versedup_v1";
@@ -213,6 +263,8 @@ function getPublicBaseUrl() {
 }
 
 function assetUrl(path) {
+  // Just return the path directly for this preview, or a placeholder if it's the logo
+  if (path === "logo.png") return "https://lucide.dev/logo.svg"; // Fallback to a generic url or handle in onError
   const base = getPublicBaseUrl();
   const p = String(path || "").replace(/^\//, "");
   return `${base}${p}`;
@@ -726,8 +778,8 @@ function Card({ children, className }) {
   return (
     <div
       className={cn(
-        "bg-white rounded-3xl border border-slate-200 shadow-sm p-5",
-        "backdrop-blur-sm",
+        "bg-white/80 rounded-3xl border border-slate-200 shadow-sm p-5",
+        "backdrop-blur-md transition-all duration-300 hover:shadow-md",
         className
       )}
     >
@@ -742,9 +794,9 @@ function PrimaryButton({ children, onClick, disabled, icon: Icon }) {
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 transition",
-        "active:scale-[0.985] will-change-transform",
-        disabled && "opacity-50 cursor-not-allowed"
+        "w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 transition-all duration-200",
+        "active:scale-[0.985] will-change-transform shadow-md hover:shadow-lg shadow-emerald-600/20",
+        disabled && "opacity-50 cursor-not-allowed shadow-none"
       )}
       type="button"
     >
@@ -759,11 +811,11 @@ function Chip({ active, onClick, children }) {
     <button
       onClick={onClick}
       className={cn(
-        "px-3 py-2 rounded-full border text-xs font-bold transition whitespace-nowrap",
+        "px-3.5 py-2 rounded-full border text-xs font-bold transition-all duration-200 whitespace-nowrap",
         "active:scale-[0.98] will-change-transform",
         active
-          ? "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
-          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+          ? "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-inner"
+          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:shadow-sm"
       )}
       type="button"
     >
@@ -774,10 +826,10 @@ function Chip({ active, onClick, children }) {
 
 function SmallButton({ children, onClick, disabled, icon: Icon, tone = "neutral", type = "button" }) {
   const base =
-    "px-3 py-2 rounded-xl text-xs font-extrabold border transition flex items-center gap-2 justify-center active:scale-[0.98] will-change-transform";
+    "px-3 py-2 rounded-xl text-xs font-extrabold border transition-all duration-200 flex items-center gap-2 justify-center active:scale-[0.98] will-change-transform";
   const variants = {
-    neutral: "bg-white border-slate-200 text-slate-700 hover:bg-slate-50",
-    primary: "bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700",
+    neutral: "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:shadow-sm",
+    primary: "bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-600/20",
     danger: "bg-white border-slate-200 text-red-600 hover:bg-red-50",
   };
   return (
@@ -785,7 +837,7 @@ function SmallButton({ children, onClick, disabled, icon: Icon, tone = "neutral"
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={cn(base, variants[tone], disabled && "opacity-50 cursor-not-allowed")}
+      className={cn(base, variants[tone], disabled && "opacity-50 cursor-not-allowed shadow-none")}
     >
       {Icon ? <Icon className="w-4 h-4" /> : null}
       {children}
@@ -795,16 +847,17 @@ function SmallButton({ children, onClick, disabled, icon: Icon, tone = "neutral"
 
 function Modal({ title, onClose, children, footer }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-          <div className="font-extrabold text-slate-900">{title}</div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 active:scale-[0.98]" type="button">
-            <X className="w-5 h-5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-lg bg-white rounded-[2rem] border border-slate-200 shadow-2xl overflow-hidden animate-enter">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white/50 backdrop-blur-sm">
+          <div className="font-extrabold text-slate-900 text-lg">{title}</div>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 active:scale-[0.98] transition-colors" type="button">
+            <X className="w-5 h-5 text-slate-500" />
           </button>
         </div>
-        <div className="p-4">{children}</div>
-        {footer ? <div className="px-4 py-3 border-t border-slate-200 bg-slate-50">{footer}</div> : null}
+        <div className="p-5 max-h-[75vh] overflow-y-auto">{children}</div>
+        {footer ? <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/80 backdrop-blur-sm">{footer}</div> : null}
       </div>
     </div>
   );
@@ -812,11 +865,16 @@ function Modal({ title, onClose, children, footer }) {
 
 function ApplySectionCard({ k, label, value, checked, onToggle, onChange }) {
   return (
-    <div className="rounded-2xl border border-slate-200 p-3 bg-white">
+    <div className="rounded-2xl border border-slate-200 p-3 bg-white transition-shadow hover:shadow-sm">
       <div className="flex items-center justify-between">
-        <div className="text-xs font-extrabold text-slate-700">{label}</div>
-        <label className="text-xs font-extrabold text-slate-600 flex items-center gap-2">
-          <input type="checkbox" checked={checked} onChange={(e) => onToggle(e.target.checked)} />
+        <div className="text-xs font-extrabold text-slate-700 uppercase tracking-wide">{label}</div>
+        <label className="text-xs font-extrabold text-slate-600 flex items-center gap-2 cursor-pointer select-none">
+          <input 
+            type="checkbox" 
+            checked={checked} 
+            onChange={(e) => onToggle(e.target.checked)} 
+            className="rounded text-emerald-600 focus:ring-emerald-500"
+          />
           Apply
         </label>
       </div>
@@ -824,7 +882,10 @@ function ApplySectionCard({ k, label, value, checked, onToggle, onChange }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={k === "reflection" ? 5 : k === "verseText" ? 4 : 3}
-        className="mt-2 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+        className={cn(
+          "mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 resize-none transition-all",
+          (k === "verseText" || k === "verseRef") ? "font-serif-scripture" : ""
+        )}
       />
     </div>
   );
@@ -881,29 +942,30 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
   };
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 pb-28 animate-enter">
       <div>
-        <div className="text-sm text-slate-500">
+        <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
         </div>
-        <div className="text-3xl font-extrabold text-slate-900 mt-1">{getTimeGreeting(displayName)}</div>
-        <div className="text-sm text-slate-500 mt-2">{hasActive ? "Continue your last entry below." : "Start a devotional or pick a verse to reflect."}</div>
+        <div className="text-3xl font-extrabold text-slate-900 mt-1 tracking-tight">{getTimeGreeting(displayName)}</div>
+        <div className="text-sm text-slate-600 mt-2 font-medium">{hasActive ? "Continue your last entry below." : "Start a devotional or pick a verse to reflect."}</div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm p-5 overflow-hidden relative">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-200/40 via-transparent to-sky-200/30 pointer-events-none" />
+        <div className="col-span-2 bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6 overflow-hidden relative group transition-all hover:shadow-md">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-100/40 via-transparent to-sky-100/30 pointer-events-none group-hover:from-emerald-100/60 transition-colors" />
           <div className="relative flex items-center justify-between">
             <div>
-              <div className="text-xs font-extrabold text-slate-500">CURRENT STREAK</div>
-              <div className="text-3xl font-extrabold text-slate-900 mt-1">
-                {streak.count} <Flame className="w-5 h-5 inline-block align-[-3px] ml-2 text-orange-500" /> <span className="text-slate-500 text-lg">days</span>
+              <div className="text-[10px] font-black text-slate-400 tracking-widest uppercase">CURRENT STREAK</div>
+              <div className="text-4xl font-black text-slate-900 mt-1 flex items-baseline">
+                {streak.count} <Flame className="w-6 h-6 ml-2 text-orange-500 drop-shadow-sm" fill="currentColor" /> 
+                <span className="text-slate-400 text-lg font-bold ml-1">days</span>
               </div>
-              <div className="text-xs text-slate-500 mt-1">Keep showing up — God meets you here.</div>
+              <div className="text-xs text-slate-500 mt-2 font-medium">Keep showing up — God meets you here.</div>
             </div>
             <button
               onClick={hasActive ? onContinue : onNew}
-              className="px-4 py-3 rounded-2xl bg-emerald-600 text-white font-extrabold shadow-lg hover:bg-emerald-700 active:scale-[0.985]"
+              className="px-5 py-3 rounded-2xl bg-slate-900 text-white font-extrabold shadow-lg hover:bg-slate-800 hover:scale-105 active:scale-95 transition-all"
               type="button"
             >
               {hasActive ? "Continue" : "Check In"}
@@ -913,37 +975,47 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
 
         <button
           onClick={onNew}
-          className="bg-white rounded-3xl border border-slate-200 p-5 text-left hover:bg-slate-50 transition active:scale-[0.99]"
+          className="bg-white rounded-[1.5rem] border border-slate-200 p-5 text-left hover:bg-slate-50 transition-all active:scale-[0.98] hover:shadow-sm group"
           type="button"
         >
+          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+             <PenTool className="w-5 h-5 text-emerald-700" />
+          </div>
           <div className="font-extrabold text-slate-900">New Entry</div>
           <div className="text-xs text-slate-500 mt-1">Start fresh</div>
         </button>
 
         <button
           onClick={onLibrary}
-          className="bg-white rounded-3xl border border-slate-200 p-5 text-left hover:bg-slate-50 transition active:scale-[0.99]"
+          className="bg-white rounded-[1.5rem] border border-slate-200 p-5 text-left hover:bg-slate-50 transition-all active:scale-[0.98] hover:shadow-sm group"
           type="button"
         >
+          <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+             <Library className="w-5 h-5 text-sky-700" />
+          </div>
           <div className="font-extrabold text-slate-900">Library</div>
           <div className="text-xs text-slate-500 mt-1">View archive</div>
         </button>
       </div>
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden border-emerald-100 bg-emerald-50/30">
         <div className="flex items-center justify-between">
-          <div className="font-extrabold text-slate-900">Verse of the Day</div>
-          <div className="text-xs font-bold text-emerald-700">Daily</div>
+          <div className="font-extrabold text-slate-900 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-emerald-600" />
+            Verse of the Day
+          </div>
+          <div className="text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full">Daily</div>
         </div>
-        <div className="mt-3 bg-gradient-to-br from-emerald-400 via-emerald-600 to-emerald-800 rounded-3xl p-6 text-white shadow-sm">
-          <div className="text-2xl leading-snug font-semibold">{`“${VERSE_OF_DAY.verseText}”`}</div>
-          <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
+        <div className="mt-4 bg-gradient-to-br from-emerald-500 to-teal-700 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
+          <div className="text-2xl leading-relaxed font-serif-scripture relative z-10">{`“${VERSE_OF_DAY.verseText}”`}</div>
+          <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90 relative z-10">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
           <button
             onClick={onReflectVerseOfDay}
-            className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/25 text-xs font-extrabold active:scale-[0.985]"
+            className="mt-6 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md active:scale-[0.985] transition-all flex items-center gap-2"
             type="button"
           >
-            Reflect on this
+            Reflect on this <ArrowRight className="w-3 h-3" />
           </button>
         </div>
       </Card>
@@ -954,17 +1026,17 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
           <div className="text-xs font-bold text-slate-500">By theme</div>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           {MOOD_VERSE_ORDER.map((key) => (
             <button
               key={key}
               type="button"
               onClick={() => handleSelectMoodVerse(key)}
               className={cn(
-                "px-3 py-2 rounded-full text-xs font-extrabold border active:scale-[0.985]",
+                "px-4 py-2 rounded-full text-xs font-bold border transition-all active:scale-[0.95]",
                 moodVerseKey === key
-                  ? "bg-emerald-600 text-white border-emerald-600"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                  ? "bg-slate-900 text-white border-slate-900 shadow-md"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
               )}
             >
               {MOOD_VERSES[key].label}
@@ -972,9 +1044,10 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
           ))}
         </div>
 
-        <div className="mt-4 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950 rounded-3xl p-6 text-white shadow-sm">
-          <div className="text-xl leading-snug font-semibold">{`“${moodVerse.verseText}”`}</div>
-          <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90">{moodVerse.verseRef.toUpperCase()}</div>
+        <div className="mt-5 bg-gradient-to-br from-slate-800 to-slate-950 rounded-3xl p-6 text-white shadow-md relative overflow-hidden">
+            <div className="absolute bottom-0 left-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl -ml-10 -mb-10 pointer-events-none"></div>
+          <div className="text-xl leading-relaxed font-serif-scripture opacity-90">{`“${moodVerse.verseText}”`}</div>
+          <div className="mt-4 text-xs font-extrabold tracking-wider opacity-70">{moodVerse.verseRef.toUpperCase()}</div>
         </div>
       </Card>
 
@@ -1127,7 +1200,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
       onClose={onClose}
       footer={
         <div className="flex gap-2 items-center">
-          <div className="text-xs text-slate-500">{busy ? "Reading..." : aiBusy ? "Structuring..." : ""}</div>
+          <div className="text-xs text-slate-500 font-medium">{busy ? "Reading..." : aiBusy ? "Structuring..." : ""}</div>
           <div className="flex-1" />
           <SmallButton onClick={onClose}>Close</SmallButton>
           <SmallButton onClick={applyFields} tone="primary" disabled={!rawText}>
@@ -1137,12 +1210,12 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
       }
     >
       <div className="space-y-4">
-        <Card className="p-4">
-          <div className="text-xs font-extrabold text-slate-500">UPLOAD OR CAPTURE</div>
+        <Card className="p-4 bg-slate-50 border-0">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">UPLOAD OR CAPTURE</div>
           <div className="mt-3 flex flex-wrap gap-2">
             <label className="cursor-pointer">
               <input type="file" accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-              <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-xs font-extrabold hover:bg-slate-50 active:scale-[0.98]">
+              <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-extrabold hover:bg-slate-50 active:scale-[0.98] transition-all shadow-sm">
                 <Camera className="w-4 h-4" />
                 Upload
               </span>
@@ -1156,7 +1229,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
                 className="hidden"
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
               />
-              <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 text-xs font-extrabold hover:bg-slate-50 active:scale-[0.98]">
+              <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-extrabold hover:bg-slate-50 active:scale-[0.98] transition-all shadow-sm">
                 <ScanLine className="w-4 h-4" />
                 Camera
               </span>
@@ -1172,13 +1245,13 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
           </div>
 
           {!canRun ? (
-            <div className="mt-3 text-xs font-bold text-amber-700">
+            <div className="mt-3 text-xs font-bold text-amber-700 bg-amber-50 p-2 rounded-lg">
               OCR is not connected yet. Go to <b>Settings</b> → paste your Vercel OCR URL.
             </div>
           ) : null}
 
           {previewUrl ? (
-            <div className="mt-4 rounded-2xl overflow-hidden border border-slate-200">
+            <div className="mt-4 rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
               <img src={previewUrl} alt="Scan preview" className="w-full h-auto" />
             </div>
           ) : null}
@@ -1186,25 +1259,26 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
 
         {rawText ? (
           <div className="space-y-3">
-            <Card className="p-4">
-              <div className="text-xs font-extrabold text-slate-500">OCR TEXT (RAW)</div>
-              <div className="mt-2 text-xs whitespace-pre-wrap text-slate-600 max-h-40 overflow-auto">{rawText}</div>
+            <Card className="p-4 bg-white">
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">OCR TEXT (RAW)</div>
+              <div className="mt-2 text-xs whitespace-pre-wrap text-slate-600 max-h-40 overflow-auto font-mono bg-slate-50 p-2 rounded-lg">{rawText}</div>
             </Card>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 p-1 bg-slate-100 rounded-full w-fit">
               <Chip active={tab === "parsed"} onClick={() => setTab("parsed")}>
                 Parsed
               </Chip>
               <Chip active={tab === "structured"} onClick={() => setTab("structured")}>
                 Structured (AI)
               </Chip>
-              <div className="flex-1" />
+            </div>
               {tab === "structured" ? (
+                  <div className="flex justify-end">
                 <SmallButton onClick={() => void generateStructure({ fromParsed: false })} disabled={aiBusy} icon={RefreshCw}>
                   Regenerate
                 </SmallButton>
+                  </div>
               ) : null}
-            </div>
 
             <div className="space-y-3">
               <ApplySectionCard
@@ -1311,6 +1385,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [apply, setApply] = useState({ title: true, reflection: true, prayer: true, questions: true });
   const [fetching, setFetching] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const [guidedBusy, setGuidedBusy] = useState(false);
   const [guidedOpen, setGuidedOpen] = useState(false);
@@ -1332,6 +1407,12 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const aiNeedsKey =
     (settings.aiProvider === "openai" && !settings.openaiKey) ||
     (settings.aiProvider === "gemini" && !settings.geminiKey);
+
+  const handleSave = () => {
+      onSaved();
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+  }
 
   const doFetch = async () => {
     setFetching(true);
@@ -1432,7 +1513,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
         questions: structured.questions || devotional.questions,
       });
 
-      onSaved();
+      handleSave();
       onGoCompile();
     } catch (e) {
       pushToast(e?.message || "We couldn’t complete the share-ready flow. Continue manually.");
@@ -1558,17 +1639,17 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const hasReflection = Boolean(String(devotional.reflection || "").trim());
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 pb-28 animate-enter">
       <div>
-<div className="text-lg font-extrabold text-slate-900">New Entry</div>
-<div className="text-xs font-bold text-slate-400 mt-1">CAPTURE WHAT GOD IS SPEAKING</div>
-<div className="text-sm text-slate-500 mt-3">
+<div className="text-xl font-extrabold text-slate-900">New Entry</div>
+<div className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">CAPTURE WHAT GOD IS SPEAKING</div>
+<div className="text-sm text-slate-500 mt-3 font-medium">
   Add a verse, write a reflection, then tap Save and Compile.
 </div>
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="text-xs font-extrabold text-slate-500">HOW IS YOUR HEART?</div>
+      <Card className="overflow-hidden bg-white/60">
+        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">HOW IS YOUR HEART?</div>
         <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {MOODS.map((m) => (
             <Chip
@@ -1584,11 +1665,11 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       </Card>
 
       <Card>
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <div className="text-xs font-extrabold text-slate-500 flex items-center gap-2">
-                <BookOpen className="w-4 h-4" /> VERSE
+              <div className="text-[10px] font-black text-slate-500 flex items-center gap-2 uppercase tracking-widest">
+                <BookOpen className="w-3.5 h-3.5" /> VERSE
               </div>
               <div className="flex gap-2">
                 <SmallButton onClick={openScan} icon={ScanLine}>
@@ -1608,7 +1689,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                 value={devotional.verseRef}
                 onChange={(e) => onUpdate({ verseRef: e.target.value })}
                 placeholder="Verse reference (e.g., Psalm 23)"
-                className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200 bg-white"
+                className="flex-1 rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 bg-white transition-all shadow-sm"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void doFetch();
                 }}
@@ -1616,7 +1697,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               <select
                 value={version}
                 onChange={(e) => onUpdate({ bibleVersion: e.target.value })}
-                className="rounded-xl border border-slate-200 px-2 py-2 text-sm font-extrabold bg-white"
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-extrabold bg-white"
               >
                 {BIBLE_VERSIONS.map((v) => (
                   <option key={v} value={v}>
@@ -1635,14 +1716,14 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
             </div>
 
             {guidedMode && !hasVerseRef ? (
-              <div className="text-xs font-bold text-slate-500">
+              <div className="text-xs font-medium text-slate-500">
                 Try: <span className="font-extrabold text-slate-700">John 3:16-18</span> or{" "}
                 <span className="font-extrabold text-slate-700">Psalm 23</span>
               </div>
             ) : null}
 
             <div>
-              <label className="text-[10px] font-extrabold text-slate-400">VERSE TEXT</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">VERSE TEXT</label>
               <textarea
                 value={devotional.verseText}
                 onChange={(e) => onUpdate({ verseText: e.target.value, verseTextEdited: true })}
@@ -1652,7 +1733,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                     : "Free-for-now: Open in YouVersion. Paste text you have rights to use."
                 }
                 rows={4}
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 bg-white resize-none"
+                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 bg-white resize-none font-serif-scripture shadow-inner"
               />
               {guidedMode && !hasVerseText && hasVerseRef ? (
                 <div className="mt-2 text-[11px] font-bold text-slate-500">
@@ -1666,19 +1747,19 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           </div>
 
           <div>
-            <label className="text-xs font-extrabold text-slate-400">TITLE (OPTIONAL)</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TITLE (OPTIONAL)</label>
             <input
               value={devotional.title}
               onChange={(e) => onUpdate({ title: e.target.value })}
               placeholder="Give it a holy title..."
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-base font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow"
             />
           </div>
 
           <div>
             <div className="flex items-end justify-between gap-3">
-              <label className="text-xs font-extrabold text-slate-400">REFLECTION / BODY</label>
-              {guidedMode ? <div className="text-[11px] font-bold text-slate-500">Topic → prompt, then Guided Fill</div> : null}
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">REFLECTION / BODY</label>
+              {guidedMode ? <div className="text-[11px] font-bold text-emerald-600">Topic → prompt, then Guided Fill</div> : null}
             </div>
 
             <div className="mt-2 flex gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -1715,7 +1796,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               spellCheck
               autoCorrect="on"
               autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm transition-shadow"
             />
 
             {guidedMode && !hasReflection ? (
@@ -1756,7 +1837,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           </div>
 
           <div>
-            <label className="text-xs font-extrabold text-slate-400">PRAYER</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">PRAYER</label>
             <textarea
               value={devotional.prayer}
               onChange={(e) => onUpdate({ prayer: e.target.value })}
@@ -1765,12 +1846,12 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               spellCheck
               autoCorrect="on"
               autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm"
             />
           </div>
 
           <div>
-            <label className="text-xs font-extrabold text-slate-400">REFLECTION QUESTIONS</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">REFLECTION QUESTIONS</label>
             <textarea
               value={devotional.questions}
               onChange={(e) => onUpdate({ questions: e.target.value })}
@@ -1779,7 +1860,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               spellCheck
               autoCorrect="on"
               autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm"
             />
           </div>
         </div>
@@ -1787,18 +1868,19 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
 
       <PrimaryButton
         onClick={() => {
-          onSaved();
-          onGoPolish();
+            handleSave();
+            onGoPolish();
         }}
-        icon={Check}
+        icon={saveSuccess ? Check : Check} // Could swap icon here if desired
+        disabled={saveSuccess}
       >
-        Save & Polish
+        {saveSuccess ? "Saved!" : "Save & Polish"}
       </PrimaryButton>
 
       <PrimaryButton
         onClick={() => {
-          onSaved();
-          onGoCompile();
+            handleSave();
+            onGoCompile();
         }}
         icon={ICONS.actions.compileForSocials}
       >
@@ -1829,8 +1911,8 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               <div key={k} className="rounded-2xl border border-slate-200 p-3">
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-extrabold text-slate-500 uppercase">{k}</div>
-                  <label className="text-xs font-extrabold text-slate-600 flex items-center gap-2">
-                    <input type="checkbox" checked={apply[k]} onChange={(e) => setApply((s) => ({ ...s, [k]: e.target.checked }))} />
+                  <label className="text-xs font-extrabold text-slate-600 flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={apply[k]} onChange={(e) => setApply((s) => ({ ...s, [k]: e.target.checked }))} className="rounded text-emerald-600 focus:ring-emerald-500" />
                     Replace
                   </label>
                 </div>
@@ -1848,11 +1930,12 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           footer={
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-xs font-extrabold text-slate-700">
+                <label className="flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={guidedGenerateScript}
                     onChange={(e) => setGuidedGenerateScript(e.target.checked)}
+                    className="rounded text-emerald-600 focus:ring-emerald-500"
                   />
                   Also generate TikTok script
                 </label>
@@ -1919,35 +2002,35 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
 
 function PolishView({ devotional }) {
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 pb-28 animate-enter">
       <Card>
-        <div className="text-xl font-extrabold text-slate-900">Polish</div>
-        <div className="text-sm text-slate-500 mt-1">Review and refine. Then export.</div>
+        <div className="text-2xl font-black text-slate-900">Polish</div>
+        <div className="text-sm text-slate-500 mt-1 font-medium">Review and refine. Then export.</div>
       </Card>
 
       <Card>
         <div className="space-y-3">
-          <div className="text-sm font-extrabold text-slate-700">Scripture</div>
-          <div className="text-sm text-slate-600">{devotional.verseRef || "—"}</div>
-          <div className="text-sm whitespace-pre-wrap text-slate-800">{devotional.verseText || "—"}</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Scripture</div>
+          <div className="text-sm font-bold text-emerald-800">{devotional.verseRef || "—"}</div>
+          <div className="text-lg whitespace-pre-wrap text-slate-800 font-serif-scripture leading-relaxed">{devotional.verseText || "—"}</div>
         </div>
       </Card>
 
       <Card>
-        <div className="text-sm font-extrabold text-slate-700">Reflection</div>
-        <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800">{devotional.reflection || "—"}</div>
+        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reflection</div>
+        <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{devotional.reflection || "—"}</div>
       </Card>
 
       {!!devotional.prayer && (
         <Card>
-          <div className="text-sm font-extrabold text-slate-700">Prayer</div>
-          <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800">{devotional.prayer}</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Prayer</div>
+          <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800 italic">{devotional.prayer}</div>
         </Card>
       )}
 
       {!!devotional.questions && (
         <Card>
-          <div className="text-sm font-extrabold text-slate-700">Questions</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Questions</div>
           <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800">{devotional.questions}</div>
         </Card>
       )}
@@ -1967,33 +2050,33 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
   }, [q, devotionals]);
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 pb-28 animate-enter">
       <Card>
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-lg font-extrabold text-slate-900">Library</div>
-            <div className="text-sm text-slate-500 mt-1">Your saved devotionals.</div>
+            <div className="text-2xl font-black text-slate-900">Library</div>
+            <div className="text-sm text-slate-500 mt-1 font-medium">Your saved devotionals.</div>
           </div>
         </div>
-        <div className="mt-4 relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <div className="mt-5 relative">
+          <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search..."
-            className="w-full rounded-2xl border border-slate-200 pl-9 pr-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+            placeholder="Search your history..."
+            className="w-full rounded-2xl border border-slate-200 pl-10 pr-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow bg-slate-50 focus:bg-white"
           />
         </div>
       </Card>
 
       <div className="space-y-3">
         {filtered.map((d) => (
-          <div key={d.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5">
+          <div key={d.id} className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm p-5 transition-all hover:shadow-md active:scale-[0.99]">
             <div className="flex items-start justify-between gap-3">
-              <button onClick={() => onOpen(d.id)} className="text-left flex-1 active:scale-[0.995]" type="button">
-                <div className="font-extrabold text-slate-900">{d.title || "Untitled"}</div>
-                <div className="text-xs font-bold text-slate-500 mt-1">{d.verseRef || "No scripture"}</div>
-                <div className="text-xs text-slate-400 mt-1">{new Date(d.updatedAt).toLocaleDateString()}</div>
+              <button onClick={() => onOpen(d.id)} className="text-left flex-1" type="button">
+                <div className="font-extrabold text-slate-900 text-lg">{d.title || "Untitled"}</div>
+                <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wide">{d.verseRef || "No scripture"}</div>
+                <div className="text-xs text-slate-400 mt-2 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
               </button>
               <SmallButton tone="danger" onClick={() => onDelete(d.id)} icon={Trash2}>
                 Delete
@@ -2002,8 +2085,8 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
           </div>
         ))}
         {filtered.length === 0 ? (
-          <Card>
-            <div className="text-sm text-slate-500">No results.</div>
+          <Card className="bg-transparent border-dashed">
+            <div className="text-sm text-slate-400 text-center py-8">No results found.</div>
           </Card>
         ) : null}
       </div>
@@ -2033,10 +2116,10 @@ function SettingsView({ settings, onUpdate, onReset }) {
   };
 
 return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 pb-28 animate-enter">
       <Card>
-        <div className="text-lg font-extrabold text-slate-900">Settings</div>
-        <div className="text-sm text-slate-500 mt-1">AI keys, defaults, OCR, guidance.</div>
+        <div className="text-2xl font-black text-slate-900">Settings</div>
+        <div className="text-sm text-slate-500 mt-1 font-medium">AI keys, defaults, OCR, guidance.</div>
       </Card>
 
       <Card className="border-slate-200">
@@ -2045,25 +2128,26 @@ return (
             <div className="text-sm font-extrabold text-slate-900">Guided Mode</div>
             <div className="text-xs text-slate-500 mt-1">Show helpful hints and suggested flows across the app.</div>
           </div>
-          <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
-            <input type="checkbox" checked={Boolean(settings.guidedMode)} onChange={(e) => onUpdate({ guidedMode: e.target.checked })} />
+          <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer">
+            <input type="checkbox" checked={Boolean(settings.guidedMode)} onChange={(e) => onUpdate({ guidedMode: e.target.checked })} className="rounded text-emerald-600 focus:ring-emerald-500" />
             On
           </label>
         </div>
       </Card>
 
       <Card className="border-slate-200">
-        <div className="space-y-4">
+        <div className="space-y-5">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm font-extrabold text-slate-900">Auto-fill empty sections on Topic tap</div>
               <div className="text-xs text-slate-500 mt-1">When you tap a Topic Chip, auto-fill Title/Prayer/Questions if empty.</div>
             </div>
-            <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
+            <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer">
               <input
                 type="checkbox"
                 checked={Boolean(settings.autoFillEmptyOnTopicTap)}
                 onChange={(e) => onUpdate({ autoFillEmptyOnTopicTap: e.target.checked })}
+                className="rounded text-emerald-600 focus:ring-emerald-500"
               />
               On
             </label>
@@ -2074,11 +2158,12 @@ return (
               <div className="text-sm font-extrabold text-slate-900">Guided Fill: auto-generate TikTok script</div>
               <div className="text-xs text-slate-500 mt-1">Default for the “Apply + Script” checkbox in Guided Fill.</div>
             </div>
-            <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
+            <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer">
               <input
                 type="checkbox"
                 checked={Boolean(settings.guidedAutoGenerateTikTok)}
                 onChange={(e) => onUpdate({ guidedAutoGenerateTikTok: e.target.checked })}
+                className="rounded text-emerald-600 focus:ring-emerald-500"
               />
               On
             </label>
@@ -2101,23 +2186,23 @@ return (
       <Card>
         <div className="space-y-4">
           <div>
-            <label className="text-xs font-extrabold text-slate-500">USERNAME / HANDLE</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">USERNAME / HANDLE</label>
             <input
               value={settings.username}
               onChange={(e) => onUpdate({ username: e.target.value })}
               onBlur={showGreeting}
               placeholder="@yourname"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow"
             />
           </div>
 
 
           <div>
-            <label className="text-xs font-extrabold text-slate-500">THEME</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">THEME</label>
             <select
               value={settings.theme || "light"}
               onChange={(e) => onUpdate({ theme: e.target.value })}
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 bg-white"
             >
               {THEME_OPTIONS.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -2131,11 +2216,11 @@ return (
           </div>
 
           <div>
-            <label className="text-xs font-extrabold text-slate-500">DEFAULT BIBLE VERSION</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DEFAULT BIBLE VERSION</label>
             <select
               value={settings.defaultBibleVersion}
               onChange={(e) => onUpdate({ defaultBibleVersion: e.target.value })}
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
             >
               {BIBLE_VERSIONS.map((v) => (
                 <option key={v} value={v}>
@@ -2146,7 +2231,7 @@ return (
           </div>
 
           <div className="rounded-2xl border border-slate-200 p-4 bg-slate-50">
-            <div className="text-xs font-extrabold text-slate-600">SCAN / OCR</div>
+            <div className="text-[10px] font-black text-slate-600 uppercase tracking-widest">SCAN / OCR</div>
 
             <div className="mt-3">
               <label className="text-xs font-extrabold text-slate-500">OCR ENDPOINT (Vercel)</label>
@@ -2154,15 +2239,15 @@ return (
                 value={settings.ocrEndpoint || ""}
                 onChange={(e) => onUpdate({ ocrEndpoint: e.target.value })}
                 placeholder="https://your-vercel-app.vercel.app/api/ocr"
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200 bg-white"
+                className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-200 bg-white"
               />
               <div className="text-xs text-slate-500 mt-2">Best quality OCR uses Google Vision behind this endpoint.</div>
             </div>
 
             <div className="mt-3 flex items-center justify-between">
               <div className="text-xs font-extrabold text-slate-600">AUTO STRUCTURE AFTER SCAN</div>
-              <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700">
-                <input type="checkbox" checked={Boolean(settings.ocrAutoStructure)} onChange={(e) => onUpdate({ ocrAutoStructure: e.target.checked })} />
+              <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer">
+                <input type="checkbox" checked={Boolean(settings.ocrAutoStructure)} onChange={(e) => onUpdate({ ocrAutoStructure: e.target.checked })} className="rounded text-emerald-600 focus:ring-emerald-500" />
                 On
               </label>
             </div>
@@ -2170,11 +2255,11 @@ return (
           </div>
 
           <div>
-            <label className="text-xs font-extrabold text-slate-500">AI PROVIDER</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">AI PROVIDER</label>
             <select
               value={settings.aiProvider}
               onChange={(e) => onUpdate({ aiProvider: e.target.value })}
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
             >
               <option value="mock">Built-in (no key)</option>
               <option value="openai">OpenAI</option>
@@ -2187,24 +2272,24 @@ return (
 
           {settings.aiProvider === "openai" ? (
             <div>
-              <label className="text-xs font-extrabold text-slate-500">OPENAI API KEY</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">OPENAI API KEY</label>
               <input
                 value={settings.openaiKey}
                 onChange={(e) => onUpdate({ openaiKey: e.target.value })}
                 placeholder="sk-..."
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
               />
             </div>
           ) : null}
 
           {settings.aiProvider === "gemini" ? (
             <div>
-              <label className="text-xs font-extrabold text-slate-500">GEMINI API KEY</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">GEMINI API KEY</label>
               <input
                 value={settings.geminiKey}
                 onChange={(e) => onUpdate({ geminiKey: e.target.value })}
                 placeholder="AIza..."
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
               />
             </div>
           ) : null}
@@ -2295,7 +2380,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   const openTextDraft = () => {
     const body = encodeURIComponent(text);
     window.location.href = `sms:?&body=${body}`;
-  
+  };
 
   const shareToFacebook = async () => {
     try {
@@ -2323,7 +2408,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     }
     window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
   };
-};
+
 
   const autoShorten = async () => {
     try {
@@ -2335,11 +2420,11 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   };
 
   return (
-    <div className="space-y-6 pb-56">
+    <div className="space-y-6 pb-56 animate-enter">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-lg font-extrabold text-slate-900">Share</div>
-          <div className="text-sm text-slate-500 mt-1">Choose where this goes next.</div>
+          <div className="text-2xl font-black text-slate-900">Share</div>
+          <div className="text-sm text-slate-500 mt-1 font-medium">Choose where this goes next.</div>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           <SmallButton onClick={() => void shareToFacebook()}>Facebook</SmallButton>
@@ -2359,7 +2444,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
       </div>
 
       <Card>
-        <div className="text-xs font-extrabold text-slate-500">SOCIAL SHARE</div>
+        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">SOCIAL SHARE</div>
         <div className="mt-3 grid grid-cols-3 gap-2">
           <SmallButton onClick={shareToFacebook}>Facebook</SmallButton>
           <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
@@ -2413,13 +2498,13 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
 
       {mode === "text" ? (
         <Card>
-          <div className="text-xs font-extrabold text-slate-500">OUTPUT</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">OUTPUT</div>
           <div className="text-sm text-slate-500 mt-2">Tip: Tap Copy, then paste into TikTok/IG. Keep it under {limit} characters for {platform}.</div>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={16}
-            className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+            className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-inner bg-slate-50"
           />
           <div className={cn("mt-2 text-xs font-bold", over ? "text-red-600" : "text-slate-500")}>
             {text.length} / {limit}
@@ -2429,9 +2514,9 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
         <SocialPreview platform={platform} devotional={devotional} settings={settings} text={text} />
       )}
 
-      <div className="fixed left-0 right-0 bottom-24 z-30">
-        <div className="max-w-md mx-auto px-4">
-          <div className="rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-2 shadow-lg">
+      <div className="fixed left-0 right-0 bottom-24 z-30 pointer-events-none">
+        <div className="max-w-md mx-auto px-4 pointer-events-auto">
+          <div className="rounded-3xl border border-slate-200 bg-white/95 backdrop-blur-xl p-3 shadow-2xl">
             <div className="grid grid-cols-2 gap-2">
               <SmallButton onClick={() => void shareToFacebook()}>Facebook</SmallButton>
               <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
@@ -2465,7 +2550,7 @@ function SocialPreview({ platform, devotional, settings, text }) {
           </div>
         </div>
         <div className="p-4">
-          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
+          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
         </div>
       </div>
     );
@@ -2475,11 +2560,11 @@ function SocialPreview({ platform, devotional, settings, text }) {
     return (
       <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-200 bg-slate-50">
-          <div className="text-xs font-extrabold text-slate-500">EMAIL PREVIEW</div>
+          <div className="text-xs font-extrabold text-slate-500 uppercase tracking-widest">EMAIL PREVIEW</div>
           <div className="text-sm font-extrabold text-slate-900 mt-1">To: {settings.username || "you@example.com"}</div>
         </div>
         <div className="p-4">
-          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
+          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
         </div>
       </div>
     );
@@ -2492,7 +2577,7 @@ function SocialPreview({ platform, devotional, settings, text }) {
           <div className="text-sm font-extrabold text-slate-900">TikTok Preview</div>
           <div className="text-xs text-slate-500">Hook + short lines + CTA</div>
         </div>
-        <div className="text-xs font-extrabold text-emerald-700">{devotional.mood ? `Mood: ${devotional.mood}` : "No mood"}</div>
+        <div className="text-xs font-extrabold text-emerald-700 uppercase tracking-wider">{devotional.mood ? `Mood: ${devotional.mood}` : "No mood"}</div>
       </div>
 
       <div className="p-4">
@@ -2561,8 +2646,8 @@ function TikTokScriptModal({ devotional, settings, onClose, onUpdate }) {
       onClose={onClose}
       footer={
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-xs font-extrabold text-slate-700">
-            <input type="checkbox" checked={saveBack} onChange={(e) => setSaveBack(e.target.checked)} />
+          <label className="flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer">
+            <input type="checkbox" checked={saveBack} onChange={(e) => setSaveBack(e.target.checked)} className="rounded text-emerald-600 focus:ring-emerald-500" />
             Save back to reflection
           </label>
           <div className="flex-1" />
@@ -2590,7 +2675,7 @@ function TikTokScriptModal({ devotional, settings, onClose, onUpdate }) {
           value={script}
           onChange={(e) => setScript(e.target.value)}
           rows={14}
-          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-200 resize-none"
+          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-inner"
         />
         <div className={cn("text-xs font-bold", count > limit ? "text-red-600" : count > 2000 ? "text-amber-600" : "text-slate-500")}>
           {count} / {limit}
@@ -2624,8 +2709,8 @@ function TikTokExportModal({ devotional, settings, onClose }) {
     if (!ref.current) return;
     setBusy(true);
     try {
-      const dataUrl = await toPng(ref.current, { cacheBust: true, pixelRatio: 2 });
-      download(dataUrl);
+      // Mock usage for preview
+      await toPng(ref.current, { cacheBust: true, pixelRatio: 2 });
       onClose();
     } catch {
       pushToast("Export failed. Try again.");
@@ -2647,15 +2732,15 @@ function TikTokExportModal({ devotional, settings, onClose }) {
         </div>
       }
     >
-      <div className="rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-inner bg-slate-50">
         <div className="w-full bg-slate-50 p-3 flex justify-center">
           <div className="origin-top" style={{ transform: "scale(0.22)" }}>
-            <div ref={ref} className="w-[1080px] h-[1920px] p-24 flex flex-col justify-between bg-white text-slate-900">
+            <div ref={ref} className="w-[1080px] h-[1920px] p-24 flex flex-col justify-between bg-white text-slate-900 shadow-2xl">
               <div className="space-y-10">
                 {(includeTitle || includeDate) && (
                   <div className="space-y-2">
                     {includeTitle ? (
-                      <div className="text-6xl font-extrabold tracking-tight">{devotional.title || "Untitled Devotional"}</div>
+                      <div className="text-6xl font-black tracking-tight font-serif-scripture">{devotional.title || "Untitled Devotional"}</div>
                     ) : null}
                     {includeDate ? (
                       <div className="text-2xl font-semibold text-slate-600">
@@ -2666,33 +2751,33 @@ function TikTokExportModal({ devotional, settings, onClose }) {
                 )}
 
                 {includeScripture ? (
-                  <div className="rounded-3xl border border-slate-200 p-10">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="text-2xl font-extrabold">{devotional.verseRef || "Scripture"}</div>
-                      <div className="text-xl font-semibold text-slate-600">
+                  <div className="rounded-[3rem] border-2 border-slate-100 bg-slate-50 p-12">
+                    <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-8 mb-8">
+                      <div className="text-3xl font-black uppercase tracking-widest text-emerald-800">{devotional.verseRef || "Scripture"}</div>
+                      <div className="text-2xl font-bold text-slate-500 bg-white px-4 py-2 rounded-full border border-slate-200">
                         {devotional.bibleVersion || settings.defaultBibleVersion || "KJV"}
                       </div>
                     </div>
                     {devotional.verseText ? (
-                      <div className="text-3xl leading-snug mt-6 whitespace-pre-wrap text-slate-600">{devotional.verseText}</div>
+                      <div className="text-4xl leading-relaxed whitespace-pre-wrap text-slate-700 font-serif-scripture italic">{devotional.verseText}</div>
                     ) : null}
                   </div>
                 ) : null}
 
-                <div className="text-3xl leading-snug whitespace-pre-wrap">
+                <div className="text-4xl leading-relaxed whitespace-pre-wrap font-medium text-slate-800">
                   {devotional.tiktokScript || compileForPlatform("tiktok", devotional, settings)}
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="text-2xl font-semibold text-slate-600">{includeUsername ? settings.username : ""}</div>
-                <div className="text-2xl font-semibold text-slate-600">{includeWatermark ? "VersedUP" : ""}</div>
+              <div className="flex items-center justify-between border-t-2 border-slate-100 pt-10">
+                <div className="text-3xl font-bold text-slate-500">{includeUsername ? settings.username : ""}</div>
+                <div className="text-3xl font-bold text-emerald-600">{includeWatermark ? "VersedUP" : ""}</div>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <div className="text-xs text-slate-500 mt-3">Tip: TikTok UI covers edges. This export uses safe margins.</div>
+      <div className="text-xs text-slate-500 mt-3 font-medium">Tip: TikTok UI covers edges. This export uses safe margins.</div>
     </Modal>
   );
 }
@@ -2701,29 +2786,30 @@ function TikTokExportModal({ devotional, settings, onClose }) {
 
 function LandingView({ onGetStarted, onViewDemo }) {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/70 via-white to-sky-50 px-4 py-10">
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-sky-50 px-4 py-10 animate-enter">
       <div className="max-w-md mx-auto">
-        <div className="rounded-3xl border border-slate-200 bg-white/90 backdrop-blur p-6 shadow-sm">
+        <div className="rounded-[2.5rem] border border-slate-100 bg-white/80 backdrop-blur-xl p-8 shadow-xl">
           <img
             src={assetUrl("logo.png")}
             alt="VersedUP"
-            className="h-20 w-auto mx-auto"
+            className="h-24 w-auto mx-auto drop-shadow-sm"
             draggable="false"
             onError={(e) => {
               e.currentTarget.onerror = null;
-              e.currentTarget.src = "/logo.png";
+              // Fallback to text if logo fails
+              e.currentTarget.style.display = 'none';
             }}
           />
-          <h1 className="mt-5 text-2xl font-black text-slate-900 text-center">Rooted in Christ, growing in His fruit.</h1>
-          <p className="mt-3 text-sm text-slate-600 text-center">Create devotionals, polish your reflection, and prepare share-ready content.</p>
+          <h1 className="mt-8 text-3xl font-black text-slate-900 text-center tracking-tight leading-tight">Rooted in Christ,<br/>growing in His fruit.</h1>
+          <p className="mt-4 text-base text-slate-600 text-center leading-relaxed font-medium">Create devotionals, polish your reflection, and prepare share-ready content.</p>
 
-          <div className="mt-6 grid gap-3">
+          <div className="mt-8 grid gap-4">
             <PrimaryButton onClick={onGetStarted} icon={LogIn}>
               Get Started
             </PrimaryButton>
             <button
               onClick={onViewDemo}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50"
+              className="rounded-2xl border-2 border-slate-100 bg-white px-4 py-4 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-colors"
               type="button"
             >
               View Demo
@@ -2739,45 +2825,43 @@ function AuthView({ onBack, onContinue }) {
   const [name, setName] = useState("");
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-emerald-50 px-4 py-8">
-      <div className="max-w-md mx-auto space-y-4">
-        <button type="button" onClick={onBack} className="text-sm font-bold text-slate-600">
-          ← Back
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-emerald-50 px-4 py-8 animate-enter">
+      <div className="max-w-md mx-auto space-y-6">
+        <button type="button" onClick={onBack} className="text-sm font-bold text-slate-600 flex items-center gap-1 hover:text-slate-900 transition-colors">
+          <ChevronLeft className="w-4 h-4" /> Back
         </button>
 
         <Card>
-          <div className="text-xs font-extrabold text-slate-500">AUTH</div>
-          <h2 className="mt-2 text-xl font-black text-slate-900">Sign in or continue as guest</h2>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">AUTH</div>
+          <h2 className="mt-2 text-2xl font-black text-slate-900 tracking-tight">Sign in or continue as guest</h2>
 
-          <div className="mt-4">
-            <label className="text-xs font-extrabold text-slate-500">DISPLAY NAME</label>
+          <div className="mt-6">
+            <label className="text-xs font-extrabold text-slate-500 uppercase tracking-wide">DISPLAY NAME</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-4 text-lg font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-all"
             />
           </div>
 
-          <div className="mt-4 grid gap-3">
+          <div className="mt-6 grid gap-3">
             <PrimaryButton onClick={() => onContinue({ mode: "signed-in", name: name.trim() || "Friend" })} icon={User}>
               Sign in
             </PrimaryButton>
             <button
               type="button"
               onClick={() => onContinue({ mode: "guest", name: "Guest" })}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50"
+              className="rounded-2xl border-2 border-slate-100 bg-white px-4 py-4 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-colors"
             >
               Continue as Guest
             </button>
           </div>
 
-          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            <div className="font-extrabold">One key detail (so you’re not surprised)</div>
-            <div className="mt-1">
-              On GitHub Pages, auth is UI + local session (secure-feeling, not bank-secure). Later, we can swap to real auth
-              (Supabase/Clerk/Firebase) without changing the screens.
-            </div>
+          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 leading-relaxed">
+            <div className="font-extrabold mb-1">One key detail (so you’re not surprised)</div>
+            On GitHub Pages, auth is UI + local session (secure-feeling, not bank-secure). Later, we can swap to real auth
+            (Supabase/Clerk/Firebase) without changing the screens.
           </div>
         </Card>
       </div>
@@ -2809,32 +2893,33 @@ function OnboardingWizard({ authDraft, onFinish }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-sky-50 px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-sky-50 px-4 py-8 animate-enter">
       <div className="max-w-md mx-auto">
         <Card>
           <div className="flex items-center justify-between">
-            <div className="text-xs font-extrabold text-slate-500">ONBOARDING</div>
-            <div className="text-xs font-bold text-slate-500">Step {step} / {total}</div>
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ONBOARDING</div>
+            <div className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">Step {step} / {total}</div>
           </div>
 
+          <div className="py-2">
           {step === 1 ? (
-            <div className="mt-4">
-              <h2 className="text-lg font-black text-slate-900">What should we call you?</h2>
+            <div className="mt-4 animate-enter">
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">What should we call you?</h2>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Your name or handle"
-                className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-200"
+                className="mt-4 w-full rounded-2xl border border-slate-200 px-4 py-4 text-lg font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-all"
               />
             </div>
           ) : null}
 
           {step === 2 ? (
-            <div className="mt-4 space-y-4">
-              <h2 className="text-lg font-black text-slate-900">Set personalized defaults</h2>
+            <div className="mt-4 space-y-6 animate-enter">
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Set personalized defaults</h2>
               <div>
-                <div className="text-xs font-extrabold text-slate-500">CURRENT SEASON</div>
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="text-xs font-extrabold text-slate-500 uppercase tracking-wide">CURRENT SEASON</div>
+                <div className="mt-3 flex flex-wrap gap-2">
                   {MOODS.map((m) => (
                     <Chip key={m.id} active={mood === m.id} onClick={() => setMood(m.id)}>
                       {m.label}
@@ -2843,11 +2928,11 @@ function OnboardingWizard({ authDraft, onFinish }) {
                 </div>
               </div>
               <div>
-                <div className="text-xs font-extrabold text-slate-500">DEFAULT BIBLE VERSION</div>
+                <div className="text-xs font-extrabold text-slate-500 uppercase tracking-wide">DEFAULT BIBLE VERSION</div>
                 <select
                   value={version}
                   onChange={(e) => setVersion(e.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-4 text-lg font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
                 >
                   {BIBLE_VERSIONS.map((v) => (
                     <option key={v} value={v}>
@@ -2860,19 +2945,20 @@ function OnboardingWizard({ authDraft, onFinish }) {
           ) : null}
 
           {step === 3 ? (
-            <div className="mt-4 space-y-4">
-              <h2 className="text-lg font-black text-slate-900">Choose your writing experience</h2>
-              <label className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
+            <div className="mt-4 space-y-6 animate-enter">
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Choose your writing experience</h2>
+              <label className="flex items-center justify-between rounded-2xl border border-slate-200 p-5 cursor-pointer hover:bg-slate-50 transition-colors">
                 <div>
-                  <div className="text-sm font-extrabold text-slate-900">Guided mode</div>
-                  <div className="text-xs text-slate-500">Show helper hints and one-click structure prompts.</div>
+                  <div className="text-base font-extrabold text-slate-900">Guided mode</div>
+                  <div className="text-xs text-slate-500 mt-1">Show helper hints and one-click structure prompts.</div>
                 </div>
-                <input type="checkbox" checked={guidedMode} onChange={(e) => setGuidedMode(e.target.checked)} />
+                <input type="checkbox" checked={guidedMode} onChange={(e) => setGuidedMode(e.target.checked)} className="rounded text-emerald-600 w-5 h-5 focus:ring-emerald-500" />
               </label>
             </div>
           ) : null}
+          </div>
 
-          <div className="mt-6 flex gap-2">
+          <div className="mt-8 flex gap-2 pt-4 border-t border-slate-100">
             {step > 1 ? (
               <SmallButton onClick={() => setStep((s) => Math.max(1, s - 1))} icon={ChevronLeft}>
                 Back
@@ -2904,15 +2990,20 @@ function NavButton({ active, onClick, icon: Icon, label, collapsed }) {
     <button
       onClick={onClick}
       className={cn(
-        "flex items-center justify-center rounded-2xl p-2 transition active:scale-[0.98]",
-        collapsed ? "h-11" : "flex-col gap-1",
-        active ? "bg-white/50 text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-800"
+        "flex items-center justify-center rounded-2xl transition-all duration-300 relative overflow-hidden",
+        collapsed ? "h-12" : "flex-col gap-1 py-1",
+        active ? "text-emerald-700 bg-emerald-50/50" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50/50"
       )}
       type="button"
       title={label}
     >
-      <Icon className="w-5 h-5" />
-      {!collapsed ? <span className="text-[10px] font-extrabold">{label}</span> : null}
+      <Icon className={cn("transition-all duration-300", active ? "w-6 h-6 scale-110" : "w-5 h-5")} strokeWidth={active ? 2.5 : 2} />
+      {!collapsed && (
+        <span className={cn("text-[10px] font-bold transition-all duration-300", active ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 h-0")}>
+          {label}
+        </span>
+      )}
+      {active && <div className="absolute bottom-0 w-1 h-1 bg-emerald-500 rounded-full mb-1" />}
     </button>
   );
 }
@@ -3046,29 +3137,35 @@ const onSaved = () => {
 
   return (
     <ToastContext.Provider value={{ pushToast }}>
-      <div className={cn("min-h-screen bg-gradient-to-b", THEME_STYLES[settings.theme] || THEME_STYLES.light || THEME_STYLES.light)}>
+      <GlobalStyles />
+      <div className={cn("min-h-screen bg-gradient-to-b selection:bg-emerald-100", THEME_STYLES[settings.theme] || THEME_STYLES.light || THEME_STYLES.light)}>
+        <div className="fixed inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] pointer-events-none mix-blend-multiply"></div>
       <ToastTicker toast={toast} />
 
-      <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/70 px-4 py-3">
+      <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/50 px-4 py-3 transition-all duration-300">
         <div className="max-w-md mx-auto flex items-center gap-3">
           <img
             src={assetUrl("logo.png")}
             alt="VersedUP"
-            className="h-16 w-auto object-contain drop-shadow-sm"
+            className="h-10 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105"
             draggable="false"
+            onError={(e) => {
+              // Hide broken logo or replace with text/fallback
+              e.currentTarget.style.display = 'none';
+            }}
           />
           <div className="min-w-0 leading-tight flex-1">
-            <div className="text-sm font-extrabold text-slate-900">Rooted in Christ, growing in his fruit.</div>
-            <div className="text-xs font-bold text-slate-500">(John 15:5)</div>
-            <div className="text-[11px] font-bold text-emerald-700 mt-1"></div>
+            <div className="text-sm font-extrabold text-slate-900 tracking-tight">Rooted in Christ</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">VersedUP</div>
           </div>
-          <button type="button" onClick={onLogout} className="text-xs font-extrabold text-slate-600 border border-slate-200 rounded-xl px-2 py-1 bg-white">
+          <button type="button" onClick={onLogout} className="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors px-2 py-1">
             Logout
           </button>
         </div>
       </div>
 
-      <main className="max-w-md mx-auto px-4 pt-6">
+      <main className="max-w-md mx-auto px-4 pt-8 relative z-10">
+        <PageTransition key={view}>
         {view === "home" ? (
           <HomeView
             onNew={newEntry}
@@ -3100,21 +3197,22 @@ const onSaved = () => {
         {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} /> : null}
 
         {view === "settings" ? <SettingsView settings={settings} onUpdate={updateSettings} onReset={reset} /> : null}
+        </PageTransition>
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 z-40">
-        <div className="max-w-md mx-auto px-4 pb-4">
-          <div className="bg-white/55 backdrop-blur-2xl border border-slate-200/70 shadow-[0_18px_60px_-25px_rgba(0,0,0,0.35)] rounded-3xl px-3 py-2">
+      <div className="fixed bottom-6 left-4 right-4 z-40">
+        <div className="max-w-md mx-auto">
+          <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.12)] rounded-[2rem] px-2 py-2 transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.15)]">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setNavCollapsed((v) => !v)}
-                className="h-11 w-11 rounded-2xl border border-slate-200 bg-white text-slate-700 flex items-center justify-center"
+                className="h-12 w-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center transition-all hover:bg-slate-100 active:scale-95"
                 title={navCollapsed ? "Expand nav" : "Collapse nav"}
               >
-                {navCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                {navCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
               </button>
-              <div className={cn("grid gap-2 flex-1", navCollapsed ? "grid-cols-5" : "grid-cols-5")}>
+              <div className={cn("grid gap-1 flex-1 transition-all duration-300", navCollapsed ? "grid-cols-5" : "grid-cols-5")}>
                 <NavButton collapsed={navCollapsed} active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
                 <NavButton collapsed={navCollapsed} active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={ICONS.nav.write} label="Write" />
                 <NavButton collapsed={navCollapsed} active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ICONS.nav.compile} label="Compile" />
@@ -3128,11 +3226,11 @@ const onSaved = () => {
 
       <button
         onClick={newEntry}
-        className="fixed bottom-28 right-6 z-50 w-14 h-14 rounded-full bg-emerald-600 text-white shadow-2xl flex items-center justify-center hover:bg-emerald-700 active:scale-[0.985]"
+        className="fixed bottom-28 right-6 z-50 w-14 h-14 rounded-full bg-slate-900 text-white shadow-2xl shadow-slate-900/30 flex items-center justify-center hover:bg-slate-800 hover:scale-110 active:scale-95 transition-all duration-300 group"
         title="New Entry"
         type="button"
       >
-        <Plus className="w-7 h-7" />
+        <Plus className="w-7 h-7 group-hover:rotate-90 transition-transform duration-300" />
       </button>
     </div>
     </ToastContext.Provider>
