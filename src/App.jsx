@@ -23,7 +23,8 @@ import {
   X,
   ScanLine,
   Flame,
-  ArrowRight
+  ArrowRight,
+  Quote
 } from "lucide-react";
 
 /* --- Mocks & Global Styles for Preview --- */
@@ -59,8 +60,17 @@ const GlobalStyles = () => (
       to { opacity: 1; transform: translateY(0); }
     }
     
+    @keyframes pulse-soft {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.8; }
+    }
+
     .animate-enter {
-      animation: fadeSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      animation: fadeSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    
+    .animate-pulse-slow {
+      animation: pulse-soft 3s ease-in-out infinite;
     }
 
     /* Serif class for scripture */
@@ -76,13 +86,6 @@ const GlobalStyles = () => (
 
 /* --- Original App.jsx Code --- */
 
-/**
- * Centralized icon mapping (enforced)
- * - Make Share-Ready = Sparkles
- * - Compile for Socials = Camera
- * - Share Now = Check
- * - Nav: Home = BookOpen, Write = PenTool, Compile = ScanLine
- */
 const ICONS = Object.freeze({
   actions: Object.freeze({
     makeShareReady: Sparkles,
@@ -104,7 +107,7 @@ function useToast() {
 function ToastTicker({ toast }) {
   if (!toast) return null;
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 pointer-events-none">
+    <div className="fixed top-0 left-0 right-0 z-[60] pointer-events-none">
       <div className="max-w-md mx-auto px-4 pt-3">
         <div className="rounded-full border border-slate-200 bg-white/90 backdrop-blur-xl shadow-lg px-6 py-3 flex items-center justify-center animate-enter">
           <div className="text-xs font-extrabold text-slate-700">{toast.message}</div>
@@ -115,8 +118,6 @@ function ToastTicker({ toast }) {
 }
 
 function PageTransition({ children, className }) {
-  // Key helps react reset the animation when content changes significantly if needed, 
-  // but for simple routing, just rendering creates the animation via CSS class.
   return <div className={cn("animate-enter", className)}>{children}</div>;
 }
 
@@ -779,7 +780,7 @@ function Card({ children, className }) {
     <div
       className={cn(
         "bg-white/80 rounded-3xl border border-slate-200 shadow-sm p-5",
-        "backdrop-blur-md transition-all duration-300 hover:shadow-md",
+        "backdrop-blur-md transition-all duration-300 hover:shadow-md hover:border-emerald-100",
         className
       )}
     >
@@ -794,14 +795,15 @@ function PrimaryButton({ children, onClick, disabled, icon: Icon }) {
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 transition-all duration-200",
+        "w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 transition-all duration-200 relative overflow-hidden group",
         "active:scale-[0.985] will-change-transform shadow-md hover:shadow-lg shadow-emerald-600/20",
         disabled && "opacity-50 cursor-not-allowed shadow-none"
       )}
       type="button"
     >
-      {Icon ? <Icon className="w-5 h-5" /> : null}
-      {children}
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+      {Icon ? <Icon className="w-5 h-5 relative z-10" /> : null}
+      <span className="relative z-10">{children}</span>
     </button>
   );
 }
@@ -947,53 +949,60 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
         <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
         </div>
-        <div className="text-3xl font-extrabold text-slate-900 mt-1 tracking-tight">{getTimeGreeting(displayName)}</div>
+        <div className="text-4xl font-black text-slate-900 mt-1 tracking-tight">{getTimeGreeting(displayName)}</div>
         <div className="text-sm text-slate-600 mt-2 font-medium">{hasActive ? "Continue your last entry below." : "Start a devotional or pick a verse to reflect."}</div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2 bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6 overflow-hidden relative group transition-all hover:shadow-md">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-100/40 via-transparent to-sky-100/30 pointer-events-none group-hover:from-emerald-100/60 transition-colors" />
+        <div className="col-span-2 bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6 overflow-hidden relative group transition-all hover:shadow-md hover:border-emerald-100">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 via-transparent to-sky-50/30 pointer-events-none transition-colors" />
           <div className="relative flex items-center justify-between">
             <div>
               <div className="text-[10px] font-black text-slate-400 tracking-widest uppercase">CURRENT STREAK</div>
-              <div className="text-4xl font-black text-slate-900 mt-1 flex items-baseline">
-                {streak.count} <Flame className="w-6 h-6 ml-2 text-orange-500 drop-shadow-sm" fill="currentColor" /> 
+              <div className="text-5xl font-black text-slate-900 mt-2 flex items-baseline">
+                {streak.count} 
+                <div className="relative ml-2 w-8 h-8">
+                  <Flame className="w-8 h-8 text-orange-500 drop-shadow-sm animate-pulse-slow absolute inset-0" fill="currentColor" />
+                  <Flame className="w-8 h-8 text-yellow-400 absolute inset-0 mix-blend-overlay animate-pulse" fill="currentColor" />
+                </div>
                 <span className="text-slate-400 text-lg font-bold ml-1">days</span>
               </div>
               <div className="text-xs text-slate-500 mt-2 font-medium">Keep showing up — God meets you here.</div>
             </div>
+            
+            <div className="flex flex-col gap-2">
             <button
               onClick={hasActive ? onContinue : onNew}
-              className="px-5 py-3 rounded-2xl bg-slate-900 text-white font-extrabold shadow-lg hover:bg-slate-800 hover:scale-105 active:scale-95 transition-all"
+              className="px-6 py-4 rounded-2xl bg-slate-900 text-white font-extrabold shadow-xl hover:bg-slate-800 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
               type="button"
             >
-              {hasActive ? "Continue" : "Check In"}
+              {hasActive ? "Continue" : "Check In"} <ArrowRight className="w-4 h-4" />
             </button>
+            </div>
           </div>
         </div>
 
         <button
           onClick={onNew}
-          className="bg-white rounded-[1.5rem] border border-slate-200 p-5 text-left hover:bg-slate-50 transition-all active:scale-[0.98] hover:shadow-sm group"
+          className="bg-white rounded-[1.5rem] border border-slate-200 p-5 text-left hover:bg-slate-50 transition-all active:scale-[0.98] hover:shadow-sm group hover:border-emerald-100"
           type="button"
         >
-          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-             <PenTool className="w-5 h-5 text-emerald-700" />
+          <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-sm">
+             <PenTool className="w-6 h-6 text-emerald-700" />
           </div>
-          <div className="font-extrabold text-slate-900">New Entry</div>
+          <div className="font-extrabold text-slate-900 text-lg">New Entry</div>
           <div className="text-xs text-slate-500 mt-1">Start fresh</div>
         </button>
 
         <button
           onClick={onLibrary}
-          className="bg-white rounded-[1.5rem] border border-slate-200 p-5 text-left hover:bg-slate-50 transition-all active:scale-[0.98] hover:shadow-sm group"
+          className="bg-white rounded-[1.5rem] border border-slate-200 p-5 text-left hover:bg-slate-50 transition-all active:scale-[0.98] hover:shadow-sm group hover:border-sky-100"
           type="button"
         >
-          <div className="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-             <Library className="w-5 h-5 text-sky-700" />
+          <div className="w-12 h-12 rounded-2xl bg-sky-100 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-sm">
+             <Library className="w-6 h-6 text-sky-700" />
           </div>
-          <div className="font-extrabold text-slate-900">Library</div>
+          <div className="font-extrabold text-slate-900 text-lg">Library</div>
           <div className="text-xs text-slate-500 mt-1">View archive</div>
         </button>
       </div>
@@ -1006,13 +1015,16 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
           </div>
           <div className="text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full">Daily</div>
         </div>
-        <div className="mt-4 bg-gradient-to-br from-emerald-500 to-teal-700 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
-          <div className="text-2xl leading-relaxed font-serif-scripture relative z-10">{`“${VERSE_OF_DAY.verseText}”`}</div>
-          <div className="mt-4 text-xs font-extrabold tracking-wider opacity-90 relative z-10">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
+        <div className="mt-4 bg-gradient-to-br from-emerald-600 to-teal-800 rounded-[1.5rem] p-8 text-white shadow-lg relative overflow-hidden group">
+            {/* Texture */}
+            <Quote className="absolute -bottom-4 -right-4 w-32 h-32 text-white/10 rotate-12" fill="currentColor" />
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+            
+          <div className="text-2xl leading-relaxed font-serif-scripture relative z-10 font-medium">{`“${VERSE_OF_DAY.verseText}”`}</div>
+          <div className="mt-6 text-xs font-black tracking-widest opacity-80 relative z-10">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
           <button
             onClick={onReflectVerseOfDay}
-            className="mt-6 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md active:scale-[0.985] transition-all flex items-center gap-2"
+            className="mt-6 px-5 py-2.5 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md active:scale-[0.985] transition-all flex items-center gap-2 border border-white/10"
             type="button"
           >
             Reflect on this <ArrowRight className="w-3 h-3" />
@@ -1035,7 +1047,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
               className={cn(
                 "px-4 py-2 rounded-full text-xs font-bold border transition-all active:scale-[0.95]",
                 moodVerseKey === key
-                  ? "bg-slate-900 text-white border-slate-900 shadow-md"
+                  ? "bg-slate-900 text-white border-slate-900 shadow-md transform scale-105"
                   : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
               )}
             >
@@ -1666,7 +1678,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
 
       <Card>
         <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 space-y-4 shadow-inner">
             <div className="flex items-center justify-between">
               <div className="text-[10px] font-black text-slate-500 flex items-center gap-2 uppercase tracking-widest">
                 <BookOpen className="w-3.5 h-3.5" /> VERSE
@@ -1689,7 +1701,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                 value={devotional.verseRef}
                 onChange={(e) => onUpdate({ verseRef: e.target.value })}
                 placeholder="Verse reference (e.g., Psalm 23)"
-                className="flex-1 rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 bg-white transition-all shadow-sm"
+                className="flex-1 rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 bg-white transition-all shadow-sm focus:border-emerald-300"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") void doFetch();
                 }}
@@ -1733,7 +1745,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
                     : "Free-for-now: Open in YouVersion. Paste text you have rights to use."
                 }
                 rows={4}
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 bg-white resize-none font-serif-scripture shadow-inner"
+                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 bg-white resize-none font-serif-scripture shadow-sm focus:border-emerald-300 transition-all"
               />
               {guidedMode && !hasVerseText && hasVerseRef ? (
                 <div className="mt-2 text-[11px] font-bold text-slate-500">
@@ -1752,7 +1764,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               value={devotional.title}
               onChange={(e) => onUpdate({ title: e.target.value })}
               placeholder="Give it a holy title..."
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-base font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow focus:border-emerald-300"
             />
           </div>
 
@@ -1796,7 +1808,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               spellCheck
               autoCorrect="on"
               autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm transition-shadow"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm transition-shadow focus:border-emerald-300"
             />
 
             {guidedMode && !hasReflection ? (
@@ -1846,7 +1858,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               spellCheck
               autoCorrect="on"
               autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm focus:border-emerald-300"
             />
           </div>
 
@@ -1860,7 +1872,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               spellCheck
               autoCorrect="on"
               autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm focus:border-emerald-300"
             />
           </div>
         </div>
@@ -2018,7 +2030,7 @@ function PolishView({ devotional }) {
 
       <Card>
         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reflection</div>
-        <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{devotional.reflection || "—"}</div>
+        <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-medium">{devotional.reflection || "—"}</div>
       </Card>
 
       {!!devotional.prayer && (
@@ -2064,14 +2076,14 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search your history..."
-            className="w-full rounded-2xl border border-slate-200 pl-10 pr-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow bg-slate-50 focus:bg-white"
+            className="w-full rounded-2xl border border-slate-200 pl-10 pr-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow bg-slate-50 focus:bg-white focus:border-emerald-300"
           />
         </div>
       </Card>
 
       <div className="space-y-3">
         {filtered.map((d) => (
-          <div key={d.id} className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm p-5 transition-all hover:shadow-md active:scale-[0.99]">
+          <div key={d.id} className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm p-5 transition-all hover:shadow-md active:scale-[0.99] hover:border-emerald-100">
             <div className="flex items-start justify-between gap-3">
               <button onClick={() => onOpen(d.id)} className="text-left flex-1" type="button">
                 <div className="font-extrabold text-slate-900 text-lg">{d.title || "Untitled"}</div>
@@ -2085,8 +2097,11 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
           </div>
         ))}
         {filtered.length === 0 ? (
-          <Card className="bg-transparent border-dashed">
-            <div className="text-sm text-slate-400 text-center py-8">No results found.</div>
+          <Card className="bg-transparent border-dashed flex flex-col items-center justify-center py-10">
+            <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-3">
+                <BookOpen className="w-8 h-8 text-slate-300" />
+            </div>
+            <div className="text-sm font-bold text-slate-400">No entries yet. Start one!</div>
           </Card>
         ) : null}
       </div>
@@ -2192,7 +2207,7 @@ return (
               onChange={(e) => onUpdate({ username: e.target.value })}
               onBlur={showGreeting}
               placeholder="@yourname"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow"
+              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow focus:border-emerald-300"
             />
           </div>
 
