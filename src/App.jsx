@@ -13,6 +13,7 @@ import {
   Search,
   Settings,
   Share2,
+  MoreVertical,
   Sparkles,
   ChevronLeft,
   ChevronRight,
@@ -3230,6 +3231,15 @@ const onSaved = () => {
           </div>
           <button type="button" onClick={onLogout} className="text-slate-400 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-slate-100">
             <LogOut className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("settings")}
+            className="text-slate-400 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-slate-100"
+            aria-label="Settings"
+            title="Settings"
+          >
+            <MoreVertical className="w-5 h-5" />
           </button>
         </div>
       </div>
