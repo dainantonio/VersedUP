@@ -324,21 +324,6 @@ function persistSession(session) {
   localStorage.setItem(STORAGE_SESSION, JSON.stringify(session));
 }
 
-function loadSession() {
-  const raw = localStorage.getItem(STORAGE_SESSION);
-  const parsed = safeParseJson(raw, null);
-  if (!parsed || typeof parsed !== "object") return null;
-  return parsed;
-}
-
-function persistSession(session) {
-  if (!session) {
-    localStorage.removeItem(STORAGE_SESSION);
-    return;
-  }
-  localStorage.setItem(STORAGE_SESSION, JSON.stringify(session));
-}
-
 function todayKey(date = new Date()) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
