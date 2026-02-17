@@ -2437,60 +2437,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     }
   };
 
-  const shareNow = async () => {
-    setShareBusy(true);
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: devotional.title || devotional.verseRef || "Devotional",
-          text,
-        });
-      } else {
-        await copy();
-      }
-    } catch {
-      // no-op when user cancels native share
-    } finally {
-      setShareBusy(false);
-    }
-  };
 
-  const openEmailDraft = () => {
-    const subject = encodeURIComponent(devotional.title || devotional.verseRef || "Encouragement");
-    const body = encodeURIComponent(text);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-  };
-
-  const openTextDraft = () => {
-    const body = encodeURIComponent(text);
-    window.location.href = `sms:?&body=${body}`;
-  };
-
-  const shareToFacebook = () => {
-    const shareUrl = encodeURIComponent(window.location.href);
-    const quote = encodeURIComponent(text.slice(0, 280));
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${shareUrl}&quote=${quote}`, "_blank", "noopener,noreferrer");
-  };
-
-  const shareToX = () => {
-    const tweet = encodeURIComponent(text.slice(0, 280));
-    window.open(`https://twitter.com/intent/tweet?text=${tweet}`, "_blank", "noopener,noreferrer");
-  };
-
-  const shareToTikTok = async () => {
-    await copy();
-    window.open("https://www.tiktok.com/upload?lang=en", "_blank", "noopener,noreferrer");
-    alert("Caption copied. Paste it into your TikTok post.");
-  };
-
-  const autoShorten = async () => {
-    try {
-      const out = await aiRewriteLength(settings, { text, mood: devotional.mood, direction: "shorten" });
-      setText(out);
-    } catch (e) {
-      alert(e?.message || "Could not shorten automatically.");
-    }
-  };
 
   return (
     <div className="space-y-6 pb-56 animate-enter">
