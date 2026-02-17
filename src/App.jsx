@@ -2119,7 +2119,7 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
   );
 }
 
-function SettingsView({ settings, onUpdate, onReset, onLogout }) {
+function SettingsView({ settings, onUpdate, onReset }) {
   const { pushToast } = useToast();
   const aiNeedsKey =
     (settings.aiProvider === "openai" && !settings.openaiKey) ||
@@ -2437,60 +2437,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     }
   };
 
-  const shareNow = async () => {
-    setShareBusy(true);
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: devotional.title || devotional.verseRef || "Devotional",
-          text,
-        });
-      } else {
-        await copy();
-      }
-    } catch {
-      // no-op when user cancels native share
-    } finally {
-      setShareBusy(false);
-    }
-  };
 
-  const openEmailDraft = () => {
-    const subject = encodeURIComponent(devotional.title || devotional.verseRef || "Encouragement");
-    const body = encodeURIComponent(text);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-  };
-
-  const openTextDraft = () => {
-    const body = encodeURIComponent(text);
-    window.location.href = `sms:?&body=${body}`;
-  };
-
-  const shareToFacebook = () => {
-    const shareUrl = encodeURIComponent(window.location.href);
-    const quote = encodeURIComponent(text.slice(0, 280));
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${shareUrl}&quote=${quote}`, "_blank", "noopener,noreferrer");
-  };
-
-  const shareToX = () => {
-    const tweet = encodeURIComponent(text.slice(0, 280));
-    window.open(`https://twitter.com/intent/tweet?text=${tweet}`, "_blank", "noopener,noreferrer");
-  };
-
-  const shareToTikTok = async () => {
-    await copy();
-    window.open("https://www.tiktok.com/upload?lang=en", "_blank", "noopener,noreferrer");
-    alert("Caption copied. Paste it into your TikTok post.");
-  };
-
-  const autoShorten = async () => {
-    try {
-      const out = await aiRewriteLength(settings, { text, mood: devotional.mood, direction: "shorten" });
-      setText(out);
-    } catch (e) {
-      alert(e?.message || "Could not shorten automatically.");
-    }
-  };
 
   return (
     <div className="space-y-6 pb-56 animate-enter">
@@ -3051,20 +2998,6 @@ function OnboardingWizard({ authDraft, onFinish }) {
             )}
           </div>
         </Card>
-      <Card>
-        <div className="text-xs font-extrabold text-slate-500">SESSION</div>
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={onLogout}
-            className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-700 text-sm font-extrabold flex items-center justify-center gap-2 hover:bg-slate-50 active:scale-[0.99]"
-          >
-            <LogOut className="w-4 h-4" />
-            Log out
-          </button>
-        </div>
-      </Card>
-
       </div>
     </div>
   );
@@ -3113,16 +3046,7 @@ function AppInner({ session, starterMood, onLogout }) {
   const [streak, setStreak] = useState(() => loadStreak());
   const [activeId, setActiveId] = useState(() => (Array.isArray(devotionals) && devotionals[0] ? devotionals[0].id : ""));
   const [view, setView] = useState("home"); // home | write | polish | compile | library | settings
-  const [lastNonSettingsView, setLastNonSettingsView] = useState("home");
   const [navCollapsed, setNavCollapsed] = useState(false);
-
-  useEffect(() => {
-    if (view !== "settings") setLastNonSettingsView(view);
-  }, [view]);
-
-  const toggleSettings = () => {
-    setView((v) => (v === "settings" ? lastNonSettingsView || "home" : "settings"));
-  };
 
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
@@ -3242,7 +3166,7 @@ const onSaved = () => {
           <img
             src={assetUrl("logo.png")}
             alt="VersedUP"
-            className="h-10 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105"
+            className="h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105"
             draggable="false"
             onError={(e) => {
               e.currentTarget.onerror = null;
@@ -3251,14 +3175,16 @@ const onSaved = () => {
           />
           <div className="min-w-0 leading-tight flex-1">
             <div className="text-sm font-extrabold text-slate-900 tracking-tight">Rooted in Christ</div>
-            <div className="text-xs font-bold text-slate-500 truncate">{getTimeGreeting(getDisplayName(session, settings))}</div>
           </div>
-<button
+          <button type="button" onClick={onLogout} className="text-slate-400 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-slate-100">
+            <LogOut className="w-5 h-5" />
+          </button>
+          <button
             type="button"
-            onClick={toggleSettings}
+            onClick={() => setView("settings")}
             className="text-slate-400 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-slate-100"
-            aria-label="More"
-            title="More"
+            aria-label="Settings"
+            title="Settings"
           >
             <MoreVertical className="w-5 h-5" />
           </button>
@@ -3297,7 +3223,7 @@ const onSaved = () => {
 
         {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} /> : null}
 
-        {view === "settings" ? <SettingsView settings={settings} onUpdate={updateSettings} onReset={reset} onLogout={onLogout} /> : null}
+        {view === "settings" ? <SettingsView settings={settings} onUpdate={updateSettings} onReset={reset} /> : null}
         </PageTransition>
       </main>
 
@@ -3313,12 +3239,13 @@ const onSaved = () => {
               >
                 {navCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
               </button>
-              <div className={cn("grid gap-1 flex-1 transition-all duration-300", navCollapsed ? "grid-cols-4" : "grid-cols-4")}>
+              <div className={cn("grid gap-1 flex-1 transition-all duration-300", navCollapsed ? "grid-cols-5" : "grid-cols-5")}>
                 <NavButton collapsed={navCollapsed} active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
                 <NavButton collapsed={navCollapsed} active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={ICONS.nav.write} label="Write" />
                 <NavButton collapsed={navCollapsed} active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ICONS.nav.compile} label="Compile" />
                 <NavButton collapsed={navCollapsed} active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
-</div>
+                <NavButton collapsed={navCollapsed} active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
+              </div>
             </div>
           </div>
         </div>
