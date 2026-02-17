@@ -1,31 +1,31 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle,
-  BookOpen,
-  Camera,
-  Check,
-  Copy,
-  Library,
-  Loader2,
-  PenTool,
-  Plus,
-  RefreshCw,
-  Search,
-  Settings,
-  Share2,
-  Sparkles,
-  ChevronLeft,
-  ChevronRight,
-  LogIn,
-  LogOut,
-  User,
-  Trash2,
-  Wand2,
-  X,
-  ScanLine,
-  Flame,
-  ArrowRight,
-  Quote
+AlertTriangle
+BookOpen
+Camera
+Check
+Copy
+Library
+Loader2
+PenTool
+Plus
+RefreshCw
+Search
+Share2
+  MoreVertical,
+Sparkles
+ChevronLeft
+ChevronRight
+LogIn
+LogOut
+User
+Trash2
+Wand2
+X
+ScanLine
+Flame
+ArrowRight
+Quote
 } from "lucide-react";
 
 /* --- Mocks & Global Styles for Preview --- */
@@ -2118,7 +2118,7 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
   );
 }
 
-function SettingsView({ settings, onUpdate, onReset }) {
+function SettingsView({ settings, onUpdate, onReset, onLogout }) {
   const { pushToast } = useToast();
   const aiNeedsKey =
     (settings.aiProvider === "openai" && !settings.openaiKey) ||
@@ -2307,7 +2307,22 @@ return (
       <PrimaryButton onClick={onReset} icon={Trash2}>
         Reset Local Data
       </PrimaryButton>
-    </div>
+    
+
+      <Card>
+        <div className="text-xs font-extrabold text-slate-500">ACCOUNT</div>
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={onLogout}
+            className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-700 text-sm font-extrabold flex items-center justify-center gap-2 hover:bg-slate-50 active:scale-[0.99]"
+          >
+            <LogOut className="w-4 h-4" />
+            Log out
+          </button>
+        </div>
+      </Card>
+</div>
   );
 }
 
@@ -3034,7 +3049,16 @@ function AppInner({ session, starterMood, onLogout }) {
   const [streak, setStreak] = useState(() => loadStreak());
   const [activeId, setActiveId] = useState(() => (Array.isArray(devotionals) && devotionals[0] ? devotionals[0].id : ""));
   const [view, setView] = useState("home"); // home | write | polish | compile | library | settings
+  const [lastNonSettingsView, setLastNonSettingsView] = useState("home");
   const [navCollapsed, setNavCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (view !== "settings") setLastNonSettingsView(view);
+  }, [view]);
+
+  const toggleSettings = () => {
+    setView((v) => (v === "settings" ? lastNonSettingsView || "home" : "settings"));
+  };
 
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
@@ -3152,8 +3176,8 @@ const onSaved = () => {
           <div className="min-w-0 leading-tight flex-1">
             <div className="text-sm font-extrabold text-slate-900 tracking-tight">Rooted in Christ</div>
           </div>
-          <button type="button" onClick={onLogout} className="text-slate-400 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-slate-100">
-            <LogOut className="w-5 h-5" />
+          <button type="button" onClick={toggleSettings} className="text-slate-400 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-slate-100" aria-label="More">
+            <MoreVertical className="w-5 h-5" />
           </button>
         </div>
       </div>
@@ -3206,12 +3230,11 @@ const onSaved = () => {
               >
                 {navCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
               </button>
-              <div className={cn("grid gap-1 flex-1 transition-all duration-300", navCollapsed ? "grid-cols-5" : "grid-cols-5")}>
+              <div className={cn("grid gap-1 flex-1 transition-all duration-300", navCollapsed ? "grid-cols-4" : "grid-cols-4")}>
                 <NavButton collapsed={navCollapsed} active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
                 <NavButton collapsed={navCollapsed} active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={ICONS.nav.write} label="Write" />
                 <NavButton collapsed={navCollapsed} active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ICONS.nav.compile} label="Compile" />
                 <NavButton collapsed={navCollapsed} active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
-                <NavButton collapsed={navCollapsed} active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
               </div>
             </div>
           </div>
