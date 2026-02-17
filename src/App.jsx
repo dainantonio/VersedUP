@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogIn,
+  LogOut,
   User,
   Trash2,
   Wand2,
@@ -301,39 +302,10 @@ function getDisplayName(session, settings) {
   return name || "";
 }
 
-function getBiblicalGreeting(name) {
+function getTimeGreeting(name) {
   const hour = new Date().getHours();
-  
-  // Morning (5AM - 11:59AM)
-  if (hour >= 5 && hour < 12) {
-    const greetings = [
-      "Good morning! This is the day the Lord has made; let us rejoice and be glad in it!",
-      "Good morning! Let your light shine before others today.",
-      "Good morning! Trust in the Lord with all your heart today.",
-      "Good morning! His mercies are new every morning."
-    ];
-    return greetings[Math.floor(Math.random() * greetings.length)];
-  } 
-  // Afternoon (12PM - 4:59PM)
-  else if (hour >= 12 && hour < 17) {
-    const greetings = [
-      "Good afternoon! The Lord is your shepherd; you shall not want.",
-      "Good afternoon! Be strong and courageous today.",
-      "Good afternoon! I can do all things through Christ who strengthens me.",
-      `Good afternoon, ${name || "Friend"}. Walk in His grace.`
-    ];
-    return greetings[Math.floor(Math.random() * greetings.length)];
-  } 
-  // Evening/Night (5PM - 4:59AM)
-  else {
-    const greetings = [
-      "Good evening! I will lie down and sleep in peace, for You alone make me dwell in safety.",
-      "Good evening! Peace I leave with you; my peace I give you.",
-      "Good evening! Come to me, all you who are weary, and I will give you rest.",
-      "Rest well. The Lord watches over you."
-    ];
-    return greetings[Math.floor(Math.random() * greetings.length)];
-  }
+  const base = hour >= 5 && hour < 12 ? "Good morning" : hour >= 12 && hour < 17 ? "Good afternoon" : "Good evening";
+  return name ? `${base}, ${name}` : base;
 }
 
 
@@ -972,12 +944,7 @@ function bumpStreakOnSave() {
 function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak, displayName }) {
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
-  const [greeting, setGreeting] = useState("");
   const moodVerse = MOOD_VERSES[moodVerseKey] || MOOD_VERSES.joy;
-
-  useEffect(() => {
-    setGreeting(getBiblicalGreeting(displayName));
-  }, [displayName]);
 
   const handleSelectMoodVerse = (key) => {
     setMoodVerseKey(key);
@@ -991,7 +958,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
         <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
         </div>
-        <div className="text-2xl font-black text-slate-900 mt-2 tracking-tight leading-snug">{greeting}</div>
+        <div className="text-4xl font-black text-slate-900 mt-1 tracking-tight">{getTimeGreeting(displayName)}</div>
         <div className="text-sm text-slate-600 mt-2 font-medium">{hasActive ? "Continue your last entry below." : "Start a devotional or pick a verse to reflect."}</div>
       </div>
 
@@ -2157,11 +2124,6 @@ function SettingsView({ settings, onUpdate, onReset }) {
     (settings.aiProvider === "openai" && !settings.openaiKey) ||
     (settings.aiProvider === "gemini" && !settings.geminiKey);
 
-  
-  const showGreeting = () => {
-    // Greeting logic handled dynamically now
-  };
-
 return (
     <div className="space-y-6 pb-28 animate-enter">
       <Card>
@@ -2237,7 +2199,6 @@ return (
             <input
               value={settings.username}
               onChange={(e) => onUpdate({ username: e.target.value })}
-              onBlur={showGreeting}
               placeholder="@yourname"
               className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow focus:border-emerald-300"
             />
@@ -2833,13 +2794,13 @@ function TikTokExportModal({ devotional, settings, onClose }) {
 
 function LandingView({ onGetStarted, onViewDemo }) {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-sky-50 px-4 py-10 animate-enter">
-      <div className="max-w-md mx-auto">
-        <div className="rounded-[2.5rem] border border-slate-100 bg-white/80 backdrop-blur-xl p-8 shadow-xl">
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-sky-50 px-4 py-10 animate-enter flex flex-col justify-center">
+      <div className="max-w-md mx-auto w-full">
+        <div className="rounded-[2.5rem] border border-slate-100 bg-white/80 backdrop-blur-xl p-10 shadow-2xl">
           <img
             src={assetUrl("logo.png")}
             alt="VersedUP"
-            className="h-24 w-auto mx-auto drop-shadow-sm"
+            className="h-28 w-auto mx-auto drop-shadow-md mb-6"
             draggable="false"
             onError={(e) => {
               e.currentTarget.onerror = null;
@@ -2847,7 +2808,7 @@ function LandingView({ onGetStarted, onViewDemo }) {
               e.currentTarget.style.display = 'none';
             }}
           />
-          <h1 className="mt-8 text-3xl font-black text-slate-900 text-center tracking-tight leading-tight">Rooted in Christ,<br/>growing in His fruit.</h1>
+          <h1 className="mt-4 text-3xl font-black text-slate-900 text-center tracking-tight leading-tight">Rooted in Christ,<br/>growing in His fruit.</h1>
           <p className="mt-4 text-base text-slate-600 text-center leading-relaxed font-medium">Create devotionals, polish your reflection, and prepare share-ready content.</p>
 
           <div className="mt-8 grid gap-4">
@@ -3177,22 +3138,22 @@ const onSaved = () => {
       <ToastTicker toast={toast} />
 
       <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/50 px-4 py-3 transition-all duration-300">
-        <div className="max-w-md mx-auto flex items-center gap-3">
+        <div className="max-w-md mx-auto flex items-center gap-4">
           <img
             src={assetUrl("logo.png")}
             alt="VersedUP"
-            className="h-10 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105"
+            className="h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105"
             draggable="false"
             onError={(e) => {
-              // Hide broken logo or replace with text/fallback
+              e.currentTarget.onerror = null;
               e.currentTarget.style.display = 'none';
             }}
           />
           <div className="min-w-0 leading-tight flex-1">
             <div className="text-sm font-extrabold text-slate-900 tracking-tight">Rooted in Christ</div>
           </div>
-          <button type="button" onClick={onLogout} className="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors px-2 py-1">
-            Logout
+          <button type="button" onClick={onLogout} className="text-slate-400 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-slate-100">
+            <LogOut className="w-5 h-5" />
           </button>
         </div>
       </div>
