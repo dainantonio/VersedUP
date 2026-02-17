@@ -60,6 +60,11 @@ const GlobalStyles = () => (
       to { opacity: 1; transform: translateY(0); }
     }
     
+    @keyframes fadeSlideInBottom {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     @keyframes pulse-soft {
       0%, 100% { transform: scale(1); opacity: 1; }
       50% { transform: scale(1.05); opacity: 0.8; }
@@ -67,6 +72,10 @@ const GlobalStyles = () => (
 
     .animate-enter {
       animation: fadeSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    
+    .animate-toast {
+      animation: fadeSlideInBottom 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
     
     .animate-pulse-slow {
@@ -107,10 +116,11 @@ function useToast() {
 function ToastTicker({ toast }) {
   if (!toast) return null;
   return (
-    <div className="fixed top-0 left-0 right-0 z-[60] pointer-events-none">
-      <div className="max-w-md mx-auto px-4 pt-3">
-        <div className="rounded-full border border-slate-200 bg-white/90 backdrop-blur-xl shadow-lg px-6 py-3 flex items-center justify-center animate-enter">
-          <div className="text-xs font-extrabold text-slate-700">{toast.message}</div>
+    <div className="fixed bottom-24 left-0 right-0 z-[60] pointer-events-none flex justify-center">
+      <div className="max-w-xs w-full px-4">
+        <div className="rounded-full border border-slate-200 bg-white/95 backdrop-blur-xl shadow-xl px-4 py-2.5 flex items-center justify-center animate-toast gap-2">
+          <Check className="w-3.5 h-3.5 text-emerald-600" />
+          <div className="text-xs font-bold text-slate-800">{toast.message}</div>
         </div>
       </div>
     </div>
@@ -293,10 +303,39 @@ function getDisplayName(session, settings) {
   return name || "";
 }
 
-function getTimeGreeting(name) {
+function getBiblicalGreeting(name) {
   const hour = new Date().getHours();
-  const base = hour >= 5 && hour < 12 ? "Good morning" : hour >= 12 && hour < 17 ? "Good afternoon" : "Good evening";
-  return name ? `${base}, ${name}` : base;
+  
+  // Morning (5AM - 11:59AM)
+  if (hour >= 5 && hour < 12) {
+    const greetings = [
+      "Good morning! This is the day the Lord has made; let us rejoice and be glad in it!",
+      "Good morning! Let your light shine before others today.",
+      "Good morning! Trust in the Lord with all your heart today.",
+      "Good morning! His mercies are new every morning."
+    ];
+    return greetings[Math.floor(Math.random() * greetings.length)];
+  } 
+  // Afternoon (12PM - 4:59PM)
+  else if (hour >= 12 && hour < 17) {
+    const greetings = [
+      "Good afternoon! The Lord is your shepherd; you shall not want.",
+      "Good afternoon! Be strong and courageous today.",
+      "Good afternoon! I can do all things through Christ who strengthens me.",
+      `Good afternoon, ${name || "Friend"}. Walk in His grace.`
+    ];
+    return greetings[Math.floor(Math.random() * greetings.length)];
+  } 
+  // Evening/Night (5PM - 4:59AM)
+  else {
+    const greetings = [
+      "Good evening! I will lie down and sleep in peace, for You alone make me dwell in safety.",
+      "Good evening! Peace I leave with you; my peace I give you.",
+      "Good evening! Come to me, all you who are weary, and I will give you rest.",
+      "Rest well. The Lord watches over you."
+    ];
+    return greetings[Math.floor(Math.random() * greetings.length)];
+  }
 }
 
 
@@ -935,7 +974,12 @@ function bumpStreakOnSave() {
 function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak, displayName }) {
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
+  const [greeting, setGreeting] = useState("");
   const moodVerse = MOOD_VERSES[moodVerseKey] || MOOD_VERSES.joy;
+
+  useEffect(() => {
+    setGreeting(getBiblicalGreeting(displayName));
+  }, [displayName]);
 
   const handleSelectMoodVerse = (key) => {
     setMoodVerseKey(key);
@@ -949,7 +993,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
         <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
         </div>
-        <div className="text-4xl font-black text-slate-900 mt-1 tracking-tight">{getTimeGreeting(displayName)}</div>
+        <div className="text-2xl font-black text-slate-900 mt-2 tracking-tight leading-snug">{greeting}</div>
         <div className="text-sm text-slate-600 mt-2 font-medium">{hasActive ? "Continue your last entry below." : "Start a devotional or pick a verse to reflect."}</div>
       </div>
 
@@ -2117,17 +2161,7 @@ function SettingsView({ settings, onUpdate, onReset }) {
 
   
   const showGreeting = () => {
-    const raw = String(settings.username || "").trim();
-    const name = raw.replace(/^@/, "").trim();
-    if (!name) return;
-
-    const hour = new Date().getHours();
-    const message =
-      hour >= 5 && hour < 12
-        ? `Good morning, ${name}.`
-        : `This is the day the Lord has made; let us rejoice and be glad in it, ${name}.`;
-
-    pushToast(message, 4500);
+    // Greeting logic handled dynamically now
   };
 
 return (
@@ -3171,7 +3205,6 @@ const onSaved = () => {
           />
           <div className="min-w-0 leading-tight flex-1">
             <div className="text-sm font-extrabold text-slate-900 tracking-tight">Rooted in Christ</div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">VersedUP</div>
           </div>
           <button type="button" onClick={onLogout} className="text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors px-2 py-1">
             Logout
