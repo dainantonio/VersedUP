@@ -1706,35 +1706,41 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <input
-                value={devotional.verseRef}
-                onChange={(e) => onUpdate({ verseRef: e.target.value })}
-                placeholder="Verse reference (e.g., Psalm 23)"
-                className="flex-1 rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 bg-white transition-all shadow-sm focus:border-emerald-300"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void doFetch();
-                }}
-              />
-              <select
-                value={version}
-                onChange={(e) => onUpdate({ bibleVersion: e.target.value })}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-extrabold bg-white"
-              >
-                {BIBLE_VERSIONS.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-              <SmallButton
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  value={devotional.verseRef}
+                  onChange={(e) => onUpdate({ verseRef: e.target.value })}
+                  placeholder="Verse reference (e.g., Psalm 23)"
+                  className="flex-1 rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 bg-white transition-all shadow-sm focus:border-emerald-300"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void doFetch();
+                  }}
+                />
+                <select
+                  value={version}
+                  onChange={(e) => onUpdate({ bibleVersion: e.target.value })}
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-extrabold bg-white"
+                >
+                  {BIBLE_VERSIONS.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
                 onClick={doFetch}
                 disabled={!hasVerseRef || fetching}
-                icon={fetching ? Loader2 : null}
-                tone="primary"
+                className="w-full flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-extrabold text-emerald-700 transition-all hover:bg-emerald-100 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {fetching ? "..." : "FETCH"}
-              </SmallButton>
+                {fetching ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+                )}
+                {fetching ? "Loading verse..." : "Load Verse"}
+              </button>
             </div>
 
             {guidedMode && !hasVerseRef ? (
@@ -1781,25 +1787,16 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           <div>
             <div className="flex items-end justify-between gap-3">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">REFLECTION / BODY</label>
-              {guidedMode ? <div className="text-[11px] font-bold text-emerald-600">Topic → prompt, then Guided Fill</div> : null}
+              {guidedMode ? <div className="text-[11px] font-bold text-emerald-600">Type your verse, then tap Draft for Me</div> : null}
             </div>
 
-            <div className="mt-2 flex gap-2 overflow-x-auto no-scrollbar pb-1">
-              {TOPIC_CHIPS.map((t) => (
-                <Chip key={t.id} active={selectedTopic === t.id} onClick={() => onTopicClick(t)}>
-                  {t.label}
-                </Chip>
-              ))}
-              <div className="flex-1" />
-              <SmallButton onClick={openGuidedDraftFromTemplate} icon={Wand2}>
-                Guided Fill
-              </SmallButton>
+            <div className="mt-2 flex justify-end">
               <SmallButton
-                onClick={() => void openGuidedDraftFromAI()}
-                disabled={guidedBusy || aiNeedsKey}
+                onClick={() => void (aiNeedsKey ? openGuidedDraftFromTemplate() : openGuidedDraftFromAI())}
+                disabled={guidedBusy}
                 icon={guidedBusy ? Loader2 : Sparkles}
               >
-                {guidedBusy ? "..." : "AI Guided"}
+                {guidedBusy ? "Drafting..." : "Draft for Me"}
               </SmallButton>
             </div>
 
@@ -1951,7 +1948,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
 
       {guidedOpen ? (
         <Modal
-          title={`Guided Fill Preview — ${topic?.label || "Topic"}`}
+          title={`Draft Preview — ${topic?.label || "Topic"}`}
           onClose={() => setGuidedOpen(false)}
           footer={
             <div className="flex flex-col gap-3">
@@ -2175,8 +2172,8 @@ return (
 
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-extrabold text-slate-900">Guided Fill: auto-generate TikTok script</div>
-              <div className="text-xs text-slate-500 mt-1">Default for the “Apply + Script” checkbox in Guided Fill.</div>
+              <div className="text-sm font-extrabold text-slate-900">Draft for Me: auto-generate TikTok script</div>
+              <div className="text-xs text-slate-500 mt-1">Default for the “Apply + Script” checkbox in Draft for Me.</div>
             </div>
             <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer">
               <input
@@ -2460,6 +2457,8 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
         {[
           { id: "tiktok", label: "TikTok" },
           { id: "instagram", label: "Instagram" },
+          { id: "facebook", label: "Facebook" },
+          { id: "twitter", label: "Twitter / X" },
           { id: "email", label: "Email" },
           { id: "generic", label: "Generic" },
         ].map((p) => (
@@ -2502,7 +2501,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
       {mode === "text" ? (
         <Card>
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">OUTPUT</div>
-          <div className="text-sm text-slate-500 mt-2">Tip: Tap Copy, then paste into TikTok/IG. Keep it under {limit} characters for {platform}.</div>
+          <div className="text-sm text-slate-500 mt-2">Tap <b>Copy</b> then open your app — or tap <b>Open in {platform}</b> below. Limit: {limit} chars.</div>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -2527,12 +2526,23 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
                 {shareBusy ? "Sharing..." : "Share Now"}
               </SmallButton>
             </div>
-            {/* Row 2: platform shortcuts */}
-            <div className="grid grid-cols-3 gap-2">
-              <SmallButton onClick={() => void shareToTikTok()}>TikTok</SmallButton>
-              <SmallButton onClick={() => void shareToFacebook()}>Facebook</SmallButton>
-              <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
-            </div>
+            {/* Row 2: context-aware open — matches the platform chip selected above */}
+            {(platform === "tiktok" || platform === "instagram" || platform === "facebook" || platform === "twitter") ? (
+              <div className="mt-2">
+                <SmallButton
+                  onClick={() => {
+                    if (platform === "tiktok") void shareToTikTok();
+                    else if (platform === "facebook") void shareToFacebook();
+                    else if (platform === "twitter") shareToX();
+                    else copy();
+                  }}
+                  className="w-full justify-center"
+                  tone="neutral"
+                >
+                  Open in {platform === "tiktok" ? "TikTok" : platform === "facebook" ? "Facebook" : platform === "twitter" ? "Twitter / X" : "App"} →
+                </SmallButton>
+              </div>
+            ) : null}
             {/* Row 3: other channels */}
             <div className="grid grid-cols-2 gap-2 mt-2">
               <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
