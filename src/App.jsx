@@ -17,6 +17,7 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   LogIn,
   LogOut,
   User,
