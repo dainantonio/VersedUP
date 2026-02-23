@@ -1433,8 +1433,44 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const handleSave = () => {
       onSaved();
       setSaveSuccess(true);
+      setUnsaved(false);
+      setLastSaved(new Date());
       setTimeout(() => setSaveSuccess(false), 2000);
   }
+
+  // Auto-save: mark unsaved on any devotional change
+  useEffect(() => {
+    setUnsaved(true);
+    const t = setTimeout(() => {
+      handleSave();
+    }, 3000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [devotional.verseRef, devotional.verseText, devotional.title, devotional.reflection, devotional.prayer, devotional.questions, devotional.mood]);
+
+  const doChangeTone = async (tone) => {
+    setToneMenuOpen(false);
+    if (!devotional.reflection?.trim()) return;
+    setBusy(true);
+    try {
+      const tonePrompts = {
+        Reverent:       "Rewrite in a reverent, worshipful tone. Keep all meaning. Return ONLY text.",
+        Poetic:         "Rewrite in a poetic, lyrical tone with vivid imagery. Keep all meaning. Return ONLY text.",
+        Direct:         "Rewrite in a direct, punchy, bold tone. Keep all meaning. Return ONLY text.",
+        Encouraging:    "Rewrite in an encouraging, warm, uplifting tone. Keep all meaning. Return ONLY text.",
+        Conversational: "Rewrite in a casual, conversational tone like talking to a friend. Keep all meaning. Return ONLY text.",
+      };
+      const prompt = `${tonePrompts[tone] || "Rewrite. Return ONLY text."}
+
+${devotional.reflection}`;
+      const out = await ai(settings, prompt);
+      onUpdate({ reflection: out });
+    } catch (e) {
+      pushToast(e?.message || "Tone change failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const doFetch = async () => {
     setFetching(true);
@@ -1661,14 +1697,80 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const hasReflection = Boolean(String(devotional.reflection || "").trim());
 
   return (
-    <div className="space-y-6 pb-28 animate-enter">
-      <div>
-<div className="text-xl font-extrabold text-slate-900">New Entry</div>
-<div className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">CAPTURE WHAT GOD IS SPEAKING</div>
-<div className="text-sm text-slate-500 mt-3 font-medium">
-  Add a verse, write a reflection, then tap Save and Compile.
-</div>
+    <div className="space-y-5 pb-28 animate-enter">
+      {/* ── Header: title + auto-save status ── */}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xl font-extrabold text-slate-900">New Entry</div>
+          <div className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">CAPTURE WHAT GOD IS SPEAKING</div>
+        </div>
+        <div className="flex-shrink-0 mt-1">
+          {unsaved ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-[10px] font-extrabold text-amber-700 uppercase tracking-wide">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+              Unsaved
+            </span>
+          ) : lastSaved ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-[10px] font-extrabold text-emerald-700 uppercase tracking-wide">
+              <Check className="w-3 h-3" />
+              Saved
+            </span>
+          ) : null}
+        </div>
       </div>
+
+      {/* ── Write / Preview tab bar (HubSpot-inspired) ── */}
+      <div className="flex border-b border-slate-200">
+        {[{ id: "write", label: "Write" }, { id: "preview", label: "Preview" }].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setWriteTab(t.id)}
+            className={cn(
+              "px-5 py-2.5 text-sm font-extrabold border-b-2 -mb-px transition-colors",
+              writeTab === t.id
+                ? "border-emerald-500 text-emerald-700"
+                : "border-transparent text-slate-400 hover:text-slate-700"
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── PREVIEW TAB ── */}
+      {writeTab === "preview" ? (
+        <div className="space-y-4 animate-enter">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            {[
+              { id: "instagram", label: "Instagram" },
+              { id: "tiktok", label: "TikTok" },
+              { id: "facebook", label: "Facebook" },
+              { id: "twitter", label: "Twitter / X" },
+              { id: "email", label: "Email" },
+              { id: "generic", label: "Generic" },
+            ].map((p) => (
+              <Chip key={p.id} active={pvPlatform === p.id} onClick={() => setPvPlatform(p.id)}>
+                {p.label}
+              </Chip>
+            ))}
+          </div>
+          <SocialPreview
+            platform={pvPlatform}
+            devotional={devotional}
+            settings={settings}
+            text={compileForPlatform(pvPlatform, devotional, settings)}
+          />
+          <div className="flex gap-2 justify-end">
+            <SmallButton onClick={() => { handleSave(); onGoCompile(); }} icon={Share2} tone="primary">
+              Share →
+            </SmallButton>
+          </div>
+        </div>
+      ) : null}
+
+      {/* ── WRITE TAB ── */}
+      {writeTab === "write" ? (
+      <div className="space-y-5">
 
       <Card className="overflow-hidden bg-white/60">
         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">HOW IS YOUR HEART?</div>
@@ -1765,7 +1867,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               />
               {guidedMode && !hasVerseText && hasVerseRef ? (
                 <div className="mt-2 text-[11px] font-bold text-slate-500">
-                  Tip: Press <span className="font-extrabold">FETCH</span> to fill KJV automatically (or use YouVersion).
+                  Tip: Tap <span className="font-extrabold">Load Verse</span> to fill KJV automatically (or use YouVersion).
                 </div>
               ) : null}
               {devotional.verseTextEdited ? (
@@ -1810,7 +1912,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               ref={reflectionRef}
               value={devotional.reflection}
               onChange={(e) => onUpdate({ reflection: e.target.value })}
-              placeholder="Start writing... (or tap a Topic Chip above)"
+              placeholder="Start writing your reflection..."
               rows={8}
               spellCheck
               autoCorrect="on"
@@ -1822,37 +1924,102 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
               <div className="mt-2 text-xs font-bold text-slate-500">Starter: “What is God showing me about this verse today?”</div>
             ) : null}
 
-            <div className="mt-3">
-              <PrimaryButton
-                onClick={() => void doShareReady()}
-                disabled={shareReadyBusy || busy || (!hasReflection && !hasVerseRef)}
-                icon={shareReadyBusy ? Loader2 : ICONS.actions.makeShareReady}
-              >
-                {shareReadyBusy ? "Making Share-Ready..." : "Make Share-Ready"}
-              </PrimaryButton>
-              {shareReadyStep ? <div className="mt-2 text-xs font-bold text-emerald-700">{shareReadyStep}</div> : null}
-            </div>
-
-            <div className="mt-2 flex flex-wrap gap-2">
-              <SmallButton onClick={doFixReflection} disabled={busy || shareReadyBusy || !hasReflection} icon={Sparkles}>
-                Fix grammar
-              </SmallButton>
-              <SmallButton onClick={doStructure} disabled={busy || shareReadyBusy || (!hasReflection && !hasVerseRef)} icon={Wand2}>
-                Structure
-              </SmallButton>
-              <SmallButton onClick={() => void doLength("shorten")} disabled={busy || shareReadyBusy || !hasReflection}>
-                Shorten
-              </SmallButton>
-              <SmallButton onClick={() => void doLength("lengthen")} disabled={busy || shareReadyBusy || !hasReflection}>
-                Lengthen
-              </SmallButton>
-            </div>
-
-            {guidedMode && !hasReflection ? (
-              <div className="mt-2 text-[11px] font-bold text-slate-500">
-                Tip: write 3–6 lines, then tap <span className="font-extrabold">Structure</span>.
+            {/* ── Per-platform character count pills ── */}
+            {hasReflection ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {[
+                  { id: "twitter", label: "Twitter", limit: 280 },
+                  { id: "tiktok", label: "TikTok", limit: 150 },
+                  { id: "instagram", label: "Instagram", limit: 2200 },
+                ].map(({ id, label, limit }) => {
+                  const count = (devotional.reflection || "").length;
+                  const over = count > limit;
+                  return (
+                    <span
+                      key={id}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border transition-colors",
+                        over
+                          ? "bg-red-50 border-red-200 text-red-700"
+                          : "bg-slate-50 border-slate-200 text-slate-500"
+                      )}
+                    >
+                      {label} {count}/{limit}{!over ? " ✓" : " ✗"}
+                    </span>
+                  );
+                })}
               </div>
             ) : null}
+
+            {/* ── Inline AI toolbar (HubSpot-inspired) ── */}
+            <div className="mt-3 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-visible">
+              {/* Row 1: quick AI actions */}
+              <div className="flex items-center gap-px p-1.5 flex-wrap">
+                <button
+                  onClick={() => void (aiNeedsKey ? openGuidedDraftFromTemplate() : openGuidedDraftFromAI())}
+                  disabled={guidedBusy || busy}
+                  className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-extrabold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {guidedBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  {guidedBusy ? "Drafting..." : "Draft for Me"}
+                </button>
+                <div className="w-px h-5 bg-slate-200 mx-1" />
+                <button
+                  onClick={doFixReflection}
+                  disabled={busy || !hasReflection}
+                  className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >Fix</button>
+                <button
+                  onClick={() => void doLength("shorten")}
+                  disabled={busy || !hasReflection}
+                  className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >Shorten</button>
+                <button
+                  onClick={() => void doLength("lengthen")}
+                  disabled={busy || !hasReflection}
+                  className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >Expand</button>
+                <button
+                  onClick={doStructure}
+                  disabled={busy || (!hasReflection && !hasVerseRef)}
+                  className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >Structure</button>
+                <div className="relative ml-auto">
+                  <button
+                    onClick={() => setToneMenuOpen((o) => !o)}
+                    disabled={busy || !hasReflection}
+                    className="flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Tone <ChevronDown className="w-3 h-3" />
+                  </button>
+                  {toneMenuOpen ? (
+                    <div className="absolute right-0 top-full mt-1 z-50 w-44 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+                      {["Reverent", "Poetic", "Direct", "Encouraging", "Conversational"].map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => void doChangeTone(t)}
+                          className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              {/* Row 2: Make Share-Ready — full-width primary action */}
+              <div className="border-t border-slate-100 p-1.5">
+                <button
+                  onClick={() => void doShareReady()}
+                  disabled={shareReadyBusy || busy || (!hasReflection && !hasVerseRef)}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] px-4 py-2.5 text-sm font-extrabold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                >
+                  {shareReadyBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {shareReadyBusy ? "Making Share-Ready..." : "✨ Make Share-Ready"}
+                </button>
+                {shareReadyStep ? <div className="mt-1.5 text-[11px] font-bold text-emerald-700 text-center">{shareReadyStep}</div> : null}
+              </div>
+            </div>
           </div>
 
           <div>
@@ -1895,7 +2062,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           {saveSuccess ? "Saved ✓" : "Save"}
         </SmallButton>
         <SmallButton
-          onClick={() => { handleSave(); onGoPolish(); }}
+          onClick={() => setWriteTab("preview")}
           icon={BookOpen}
         >
           Preview
@@ -1909,6 +2076,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
           Share →
         </SmallButton>
       </div>
+      </div>{/* end writeTab === "write" */}
 
       {structureOpen ? (
         <Modal
