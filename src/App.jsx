@@ -27,7 +27,10 @@ import {
   ScanLine,
   Flame,
   ArrowRight,
-  Quote
+  Quote,
+  ExternalLink,
+  Sun,
+  Maximize2
 } from "lucide-react";
 
 /* --- Mocks & Global Styles for Preview --- */
@@ -363,9 +366,9 @@ function isKjv(version) {
   return String(version || "").toUpperCase() === "KJV";
 }
 
-function youVersionSearchUrl(passage) {
+function bibleGatewayUrl(passage, version = "KJV") {
   const q = encodeURIComponent(String(passage || "").trim());
-  return `https://www.bible.com/search/bible?q=${q}`;
+  return `https://www.biblegateway.com/passage/?search=${q}&version=${version}`;
 }
 
 async function fetchKjvFromBibleApi(passage) {
@@ -1482,7 +1485,7 @@ ${devotional.reflection}`;
     setFetching(true);
     try {
       if (!isKjv(version)) {
-        window.open(youVersionSearchUrl(devotional.verseRef), "_blank", "noopener,noreferrer");
+        window.open(bibleGatewayUrl(devotional.verseRef, version), "_blank", "noopener,noreferrer");
         return;
       }
       const text = await fetchKjvFromBibleApi(devotional.verseRef);
@@ -1725,53 +1728,36 @@ ${devotional.reflection}`;
         </div>
       </div>
 
-      {/* ── Write / Preview tab bar (HubSpot-inspired) ── */}
-      <div className="flex border-b border-slate-200">
-        {[{ id: "write", label: "Write" }, { id: "preview", label: "Preview" }].map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setWriteTab(t.id)}
-            className={cn(
-              "px-5 py-2.5 text-sm font-extrabold border-b-2 -mb-px transition-colors",
-              writeTab === t.id
-                ? "border-emerald-500 text-emerald-700"
-                : "border-transparent text-slate-400 hover:text-slate-700"
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* ── Write / Preview tab bar ── */}
+      <div className="flex items-center border-b border-slate-200">
+        <button
+          onClick={() => setWriteTab("write")}
+          className={cn(
+            "px-5 py-2.5 text-sm font-extrabold border-b-2 -mb-px transition-colors",
+            writeTab === "write"
+              ? "border-emerald-500 text-emerald-700"
+              : "border-transparent text-slate-400 hover:text-slate-700"
+          )}
+        >
+          Write
+        </button>
+        <button
+          onClick={() => setWriteTab("preview")}
+          className="ml-auto mb-1 flex items-center gap-1.5 px-3 py-1.5 mr-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-extrabold transition-colors"
+        >
+          <Maximize2 className="w-3.5 h-3.5" /> Preview
+        </button>
       </div>
 
       {/* ── PREVIEW TAB ── */}
       {writeTab === "preview" ? (
-        <div className="space-y-4 animate-enter">
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            {[
-              { id: "instagram", label: "Instagram" },
-              { id: "tiktok", label: "TikTok" },
-              { id: "facebook", label: "Facebook" },
-              { id: "twitter", label: "Twitter / X" },
-              { id: "email", label: "Email" },
-              { id: "generic", label: "Generic" },
-            ].map((p) => (
-              <Chip key={p.id} active={pvPlatform === p.id} onClick={() => setPvPlatform(p.id)}>
-                {p.label}
-              </Chip>
-            ))}
-          </div>
-          <SocialPreview
-            platform={pvPlatform}
-            devotional={devotional}
-            settings={settings}
-            text={compileForPlatform(pvPlatform, devotional, settings)}
-          />
-          <div className="flex gap-2 justify-end">
-            <SmallButton onClick={() => { handleSave(); onGoCompile(); }} icon={Share2} tone="primary">
-              Share →
-            </SmallButton>
-          </div>
-        </div>
+        <DraftPreviewModal
+          devotional={devotional}
+          settings={settings}
+          compileForPlatform={compileForPlatform}
+          onClose={() => setWriteTab("write")}
+          onShare={() => { handleSave(); setWriteTab("write"); onGoCompile(); }}
+        />
       ) : null}
 
       {/* ── WRITE TAB ── */}
@@ -1797,19 +1783,27 @@ ${devotional.reflection}`;
       <Card>
         <div className="space-y-6">
           <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 space-y-4 shadow-inner">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="text-[10px] font-black text-slate-500 flex items-center gap-2 uppercase tracking-widest">
                 <BookOpen className="w-3.5 h-3.5" /> VERSE
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-extrabold hover:bg-amber-100 active:scale-[0.97] transition-all"
+                >
+                  <Sun className="w-3 h-3" /> Today's Verse
+                </button>
                 <SmallButton onClick={openScan} icon={ScanLine}>
                   Scan
                 </SmallButton>
                 <SmallButton
-                  onClick={() => window.open(youVersionSearchUrl(devotional.verseRef), "_blank", "noopener,noreferrer")}
+                  onClick={() => window.open(bibleGatewayUrl(devotional.verseRef, version), "_blank", "noopener,noreferrer")}
+                  icon={ExternalLink}
                   disabled={!hasVerseRef}
                 >
-                  Open YouVersion
+                  BibleGateway
                 </SmallButton>
               </div>
             </div>
@@ -1866,14 +1860,14 @@ ${devotional.reflection}`;
                 placeholder={
                   isKjv(version)
                     ? "Fetch KJV to auto-fill..."
-                    : "Free-for-now: Open in YouVersion. Paste text you have rights to use."
+                    : "Free-for-now: Open in BibleGateway. Paste text you have rights to use."
                 }
                 rows={4}
                 className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 bg-white resize-none font-serif-scripture shadow-sm focus:border-emerald-300 transition-all"
               />
               {guidedMode && !hasVerseText && hasVerseRef ? (
                 <div className="mt-2 text-[11px] font-bold text-slate-500">
-                  Tip: Tap <span className="font-extrabold">Load Verse</span> to fill KJV automatically (or use YouVersion).
+                  Tip: Tap <span className="font-extrabold">Load Verse</span> to fill KJV automatically, or use BibleGateway for other translations.
                 </div>
               ) : null}
               {devotional.verseTextEdited ? (
@@ -2709,6 +2703,172 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
       {scriptOpen ? <TikTokScriptModal devotional={devotional} settings={settings} onClose={() => setScriptOpen(false)} onUpdate={onUpdate} /> : null}
 
       {exportOpen ? <TikTokExportModal devotional={devotional} settings={settings} onClose={() => setExportOpen(false)} /> : null}
+    </div>
+  );
+}
+
+const PREVIEW_PLATFORMS = [
+  { id: "instagram", label: "Instagram", color: "from-purple-500 to-pink-500" },
+  { id: "tiktok", label: "TikTok", color: "from-black to-slate-800" },
+  { id: "twitter", label: "Twitter / X", color: "from-sky-500 to-blue-600" },
+  { id: "facebook", label: "Facebook", color: "from-blue-600 to-blue-700" },
+  { id: "email", label: "Email", color: "from-slate-500 to-slate-700" },
+  { id: "generic", label: "Generic", color: "from-emerald-500 to-teal-600" },
+];
+
+function DraftPreviewModal({ devotional, settings, onClose, onShare, compileForPlatform }) {
+  const [platform, setPlatform] = useState("instagram");
+  const text = compileForPlatform(platform, devotional, settings);
+  const charCount = text.length;
+  const limit = PLATFORM_LIMITS[platform] || PLATFORM_LIMITS.generic;
+  const over = charCount > limit;
+  const pct = Math.min(charCount / limit, 1);
+  const platformInfo = PREVIEW_PLATFORMS.find(p => p.id === platform);
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/80 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="flex flex-col flex-1 mx-auto w-full max-w-lg mt-6 mb-0 rounded-t-3xl bg-slate-50 overflow-hidden shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-200 bg-white">
+          <div className="font-extrabold text-slate-900 text-base">Draft Preview</div>
+          <div className="flex items-center gap-3">
+            <div className={`text-xs font-extrabold px-2.5 py-1 rounded-full ${over ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
+              {charCount} / {limit}
+            </div>
+            <button type="button" onClick={onClose} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
+              <X className="w-4 h-4 text-slate-600" />
+            </button>
+          </div>
+        </div>
+
+        {/* Platform tabs */}
+        <div className="flex gap-2 px-4 py-3 overflow-x-auto no-scrollbar bg-white border-b border-slate-100">
+          {PREVIEW_PLATFORMS.map(p => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setPlatform(p.id)}
+              className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-extrabold transition-all ${
+                platform === p.id
+                  ? `bg-gradient-to-r ${p.color} text-white shadow-sm`
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Preview area — scrollable */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Platform header accent */}
+          <div className={`h-1.5 w-16 rounded-full bg-gradient-to-r ${platformInfo?.color}`} />
+
+          {platform === "instagram" && (
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-100">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-400 to-pink-500 shadow-sm" />
+                <div>
+                  <div className="text-sm font-extrabold text-slate-900">{settings.username || "yourprofile"}</div>
+                  <div className="text-[11px] text-slate-400 font-semibold">Instagram</div>
+                </div>
+              </div>
+              <div className="px-4 py-4">
+                <p className="text-sm text-slate-800 leading-relaxed font-serif-scripture whitespace-pre-wrap">{text}</p>
+              </div>
+              <div className="px-4 pb-4 flex gap-4 text-slate-400 text-lg">❤️ 💬 📤 🔖</div>
+            </div>
+          )}
+
+          {platform === "tiktok" && (
+            <div className="rounded-3xl overflow-hidden shadow-lg">
+              <div className="bg-gradient-to-b from-black to-slate-900 p-5 min-h-[260px] flex flex-col justify-end relative">
+                <div className="absolute top-4 right-4 flex flex-col gap-4 items-center text-white text-xl">❤️<br/>💬<br/>🔖<br/>▶️</div>
+                <p className="text-white text-sm leading-relaxed whitespace-pre-wrap font-semibold drop-shadow">{text}</p>
+                <div className="mt-3 text-xs text-white/70 font-bold">{settings.username || "@yourname"}</div>
+              </div>
+            </div>
+          )}
+
+          {platform === "twitter" && (
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-4 py-3 flex gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 shrink-0 shadow-sm" />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-sm text-slate-900">{settings.username || "You"}</span>
+                    <span className="text-xs text-slate-400">· now</span>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{text}</p>
+                  <div className="mt-3 flex gap-5 text-slate-400 text-xs">💬 Repost ❤️ Share</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {platform === "facebook" && (
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-100">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 shadow-sm" />
+                <div>
+                  <div className="text-sm font-extrabold text-slate-900">{settings.username || "Your Page"}</div>
+                  <div className="text-[11px] text-slate-400 font-semibold">Just now · 🌐</div>
+                </div>
+              </div>
+              <div className="px-4 py-4">
+                <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{text}</p>
+              </div>
+              <div className="px-4 pb-3 flex gap-4 text-slate-500 text-sm border-t border-slate-100 pt-3">👍 Like · 💬 Comment · ↗️ Share</div>
+            </div>
+          )}
+
+          {platform === "email" && (
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">EMAIL</div>
+                <div className="text-xs font-extrabold text-slate-700">To: {settings.username || "subscriber@email.com"}</div>
+                <div className="text-xs text-slate-500 mt-0.5">Subject: {devotional.title || "Daily Devotional"}</div>
+              </div>
+              <div className="px-4 py-4">
+                <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap font-serif-scripture">{text}</p>
+              </div>
+            </div>
+          )}
+
+          {platform === "generic" && (
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-5 py-4">
+                <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-3">Post Copy</div>
+                <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap font-serif-scripture">{text}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Char bar */}
+          <div className="space-y-1.5">
+            <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${over ? "bg-red-500" : pct > 0.85 ? "bg-amber-500" : "bg-emerald-500"}`}
+                style={{ width: `${pct * 100}%` }}
+              />
+            </div>
+            {over && <div className="text-xs font-bold text-red-600">{charCount - limit} characters over limit — consider shortening.</div>}
+          </div>
+        </div>
+
+        {/* Footer CTA */}
+        <div className="px-5 py-4 border-t border-slate-200 bg-white flex items-center gap-3">
+          <button type="button" onClick={onClose} className="flex-1 py-3 rounded-2xl bg-slate-100 text-slate-700 font-extrabold text-sm hover:bg-slate-200 transition-colors">
+            ← Back to Edit
+          </button>
+          <button type="button" onClick={onShare} className="flex-1 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm transition-colors flex items-center justify-center gap-2 shadow-sm">
+            <Share2 className="w-4 h-4" /> Share →
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
