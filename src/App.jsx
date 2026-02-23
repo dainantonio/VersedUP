@@ -1895,17 +1895,7 @@ ${devotional.reflection}`;
           <div>
             <div className="flex items-end justify-between gap-3">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">REFLECTION / BODY</label>
-              {guidedMode ? <div className="text-[11px] font-bold text-emerald-600">Type your verse, then tap Draft for Me</div> : null}
-            </div>
-
-            <div className="mt-2 flex justify-end">
-              <SmallButton
-                onClick={() => void (aiNeedsKey ? openGuidedDraftFromTemplate() : openGuidedDraftFromAI())}
-                disabled={guidedBusy}
-                icon={guidedBusy ? Loader2 : Sparkles}
-              >
-                {guidedBusy ? "Drafting..." : "Draft for Me"}
-              </SmallButton>
+              {guidedMode ? <div className="text-[11px] font-bold text-emerald-600">Type your verse, then tap ✨ Draft for Me in the toolbar below</div> : null}
             </div>
 
             {guidedMode && aiNeedsKey ? (
@@ -2013,18 +2003,7 @@ ${devotional.reflection}`;
                   ) : null}
                 </div>
               </div>
-              {/* Row 2: Make Share-Ready — full-width primary action */}
-              <div className="border-t border-slate-100 p-1.5">
-                <button
-                  onClick={() => void doShareReady()}
-                  disabled={shareReadyBusy || busy || (!hasReflection && !hasVerseRef)}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] px-4 py-2.5 text-sm font-extrabold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
-                >
-                  {shareReadyBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  {shareReadyBusy ? "Making Share-Ready..." : "✨ Make Share-Ready"}
-                </button>
-                {shareReadyStep ? <div className="mt-1.5 text-[11px] font-bold text-emerald-700 text-center">{shareReadyStep}</div> : null}
-              </div>
+              {shareReadyStep ? <div className="px-3 pb-2 text-[11px] font-bold text-emerald-700">{shareReadyStep}</div> : null}
             </div>
           </div>
 
@@ -2058,7 +2037,7 @@ ${devotional.reflection}`;
         </div>
       </Card>
 
-      {/* ── Bottom actions: clear hierarchy ── */}
+      {/* ── Bottom actions ── */}
       <div className="rounded-2xl border border-slate-100 bg-white/60 p-3 flex items-center gap-2 shadow-sm">
         <SmallButton
           onClick={handleSave}
@@ -2067,16 +2046,16 @@ ${devotional.reflection}`;
         >
           {saveSuccess ? "Saved ✓" : "Save"}
         </SmallButton>
-        <SmallButton
-          onClick={() => setWriteTab("preview")}
-          icon={BookOpen}
-        >
-          Preview
-        </SmallButton>
         <div className="flex-1" />
         <SmallButton
+          onClick={() => { handleSave(); onGoPolish(); }}
+          icon={BookOpen}
+        >
+          Review
+        </SmallButton>
+        <SmallButton
           onClick={() => { handleSave(); onGoCompile(); }}
-          icon={ICONS.actions.compileForSocials}
+          icon={Share2}
           tone="primary"
         >
           Share →
