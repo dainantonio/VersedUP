@@ -1424,6 +1424,8 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [unsaved, setUnsaved] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const [writeTab, setWriteTab] = useState("write");
+  const [pvPlatform, setPvPlatform] = useState("instagram");
+  const [toneMenuOpen, setToneMenuOpen] = useState(false);
 
   const reflectionRef = useRef(null);
 
