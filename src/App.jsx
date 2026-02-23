@@ -100,13 +100,13 @@ const GlobalStyles = () => (
 const ICONS = Object.freeze({
   actions: Object.freeze({
     makeShareReady: Sparkles,
-    compileForSocials: Camera,
-    shareNow: Check,
+    compileForSocials: Share2,   // fixed: was Camera (OCR)
+    shareNow: Share2,            // fixed: was Check (checkmark)
   }),
   nav: Object.freeze({
     home: BookOpen,
     write: PenTool,
-    compile: ScanLine,
+    compile: Share2,             // fixed: was ScanLine (OCR)
   }),
 });
 const ToastContext = React.createContext({ pushToast: () => {} });
@@ -1888,26 +1888,30 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
         </div>
       </Card>
 
-      <PrimaryButton
-        onClick={() => {
-            handleSave();
-            onGoPolish();
-        }}
-        icon={saveSuccess ? Check : Check} // Could swap icon here if desired
-        disabled={saveSuccess}
-      >
-        {saveSuccess ? "Saved!" : "Save & Polish"}
-      </PrimaryButton>
-
-      <PrimaryButton
-        onClick={() => {
-            handleSave();
-            onGoCompile();
-        }}
-        icon={ICONS.actions.compileForSocials}
-      >
-        Compile for Socials
-      </PrimaryButton>
+      {/* ── Bottom actions: clear hierarchy ── */}
+      <div className="rounded-2xl border border-slate-100 bg-white/60 p-3 flex items-center gap-2 shadow-sm">
+        <SmallButton
+          onClick={handleSave}
+          icon={saveSuccess ? Check : null}
+          disabled={saveSuccess}
+        >
+          {saveSuccess ? "Saved ✓" : "Save"}
+        </SmallButton>
+        <SmallButton
+          onClick={() => { handleSave(); onGoPolish(); }}
+          icon={BookOpen}
+        >
+          Preview
+        </SmallButton>
+        <div className="flex-1" />
+        <SmallButton
+          onClick={() => { handleSave(); onGoCompile(); }}
+          icon={ICONS.actions.compileForSocials}
+          tone="primary"
+        >
+          Share →
+        </SmallButton>
+      </div>
 
       {structureOpen ? (
         <Modal
@@ -2022,7 +2026,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   );
 }
 
-function PolishView({ devotional }) {
+function PolishView({ devotional, onBackToWrite, onGoShare }) {
   return (
     <div className="space-y-6 pb-28 animate-enter">
       <Card>
@@ -2056,6 +2060,12 @@ function PolishView({ devotional }) {
           <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800">{devotional.questions}</div>
         </Card>
       )}
+
+      <div className="flex gap-2 pb-4">
+        <SmallButton onClick={onBackToWrite} icon={ChevronLeft}>Edit</SmallButton>
+        <div className="flex-1" />
+        <SmallButton onClick={onGoShare} tone="primary" icon={Share2}>Share →</SmallButton>
+      </div>
     </div>
   );
 }
@@ -2441,37 +2451,10 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
 
   return (
     <div className="space-y-6 pb-56 animate-enter">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-2xl font-black text-slate-900">Share</div>
-          <div className="text-sm text-slate-500 mt-1 font-medium">Choose where this goes next.</div>
-        </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          <SmallButton onClick={() => void shareToFacebook()}>Facebook</SmallButton>
-          <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
-          <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy}>
-            {shareBusy ? "Sharing..." : "Share Now"}
-          </SmallButton>
-          <SmallButton onClick={copy} icon={Copy}>
-            Copy
-          </SmallButton>
-          <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
-          <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
-          <SmallButton onClick={() => setExportOpen(true)} icon={Camera}>
-            Download PNG
-          </SmallButton>
-        </div>
+      <div>
+        <div className="text-2xl font-black text-slate-900">Share</div>
+        <div className="text-sm text-slate-500 mt-1 font-medium">Choose platform, copy your content, post.</div>
       </div>
-
-      <Card>
-        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">SOCIAL SHARE</div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <SmallButton onClick={shareToFacebook}>Facebook</SmallButton>
-          <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
-          <SmallButton onClick={() => void shareToTikTok()}>TikTok</SmallButton>
-        </div>
-        <div className="mt-2 text-[11px] font-bold text-slate-500">TikTok opens upload and copies caption automatically.</div>
-      </Card>
 
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
         {[
@@ -2537,13 +2520,21 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
       <div className="fixed left-0 right-0 bottom-24 z-30 pointer-events-none">
         <div className="max-w-md mx-auto px-4 pointer-events-auto">
           <div className="rounded-3xl border border-slate-200 bg-white/95 backdrop-blur-xl p-3 shadow-2xl">
-            <div className="grid grid-cols-2 gap-2">
-              <SmallButton onClick={() => void shareToFacebook()}>Facebook</SmallButton>
-              <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
+            {/* Row 1: primary actions */}
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <SmallButton onClick={copy} icon={Copy} tone="neutral">Copy</SmallButton>
               <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy} tone="primary">
                 {shareBusy ? "Sharing..." : "Share Now"}
               </SmallButton>
-              <SmallButton onClick={copy} icon={Copy}>Copy</SmallButton>
+            </div>
+            {/* Row 2: platform shortcuts */}
+            <div className="grid grid-cols-3 gap-2">
+              <SmallButton onClick={() => void shareToTikTok()}>TikTok</SmallButton>
+              <SmallButton onClick={() => void shareToFacebook()}>Facebook</SmallButton>
+              <SmallButton onClick={shareToX}>Twitter / X</SmallButton>
+            </div>
+            {/* Row 3: other channels */}
+            <div className="grid grid-cols-2 gap-2 mt-2">
               <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
               <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
             </div>
@@ -3005,25 +2996,20 @@ function OnboardingWizard({ authDraft, onFinish }) {
 
 /* ---------------- App shell ---------------- */
 
-function NavButton({ active, onClick, icon: Icon, label, collapsed }) {
+function NavButton({ active, onClick, icon: Icon, label }) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        "flex items-center justify-center rounded-2xl transition-all duration-300 relative overflow-hidden",
-        collapsed ? "h-12" : "flex-col gap-1 py-1",
-        active ? "text-emerald-700 bg-emerald-50/50" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50/50"
+        "flex flex-col items-center justify-center gap-0.5 py-2 rounded-2xl transition-all duration-200 relative overflow-hidden",
+        active ? "text-emerald-700 bg-emerald-50/60" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50/50"
       )}
       type="button"
       title={label}
     >
-      <Icon className={cn("transition-all duration-300", active ? "w-6 h-6 scale-110" : "w-5 h-5")} strokeWidth={active ? 2.5 : 2} />
-      {!collapsed && (
-        <span className={cn("text-[10px] font-bold transition-all duration-300", active ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 h-0")}>
-          {label}
-        </span>
-      )}
-      {active && <div className="absolute bottom-0 w-1 h-1 bg-emerald-500 rounded-full mb-1" />}
+      <Icon className={cn("transition-all duration-200", active ? "w-5 h-5" : "w-5 h-5")} strokeWidth={active ? 2.5 : 2} />
+      <span className="text-[10px] font-bold leading-none">{label}</span>
+      {active && <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-emerald-500 rounded-full" />}
     </button>
   );
 }
@@ -3048,7 +3034,6 @@ function AppInner({ session, starterMood, onLogout }) {
   const [view, setView] = useState("home");
   const [lastNonSettingsView, setLastNonSettingsView] = useState("home");
  // home | write | polish | compile | library | settings
-  const [navCollapsed, setNavCollapsed] = useState(false);
 
   useEffect(() => {
     if (view !== "settings") setLastNonSettingsView(view);
@@ -3072,17 +3057,6 @@ function AppInner({ session, starterMood, onLogout }) {
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
   const greetingName = (settings.username || session?.name || "Friend").replace(/^@/, "");
-
-  useEffect(() => {
-    if (!starterMood) return;
-    if (safeDevotionals.length > 0) return;
-    const d = createDevotional(settings);
-    d.mood = starterMood;
-    d.title = `A ${starterMood} start with Jesus`;
-    d.reflection = "I can begin from this mood, but I don’t have to stay here alone. Jesus meets me here.";
-    setDevotionals([d]);
-    setActiveId(d.id);
-  }, [starterMood, safeDevotionals.length]);
 
   useEffect(() => {
     if (!starterMood) return;
@@ -3225,7 +3199,7 @@ const onSaved = () => {
           />
         ) : null}
 
-        {view === "polish" && active ? <PolishView devotional={active} /> : null}
+        {view === "polish" && active ? <PolishView devotional={active} onBackToWrite={() => setView("write")} onGoShare={() => setView("compile")} /> : null}
 
         {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} /> : null}
 
@@ -3237,21 +3211,12 @@ const onSaved = () => {
 
       <div className="fixed bottom-6 left-4 right-4 z-40">
         <div className="max-w-md mx-auto">
-          <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.12)] rounded-[2rem] px-2 py-2 transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.15)]">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setNavCollapsed((v) => !v)}
-                className="h-12 w-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center transition-all hover:bg-slate-100 active:scale-95"
-                title={navCollapsed ? "Expand nav" : "Collapse nav"}
-              >
-                {navCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-              </button>
-              <div className={cn("grid gap-1 flex-1 transition-all duration-300", navCollapsed ? "grid-cols-4" : "grid-cols-4")}>
-                <NavButton collapsed={navCollapsed} active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
-                <NavButton collapsed={navCollapsed} active={view === "write"} onClick={() => setView(active ? "write" : "home")} icon={ICONS.nav.write} label="Write" />
-                <NavButton collapsed={navCollapsed} active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ICONS.nav.compile} label="Compile" />
-                <NavButton collapsed={navCollapsed} active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />              </div>
+          <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.12)] rounded-[2rem] px-4 py-2 transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.15)]">
+            <div className="grid grid-cols-4 gap-1">
+              <NavButton active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
+              <NavButton active={view === "write"} onClick={() => { if (!active) newEntry(); else setView("write"); }} icon={ICONS.nav.write} label="Write" />
+              <NavButton active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ICONS.nav.compile} label="Share" />
+              <NavButton active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
             </div>
           </div>
         </div>
