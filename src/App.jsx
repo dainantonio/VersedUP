@@ -202,6 +202,18 @@ const TOPIC_CHIPS = [
 
 const BIBLE_VERSIONS = ["KJV", "NLT", "ESV", "NKJV"];
 
+const BIBLE_BOOKS = [
+  "Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth",
+  "1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles",
+  "Ezra","Nehemiah","Esther","Job","Psalms","Proverbs","Ecclesiastes","Song of Solomon",
+  "Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos",
+  "Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi",
+  "Matthew","Mark","Luke","John","Acts","Romans",
+  "1 Corinthians","2 Corinthians","Galatians","Ephesians","Philippians","Colossians",
+  "1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus","Philemon",
+  "Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation",
+];
+
 const VERSE_OF_DAY = {
   verseRef: "Psalm 23:1-2",
   verseText: "The Lord is my shepherd; I shall not want. He makes me lie down in green pastures.",
@@ -1431,6 +1443,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [toneMenuOpen, setToneMenuOpen] = useState(false);
 
   const reflectionRef = useRef(null);
+  const verseRefInputRef = useRef(null);
 
   const version = devotional.bibleVersion || settings.defaultBibleVersion || "KJV";
   const guidedMode = Boolean(settings.guidedMode);
@@ -1707,6 +1720,17 @@ ${devotional.reflection}`;
 
   return (
     <div className="space-y-5 pb-28 animate-enter">
+      {/* ── Draft Preview Modal — rendered at top level to avoid overflow-hidden trapping ── */}
+      {writeTab === "preview" && (
+        <DraftPreviewModal
+          devotional={devotional}
+          settings={settings}
+          compileForPlatform={compileForPlatform}
+          onClose={() => setWriteTab("write")}
+          onShare={() => { handleSave(); setWriteTab("write"); onGoCompile(); }}
+        />
+      )}
+
       {/* ── Header: title + auto-save status ── */}
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -1750,43 +1774,30 @@ ${devotional.reflection}`;
       </div>
 
       {/* ── PREVIEW TAB ── */}
-      {writeTab === "preview" ? (
-        <DraftPreviewModal
-          devotional={devotional}
-          settings={settings}
-          compileForPlatform={compileForPlatform}
-          onClose={() => setWriteTab("write")}
-          onShare={() => { handleSave(); setWriteTab("write"); onGoCompile(); }}
-        />
-      ) : null}
+
 
       {/* ── WRITE TAB ── */}
       {writeTab === "write" ? (
       <div className="space-y-5">
 
-      <Card className="overflow-hidden bg-white/60">
-        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">HOW IS YOUR HEART?</div>
-        <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          {MOODS.map((m) => (
-            <Chip
-              key={m.id}
-              active={devotional.mood === m.id}
-              onClick={() => onUpdate({ mood: devotional.mood === m.id ? "" : m.id })}
-            >
-              {m.label}
-            </Chip>
-          ))}
-        </div>
-        {guidedMode ? <div className="mt-3 text-xs text-slate-500">Guided Mode: mood gently affects AI tone.</div> : null}
-      </Card>
+      {/* ── Mood strip (compact, no card) ── */}
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mb-1">
+        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Heart:</span>
+        {MOODS.map((m) => (
+          <Chip
+            key={m.id}
+            active={devotional.mood === m.id}
+            onClick={() => onUpdate({ mood: devotional.mood === m.id ? "" : m.id })}
+          >
+            {m.label}
+          </Chip>
+        ))}
+      </div>
 
       <Card>
         <div className="space-y-6">
           <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 space-y-4 shadow-inner">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="text-[10px] font-black text-slate-500 flex items-center gap-2 uppercase tracking-widest">
-                <BookOpen className="w-3.5 h-3.5" /> VERSE
-              </div>
               <div className="flex gap-2 flex-wrap">
                 <button
                   type="button"
@@ -1795,25 +1806,30 @@ ${devotional.reflection}`;
                 >
                   <Sun className="w-3 h-3" /> Today's Verse
                 </button>
+                <button
+                  type="button"
+                  onClick={() => { onUpdate({ verseRef: "", verseText: "", verseTextEdited: false }); setTimeout(() => verseRefInputRef.current?.focus(), 50); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[11px] font-extrabold hover:bg-slate-200 active:scale-[0.97] transition-all"
+                >
+                  <BookOpen className="w-3 h-3" /> My Own Verse
+                </button>
                 <SmallButton onClick={openScan} icon={ScanLine}>
                   Scan
-                </SmallButton>
-                <SmallButton
-                  onClick={() => window.open(bibleGatewayUrl(devotional.verseRef, version), "_blank", "noopener,noreferrer")}
-                  icon={ExternalLink}
-                  disabled={!hasVerseRef}
-                >
-                  BibleGateway
                 </SmallButton>
               </div>
             </div>
 
             <div className="space-y-2">
               <div className="flex gap-2">
+                <datalist id="bible-books-list">
+                  {BIBLE_BOOKS.map(b => <option key={b} value={b} />)}
+                </datalist>
                 <input
+                  ref={verseRefInputRef}
+                  list="bible-books-list"
                   value={devotional.verseRef}
                   onChange={(e) => onUpdate({ verseRef: e.target.value })}
-                  placeholder="Verse reference (e.g., Psalm 23)"
+                  placeholder="e.g. John 3:16 or Psalms 23"
                   className="flex-1 rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 bg-white transition-all shadow-sm focus:border-emerald-300"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void doFetch();
@@ -1859,15 +1875,23 @@ ${devotional.reflection}`;
                 onChange={(e) => onUpdate({ verseText: e.target.value, verseTextEdited: true })}
                 placeholder={
                   isKjv(version)
-                    ? "Fetch KJV to auto-fill..."
-                    : "Free-for-now: Open in BibleGateway. Paste text you have rights to use."
+                    ? "Load Verse to auto-fill KJV, or type your own..."
+                    : "Type or paste your verse here..."
                 }
                 rows={4}
                 className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 bg-white resize-none font-serif-scripture shadow-sm focus:border-emerald-300 transition-all"
               />
-              {guidedMode && !hasVerseText && hasVerseRef ? (
-                <div className="mt-2 text-[11px] font-bold text-slate-500">
-                  Tip: Tap <span className="font-extrabold">Load Verse</span> to fill KJV automatically, or use BibleGateway for other translations.
+              {!isKjv(version) && hasVerseRef ? (
+                <div className="mt-1.5 text-[11px] text-slate-400">
+                  Need the text?{" "}
+                  <button
+                    type="button"
+                    onClick={() => window.open(bibleGatewayUrl(devotional.verseRef, version), "_blank", "noopener,noreferrer")}
+                    className="underline text-slate-500 hover:text-emerald-700 font-semibold transition-colors"
+                  >
+                    Look it up ↗
+                  </button>
+                  {" "}then paste above.
                 </div>
               ) : null}
               {devotional.verseTextEdited ? (
