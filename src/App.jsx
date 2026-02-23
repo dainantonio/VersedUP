@@ -1420,6 +1420,9 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [guidedGenerateScript, setGuidedGenerateScript] = useState(Boolean(settings.guidedAutoGenerateTikTok));
   const [shareReadyBusy, setShareReadyBusy] = useState(false);
   const [shareReadyStep, setShareReadyStep] = useState("");
+  const [unsaved, setUnsaved] = useState(false);
+  const [lastSaved, setLastSaved] = useState(null);
+  const [writeTab, setWriteTab] = useState("write");
 
   const reflectionRef = useRef(null);
 
