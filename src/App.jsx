@@ -391,6 +391,18 @@ function createDevotional(settings) {
   };
 }
 
+
+function getEntryQueueStatus(d) {
+  const hasVerse = Boolean(String(d?.verseRef || "").trim());
+  const hasReflection = Boolean(String(d?.reflection || "").trim());
+  const hasScript = Boolean(String(d?.tiktokScript || "").trim());
+  const hasAny = hasVerse || hasReflection || hasScript || Boolean(String(d?.title || "").trim()) || Boolean(String(d?.prayer || "").trim()) || Boolean(String(d?.questions || "").trim());
+  if (String(d?.status || "").toLowerCase() === "posted") return { id: "posted", label: "Posted", tone: "bg-slate-100 text-slate-700 border-slate-200", dot: "⚫" };
+  if (hasVerse && hasReflection && hasScript) return { id: "ready", label: "Ready", tone: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "🟢" };
+  if (hasAny) return { id: "in_progress", label: "In Progress", tone: "bg-amber-50 text-amber-700 border-amber-200", dot: "🟡" };
+  return { id: "draft", label: "Draft", tone: "bg-sky-50 text-sky-700 border-sky-200", dot: "🔵" };
+}
+
 function isKjv(version) {
   return String(version || "").toUpperCase() === "KJV";
 }
@@ -2269,10 +2281,10 @@ ${draft.reflection || ""}` })} disabled={hasHook}>Draft Hook</SmallButton>
   );
 }
 
-function LibraryView({ devotionals, onOpen, onDelete }) {
+function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted }) {
   const [q, setQ] = useState("");
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [sortOrder, setSortOrder] = useState("newest");
+  const [filter, setFilter] = useState("all");
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -2283,12 +2295,28 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
         return hay.includes(query);
       });
     }
-    return [...results].sort((a, b) => {
-      const da = new Date(a.updatedAt).getTime();
-      const db = new Date(b.updatedAt).getTime();
+
+    if (filter !== "all") {
+      results = results.filter((d) => getEntryQueueStatus(d).id === filter);
+    }
+
+    const withStatus = results.map((d) => ({ d, st: getEntryQueueStatus(d) }));
+    withStatus.sort((a, b) => {
+      if (sortOrder === "readiness") {
+        const rank = { ready: 0, in_progress: 1, draft: 2, posted: 3 };
+        return (rank[a.st.id] ?? 9) - (rank[b.st.id] ?? 9);
+      }
+      const da = new Date(a.d.updatedAt).getTime();
+      const db = new Date(b.d.updatedAt).getTime();
       return sortOrder === "newest" ? db - da : da - db;
     });
-  }, [q, devotionals, sortOrder]);
+
+    return withStatus;
+  }, [q, devotionals, sortOrder, filter]);
+
+  const nextSort = () => {
+    setSortOrder((s) => (s === "newest" ? "oldest" : s === "oldest" ? "readiness" : "newest"));
+  };
 
   return (
     <div className="space-y-5 pb-20 animate-enter">
@@ -2298,13 +2326,9 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
             <div className="text-2xl font-black text-slate-900">Library</div>
             <div className="text-sm text-slate-500 mt-0.5 font-medium">{devotionals.length} {devotionals.length === 1 ? "entry" : "entries"}</div>
           </div>
-          <button
-            type="button"
-            onClick={() => setSortOrder(s => s === "newest" ? "oldest" : "newest")}
-            className="flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors"
-          >
+          <button type="button" onClick={nextSort} className="flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors">
             <ArrowUpDown className="w-3.5 h-3.5" />
-            {sortOrder === "newest" ? "Newest" : "Oldest"}
+            {sortOrder === "newest" ? "Newest" : sortOrder === "oldest" ? "Oldest" : "Readiness"}
           </button>
         </div>
         <div className="mt-4 relative">
@@ -2316,69 +2340,37 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
             className="w-full rounded-2xl border border-slate-200 pl-10 pr-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow bg-slate-50 focus:bg-white focus:border-emerald-300"
           />
         </div>
+        <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar">
+          {[
+            { id: "all", label: "All" },
+            { id: "ready", label: "Ready" },
+            { id: "in_progress", label: "In Progress" },
+            { id: "posted", label: "Posted" },
+          ].map((f) => (
+            <button key={f.id} type="button" onClick={() => setFilter(f.id)} className={cn("shrink-0 rounded-full border px-3 py-1.5 text-xs font-extrabold", filter === f.id ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
+              {f.label}
+            </button>
+          ))}
+        </div>
       </Card>
 
       <div className="space-y-3">
-        {filtered.map((d) => (
+        {filtered.map(({ d, st }) => (
           <div key={d.id} className="bg-white rounded-[1.75rem] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md hover:border-emerald-100">
-            {/* Main row */}
-            <button
-              onClick={() => onOpen(d.id)}
-              className="w-full text-left p-5 active:scale-[0.99] transition-transform"
-              type="button"
-            >
-              <div className="font-extrabold text-slate-900 text-[15px] leading-snug flex items-center gap-1.5">{d.title || "Untitled"}{d.reviewed ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : null}</div>
-              {d.verseRef ? (
-                <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wide">{d.verseRef}</div>
-              ) : null}
-              {d.reflection ? (
-                <div className="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">{d.reflection}</div>
-              ) : null}
-              <div className="text-[11px] text-slate-300 mt-2 font-medium">
-                {new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+            <button onClick={() => onOpen(d.id)} className="w-full text-left p-5 active:scale-[0.99] transition-transform" type="button">
+              <div className="flex items-center gap-2">
+                <div className="font-extrabold text-slate-900 text-[15px] leading-snug flex items-center gap-1.5">{d.title || "Untitled"}{d.reviewed ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : null}</div>
+                <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-black", st.tone)}>{st.dot} {st.label}</span>
               </div>
+              {d.verseRef ? <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wide">{d.verseRef}</div> : null}
+              {d.reflection ? <div className="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">{d.reflection}</div> : null}
+              <div className="text-[11px] text-slate-300 mt-2 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
             </button>
 
-            {/* Action bar */}
-            <div className="border-t border-slate-100 flex">
-              <button
-                type="button"
-                onClick={() => onOpen(d.id)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                Edit
-              </button>
-              <div className="w-px bg-slate-100" />
-              {confirmDeleteId === d.id ? (
-                <div className="flex-1 flex items-center justify-center gap-2 py-3">
-                  <span className="text-xs font-bold text-slate-500">Delete?</span>
-                  <button
-                    type="button"
-                    onClick={() => { onDelete(d.id); setConfirmDeleteId(null); }}
-                    className="text-xs font-extrabold text-red-600 hover:text-red-800 transition-colors"
-                  >
-                    Yes
-                  </button>
-                  <span className="text-slate-300">·</span>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDeleteId(null)}
-                    className="text-xs font-extrabold text-slate-500 hover:text-slate-800 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setConfirmDeleteId(d.id)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete
-                </button>
-              )}
+            <div className="border-t border-slate-100 grid grid-cols-3">
+              <button type="button" onClick={() => onDuplicate(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors">Duplicate</button>
+              <button type="button" onClick={() => onMarkPosted(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50 transition-colors">Mark Posted</button>
+              <button type="button" onClick={() => onDelete(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-red-500 hover:bg-red-50 transition-colors">Delete</button>
             </div>
           </div>
         ))}
@@ -2387,9 +2379,7 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
             <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-3">
               <BookOpen className="w-8 h-8 text-slate-300" />
             </div>
-            <div className="text-sm font-bold text-slate-400">
-              {q ? "No matches found." : "No entries yet. Start one!"}
-            </div>
+            <div className="text-sm font-bold text-slate-400">{q ? "No matches found." : "No entries yet. Start one!"}</div>
           </div>
         ) : null}
       </div>
@@ -3809,6 +3799,21 @@ function AppInner({ session, starterMood, onLogout }) {
     }
   };
 
+  const markPosted = (id) => {
+    setDevotionals((list) => (Array.isArray(list) ? list : []).map((d) => (d.id === id ? { ...d, status: "posted", updatedAt: nowIso() } : d)));
+    pushToast("Marked as posted.");
+  };
+
+  const duplicateEntry = (id) => {
+    const source = safeDevotionals.find((d) => d.id === id);
+    if (!source) return;
+    const copy = { ...source, id: crypto.randomUUID(), createdAt: nowIso(), updatedAt: nowIso(), status: "draft", reviewed: false };
+    setDevotionals((list) => [copy, ...(Array.isArray(list) ? list : [])]);
+    setActiveId(copy.id);
+    setView("write");
+    pushToast("Entry duplicated.");
+  };
+
   const reset = () => {
     if (!confirm("Reset local data?")) return;
     localStorage.removeItem(STORAGE_SETTINGS);
@@ -3899,7 +3904,7 @@ const onSaved = () => {
 
         {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} /> : null}
 
-        {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} /> : null}
+        {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} onDuplicate={duplicateEntry} onMarkPosted={markPosted} /> : null}
 
         {view === "settings" ? <SettingsView settings={settings} onUpdate={updateSettings} onReset={reset} onLogout={onLogout} devotionals={safeDevotionals} /> : null}
         </PageTransition>
