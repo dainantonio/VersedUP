@@ -387,6 +387,7 @@ function createDevotional(settings) {
     questions: "",
     tiktokScript: "",
     status: "draft",
+    reviewed: false,
   };
 }
 
@@ -2162,45 +2163,107 @@ ${devotional.reflection}`;
   );
 }
 
-function PolishView({ devotional, onBackToWrite, onGoShare }) {
+function PolishView({ devotional, settings, onUpdate, onBackToWrite, onLooksGood, onGoShare }) {
+  const { pushToast } = useToast();
+  const [draft, setDraft] = useState({
+    verseRef: devotional.verseRef || "",
+    verseText: devotional.verseText || "",
+    reflection: devotional.reflection || "",
+    prayer: devotional.prayer || "",
+    questions: devotional.questions || "",
+  });
+
+  useEffect(() => {
+    setDraft({
+      verseRef: devotional.verseRef || "",
+      verseText: devotional.verseText || "",
+      reflection: devotional.reflection || "",
+      prayer: devotional.prayer || "",
+      questions: devotional.questions || "",
+    });
+  }, [devotional.id, devotional.verseRef, devotional.verseText, devotional.reflection, devotional.prayer, devotional.questions]);
+
+  const patch = (next) => {
+    setDraft((d) => ({ ...d, ...next }));
+    onUpdate(next);
+  };
+
+  const merged = { ...devotional, ...draft };
+  const caption = compileForPlatform("tiktok", merged, settings);
+  const words = String(draft.reflection || "").trim().split(/\s+/).filter(Boolean).length;
+  const needsShort = words > 150;
+  const hasTags = /#\w+/.test(caption);
+  const hasHook = /^(pov|today|if you|when|stop|you|god)/i.test(String(caption || "").trim());
+
+  const doShorten = async () => {
+    try {
+      const out = await aiRewriteLength(settings, { text: draft.reflection || "", mood: devotional.mood, direction: "shorten" });
+      patch({ reflection: out });
+    } catch {
+      patch({ reflection: String(draft.reflection || "").split(/\s+/).slice(0, 120).join(" ") });
+      pushToast("Shortened with fallback.");
+    }
+  };
+
   return (
-    <div className="space-y-6 pb-20 animate-enter">
+    <div className="space-y-4 pb-20 animate-enter">
       <Card>
-        <div className="text-2xl font-black text-slate-900">Polish</div>
-        <div className="text-sm text-slate-500 mt-1 font-medium">Review and refine. Then export.</div>
+        <div className="text-2xl font-black text-slate-900">Quick Review</div>
+        <div className="text-sm text-slate-500 mt-1 font-medium">Kill it or fix it before posting.</div>
       </Card>
 
-      <Card>
-        <div className="space-y-3">
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Scripture</div>
-          <div className="text-sm font-bold text-emerald-800">{devotional.verseRef || "—"}</div>
-          <div className="text-lg whitespace-pre-wrap text-slate-800 font-serif-scripture leading-relaxed">{devotional.verseText || "—"}</div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <div className="space-y-3">
+            {[{k:"verseRef",l:"Scripture Ref",rows:1},{k:"verseText",l:"Scripture Text",rows:4},{k:"reflection",l:"Reflection",rows:8},{k:"prayer",l:"Prayer",rows:4},{k:"questions",l:"Questions",rows:4}].map(({k,l,rows}) => (
+              <div key={k}>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{l}</div>
+                <textarea
+                  value={draft[k] || ""}
+                  onChange={(e) => patch({ [k]: e.target.value })}
+                  rows={rows}
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none"
+                />
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <div className="space-y-4">
+          <Card>
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Live Preview (TikTok)</div>
+            <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{caption || "—"}</div>
+          </Card>
+
+          <Card>
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">AI Suggestions</div>
+            <div className="space-y-2">
+              <div className="rounded-xl border border-slate-200 p-3 flex items-center gap-2">
+                <div className="text-xs text-slate-700 flex-1">Your reflection is {words} words — TikTok captions perform best under 150. Shorten?</div>
+                <SmallButton onClick={() => void doShorten()} disabled={!needsShort}>Shorten</SmallButton>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 flex items-center gap-2">
+                <div className="text-xs text-slate-700 flex-1">No hashtags detected — add some?</div>
+                <SmallButton onClick={() => patch({ reflection: `${draft.reflection || ""}
+
+#Faith #Jesus #Devotional` })} disabled={hasTags}>Add</SmallButton>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 flex items-center gap-2">
+                <div className="text-xs text-slate-700 flex-1">Strong hook missing — draft one?</div>
+                <SmallButton onClick={() => patch({ reflection: `POV: God met me right here today.
+
+${draft.reflection || ""}` })} disabled={hasHook}>Draft Hook</SmallButton>
+              </div>
+            </div>
+          </Card>
         </div>
-      </Card>
-
-      <Card>
-        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reflection</div>
-        <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-medium">{devotional.reflection || "—"}</div>
-      </Card>
-
-      {!!devotional.prayer && (
-        <Card>
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Prayer</div>
-          <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800 italic">{devotional.prayer}</div>
-        </Card>
-      )}
-
-      {!!devotional.questions && (
-        <Card>
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Questions</div>
-          <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800">{devotional.questions}</div>
-        </Card>
-      )}
+      </div>
 
       <div className="flex gap-2 pb-4">
-        <SmallButton onClick={onBackToWrite} icon={ChevronLeft}>Edit</SmallButton>
+        <SmallButton onClick={onBackToWrite} icon={ChevronLeft}>← Edit</SmallButton>
+        <SmallButton onClick={onLooksGood} icon={Check}>Looks Good ✓</SmallButton>
         <div className="flex-1" />
-        <SmallButton onClick={onGoShare} tone="primary" icon={Share2}>Format & Share</SmallButton>
+        <SmallButton onClick={onGoShare} tone="primary" icon={Share2}>Share Now →</SmallButton>
       </div>
     </div>
   );
@@ -2264,7 +2327,7 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
               className="w-full text-left p-5 active:scale-[0.99] transition-transform"
               type="button"
             >
-              <div className="font-extrabold text-slate-900 text-[15px] leading-snug">{d.title || "Untitled"}</div>
+              <div className="font-extrabold text-slate-900 text-[15px] leading-snug flex items-center gap-1.5">{d.title || "Untitled"}{d.reviewed ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : null}</div>
               {d.verseRef ? (
                 <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wide">{d.verseRef}</div>
               ) : null}
@@ -3949,7 +4012,7 @@ const onSaved = () => {
           />
         ) : null}
 
-        {view === "polish" && active ? <PolishView devotional={active} onBackToWrite={() => setView("write")} onGoShare={() => setView("compile")} /> : null}
+        {view === "polish" && active ? <PolishView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} onLooksGood={() => { updateDevotional({ reviewed: true }); pushToast("Marked as reviewed ✓"); }} onGoShare={() => setView("compile")} /> : null}
 
         {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} /> : null}
 
@@ -3965,7 +4028,7 @@ const onSaved = () => {
           <div className="bg-white/90 backdrop-blur-xl border-t border-slate-100 shadow-[0_-4px_24px_rgba(0,0,0,0.07)] px-2 pt-1 pb-2">
             <div className="grid grid-cols-5 items-end">
               <NavButton active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
-              <NavButton active={view === "polish"} onClick={() => { if (active) setView("polish"); else setView("library"); }} icon={ICONS.nav.review} label="Polish" />
+              <NavButton active={view === "polish"} onClick={() => { if (active) setView("polish"); else setView("library"); }} icon={ICONS.nav.review} label="Review" />
 
               {/* Centre New-Entry button */}
               <div className="flex flex-col items-center justify-center pb-0.5">
