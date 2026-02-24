@@ -1053,7 +1053,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
         return (
           <button
             type="button"
-            onClick={() => onOpen(last)}
+            onClick={() => onOpen(last.id)}
             className="w-full text-left bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-slate-200 active:scale-[0.99] transition-all group"
           >
             <div className="flex items-center justify-between mb-2">
@@ -1718,6 +1718,38 @@ ${devotional.reflection}`;
   const hasVerseText = Boolean(String(devotional.verseText || "").trim());
   const hasReflection = Boolean(String(devotional.reflection || "").trim());
 
+  const sectionDefs = [
+    { key: "reflection", label: "Reflection / Body", rows: 8, placeholder: "Start writing your reflection..." },
+    { key: "title", label: "Title (Optional)", rows: 1, placeholder: "Give it a holy title..." },
+    { key: "prayer", label: "Prayer", rows: 4, placeholder: "Lord, help me..." },
+    { key: "questions", label: "Reflection Questions", rows: 3, placeholder: "1) ...\n2) ..." },
+  ];
+  const [activeSection, setActiveSection] = useState("reflection");
+  const [visibleSections, setVisibleSections] = useState(["reflection"]);
+  const [sectionToAdd, setSectionToAdd] = useState("title");
+
+  useEffect(() => {
+    const next = ["reflection"];
+    if (String(devotional.title || "").trim()) next.push("title");
+    if (String(devotional.prayer || "").trim()) next.push("prayer");
+    if (String(devotional.questions || "").trim()) next.push("questions");
+    setVisibleSections((prev) => Array.from(new Set([...next, ...prev])));
+  }, [devotional.title, devotional.prayer, devotional.questions]);
+
+  const addableSections = useMemo(() => sectionDefs.filter((d) => !visibleSections.includes(d.key)), [visibleSections]);
+
+  useEffect(() => {
+    if (!addableSections.length) return;
+    if (!addableSections.some((d) => d.key === sectionToAdd)) {
+      setSectionToAdd(addableSections[0].key);
+    }
+  }, [addableSections, sectionToAdd]);
+
+  const addSection = () => {
+    setVisibleSections((prev) => (prev.includes(sectionToAdd) ? prev : [...prev, sectionToAdd]));
+    setActiveSection(sectionToAdd);
+  };
+
   return (
     <div className="space-y-5 pb-20 animate-enter">
       {/* ── Draft Preview Modal — rendered at top level to avoid overflow-hidden trapping ── */}
@@ -1752,24 +1784,35 @@ ${devotional.reflection}`;
         </div>
       </div>
 
-      {/* ── Write / Preview tab bar ── */}
-      <div className="flex items-center border-b border-slate-200">
+      {/* ── Write / Preview icon toggle ── */}
+      <div className="flex items-center justify-end gap-2">
         <button
+          type="button"
+          aria-label="Write"
+          title="Write"
           onClick={() => setWriteTab("write")}
           className={cn(
-            "px-5 py-2.5 text-sm font-extrabold border-b-2 -mb-px transition-colors",
+            "rounded-xl p-2.5 border transition-colors",
             writeTab === "write"
-              ? "border-emerald-500 text-emerald-700"
-              : "border-transparent text-slate-400 hover:text-slate-700"
+              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+              : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
           )}
         >
-          Write
+          <Pencil className="w-4 h-4" />
         </button>
         <button
+          type="button"
+          aria-label="Preview"
+          title="Preview"
           onClick={() => setWriteTab("preview")}
-          className="ml-auto mb-1 flex items-center gap-1.5 px-3 py-1.5 mr-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-extrabold transition-colors"
+          className={cn(
+            "rounded-xl p-2.5 border transition-colors",
+            writeTab === "preview"
+              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+              : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
+          )}
         >
-          <Maximize2 className="w-3.5 h-3.5" /> Preview
+          <Eye className="w-4 h-4" />
         </button>
       </div>
 
@@ -1847,18 +1890,9 @@ ${devotional.reflection}`;
                   ))}
                 </select>
               </div>
-              <button
-                onClick={doFetch}
-                disabled={!hasVerseRef || fetching}
-                className="w-full flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-extrabold text-emerald-700 transition-all hover:bg-emerald-100 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {fetching ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-                )}
-                {fetching ? "Loading verse..." : "Load Verse"}
-              </button>
+              <div className="px-1 text-[11px] font-semibold text-slate-500">
+                {isKjv(version) ? "Press Enter in the verse field to auto-load KJV text." : "Press Enter to open this verse in Bible Gateway."}
+              </div>
             </div>
 
             {guidedMode && !hasVerseRef ? (
@@ -1870,7 +1904,7 @@ ${devotional.reflection}`;
             {hasVerseRef && !hasVerseText && !fetching ? (
               <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 animate-enter">
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-                Tap <span className="underline">Load Verse</span> above to fetch the text →
+                Press <span className="underline">Enter</span> in the verse field to fetch the text →
               </div>
             ) : null}
 
@@ -1881,7 +1915,7 @@ ${devotional.reflection}`;
                 onChange={(e) => onUpdate({ verseText: e.target.value, verseTextEdited: true })}
                 placeholder={
                   isKjv(version)
-                    ? "Load Verse to auto-fill KJV, or type your own..."
+                    ? "Press Enter to auto-fill KJV, or type your own..."
                     : "Type or paste your verse here..."
                 }
                 rows={4}
@@ -1906,157 +1940,148 @@ ${devotional.reflection}`;
             </div>
           </div>
 
-          <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TITLE (OPTIONAL)</label>
-            <input
-              value={devotional.title}
-              onChange={(e) => onUpdate({ title: e.target.value })}
-              placeholder="Give it a holy title..."
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow focus:border-emerald-300"
-            />
-          </div>
-
-          <div>
-            <div className="flex items-end justify-between gap-3">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">REFLECTION / BODY</label>
-              {guidedMode ? <div className="text-[11px] font-bold text-emerald-600">Type your verse, then tap ✨ Draft for Me in the toolbar below</div> : null}
-            </div>
-
-            {guidedMode && aiNeedsKey ? (
-              <div className="mt-2 text-xs font-bold text-amber-700">
-                AI selected but no key. Go to <b>Settings</b> to add a key (or switch to Built-in).
-              </div>
-            ) : null}
-
-            <textarea
-              ref={reflectionRef}
-              value={devotional.reflection}
-              onChange={(e) => onUpdate({ reflection: e.target.value })}
-              placeholder="Start writing your reflection..."
-              rows={8}
-              spellCheck
-              autoCorrect="on"
-              autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm transition-shadow focus:border-emerald-300"
-            />
-
-            {guidedMode && !hasReflection ? (
-              <div className="mt-2 text-xs font-bold text-slate-500">Starter: “What is God showing me about this verse today?”</div>
-            ) : null}
-
-            {/* ── Per-platform character count pills ── */}
-            {hasReflection ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {[
-                  { id: "twitter", label: "Twitter", limit: 280 },
-                  { id: "tiktok", label: "TikTok", limit: 150 },
-                  { id: "instagram", label: "Instagram", limit: 2200 },
-                ].map(({ id, label, limit }) => {
-                  const count = (devotional.reflection || "").length;
-                  const over = count > limit;
-                  return (
-                    <span
-                      key={id}
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border transition-colors",
-                        over
-                          ? "bg-red-50 border-red-200 text-red-700"
-                          : "bg-slate-50 border-slate-200 text-slate-500"
-                      )}
-                    >
-                      {label} {count}/{limit}{!over ? " ✓" : " ✗"}
-                    </span>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {/* ── Inline AI toolbar (HubSpot-inspired) ── */}
-            <div className="mt-3 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-visible">
-              {/* Row 1: quick AI actions */}
-              <div className="flex items-center gap-px p-1.5 flex-wrap">
-                <button
-                  onClick={() => void (aiNeedsKey ? openGuidedDraftFromTemplate() : openGuidedDraftFromAI())}
-                  disabled={guidedBusy || busy}
-                  className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-extrabold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {guidedBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  {guidedBusy ? "Drafting..." : "Draft for Me"}
-                </button>
-                <div className="w-px h-5 bg-slate-200 mx-1" />
-                <button
-                  onClick={doFixReflection}
-                  disabled={busy || !hasReflection}
-                  className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >Fix</button>
-                <button
-                  onClick={() => void doLength("shorten")}
-                  disabled={busy || !hasReflection}
-                  className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >Shorten</button>
-                <button
-                  onClick={() => void doLength("lengthen")}
-                  disabled={busy || !hasReflection}
-                  className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >Expand</button>
-                <button
-                  onClick={doStructure}
-                  disabled={busy || (!hasReflection && !hasVerseRef)}
-                  className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >Structure</button>
-                <div className="relative ml-auto">
+          <div className="space-y-3">
+            {visibleSections.map((key) => {
+              const def = sectionDefs.find((d) => d.key === key);
+              if (!def) return null;
+              const isActive = activeSection === key;
+              const isReflection = key === "reflection";
+              const value = devotional[key] || "";
+              return (
+                <div key={key} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <button
-                    onClick={() => setToneMenuOpen((o) => !o)}
-                    disabled={busy || !hasReflection}
-                    className="flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    type="button"
+                    onClick={() => setActiveSection(key)}
+                    className="w-full flex items-center justify-between"
                   >
-                    Tone <ChevronDown className="w-3 h-3" />
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">{def.label}</label>
+                    {!isActive ? <span className="text-xs text-slate-500 font-semibold">{value ? `${value.slice(0, 56)}${value.length > 56 ? "…" : ""}` : "Tap to expand"}</span> : null}
                   </button>
-                  {toneMenuOpen ? (
-                    <div className="absolute right-0 top-full mt-1 z-50 w-44 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
-                      {["Reverent", "Poetic", "Direct", "Encouraging", "Conversational"].map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => void doChangeTone(t)}
-                          className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                        >
-                          {t}
-                        </button>
-                      ))}
-                    </div>
+
+                  {isActive ? (
+                    <>
+                      {isReflection && guidedMode ? <div className="mt-1 text-[11px] font-bold text-emerald-600">Type your verse, then tap ✨ Draft for Me in the toolbar below</div> : null}
+                      {isReflection && guidedMode && aiNeedsKey ? (
+                        <div className="mt-2 text-xs font-bold text-amber-700">AI selected but no key. Go to <b>Settings</b> to add a key (or switch to Built-in).</div>
+                      ) : null}
+
+                      {key === "title" ? (
+                        <input
+                          value={value}
+                          onChange={(e) => onUpdate({ [key]: e.target.value })}
+                          placeholder={def.placeholder}
+                          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow focus:border-emerald-300"
+                        />
+                      ) : (
+                        <textarea
+                          ref={isReflection ? reflectionRef : undefined}
+                          value={value}
+                          onChange={(e) => onUpdate({ [key]: e.target.value })}
+                          placeholder={def.placeholder}
+                          rows={def.rows}
+                          spellCheck
+                          autoCorrect="on"
+                          autoCapitalize="sentences"
+                          className={cn(
+                            "mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm transition-shadow focus:border-emerald-300",
+                            isReflection ? "text-base leading-relaxed" : "text-sm"
+                          )}
+                        />
+                      )}
+
+                      {isReflection && guidedMode && !hasReflection ? (
+                        <div className="mt-2 text-xs font-bold text-slate-500">Starter: “What is God showing me about this verse today?”</div>
+                      ) : null}
+                    </>
                   ) : null}
                 </div>
-              </div>
-              {shareReadyStep ? <div className="px-3 pb-2 text-[11px] font-bold text-emerald-700">{shareReadyStep}</div> : null}
+              );
+            })}
+
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-3 flex items-center gap-2">
+              <Plus className="w-4 h-4 text-emerald-700" />
+              <select
+                value={sectionToAdd}
+                onChange={(e) => setSectionToAdd(e.target.value)}
+                className="flex-1 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+              >
+                {addableSections.map((d) => (
+                  <option key={d.key} value={d.key}>{d.label}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={addSection}
+                disabled={addableSections.length === 0}
+                className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white disabled:opacity-40"
+              >
+                Add
+              </button>
             </div>
           </div>
 
-          <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">PRAYER</label>
-            <textarea
-              value={devotional.prayer}
-              onChange={(e) => onUpdate({ prayer: e.target.value })}
-              placeholder="Lord, help me..."
-              rows={4}
-              spellCheck
-              autoCorrect="on"
-              autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm focus:border-emerald-300"
-            />
-          </div>
+          {/* ── Per-platform character count pills ── */}
+          {hasReflection ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[
+                { id: "twitter", label: "Twitter", limit: 280 },
+                { id: "tiktok", label: "TikTok", limit: 150 },
+                { id: "instagram", label: "Instagram", limit: 2200 },
+              ].map(({ id, label, limit }) => {
+                const count = (devotional.reflection || "").length;
+                const over = count > limit;
+                return (
+                  <span
+                    key={id}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border transition-colors",
+                      over
+                        ? "bg-red-50 border-red-200 text-red-700"
+                        : "bg-slate-50 border-slate-200 text-slate-500"
+                    )}
+                  >
+                    {label} {count}/{limit}{!over ? " ✓" : " ✗"}
+                  </span>
+                );
+              })}
+            </div>
+          ) : null}
 
-          <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">REFLECTION QUESTIONS</label>
-            <textarea
-              value={devotional.questions}
-              onChange={(e) => onUpdate({ questions: e.target.value })}
-              placeholder={"1) ...\n2) ..."}
-              rows={3}
-              spellCheck
-              autoCorrect="on"
-              autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm focus:border-emerald-300"
-            />
+          {/* ── Inline AI toolbar (HubSpot-inspired) ── */}
+          <div className="mt-3 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-visible">
+            {/* Row 1: quick AI actions */}
+            <div className="flex items-center gap-px p-1.5 flex-wrap">
+              <button
+                onClick={() => void (aiNeedsKey ? openGuidedDraftFromTemplate() : openGuidedDraftFromAI())}
+                disabled={guidedBusy || busy}
+                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-extrabold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {guidedBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                {guidedBusy ? "Drafting..." : "Draft for Me"}
+              </button>
+              <div className="w-px h-5 bg-slate-200 mx-1" />
+              <button onClick={doFixReflection} disabled={busy || !hasReflection} className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Fix</button>
+              <button onClick={() => void doLength("shorten")} disabled={busy || !hasReflection} className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Shorten</button>
+              <button onClick={() => void doLength("lengthen")} disabled={busy || !hasReflection} className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Expand</button>
+              <button onClick={doStructure} disabled={busy || (!hasReflection && !hasVerseRef)} className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Structure</button>
+              <div className="relative ml-auto">
+                <button
+                  onClick={() => setToneMenuOpen((o) => !o)}
+                  disabled={busy || !hasReflection}
+                  className="flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Tone <ChevronDown className="w-3 h-3" />
+                </button>
+                {toneMenuOpen ? (
+                  <div className="absolute right-0 top-full mt-1 z-50 w-44 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+                    {["Reverent", "Poetic", "Direct", "Encouraging", "Conversational"].map((t) => (
+                      <button key={t} onClick={() => void doChangeTone(t)} className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">{t}</button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            {shareReadyStep ? <div className="px-3 pb-2 text-[11px] font-bold text-emerald-700">{shareReadyStep}</div> : null}
           </div>
         </div>
       </Card>
@@ -2082,7 +2107,7 @@ ${devotional.reflection}`;
           icon={Share2}
           tone="primary"
         >
-          Share →
+          Share
         </SmallButton>
       </div>
       </div>
@@ -2239,7 +2264,7 @@ function PolishView({ devotional, onBackToWrite, onGoShare }) {
       <div className="flex gap-2 pb-4">
         <SmallButton onClick={onBackToWrite} icon={ChevronLeft}>Edit</SmallButton>
         <div className="flex-1" />
-        <SmallButton onClick={onGoShare} tone="primary" icon={Share2}>Share →</SmallButton>
+        <SmallButton onClick={onGoShare} tone="primary" icon={Share2}>Format & Share</SmallButton>
       </div>
     </div>
   );
@@ -2808,22 +2833,23 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     <div className="space-y-6 pb-56 animate-enter">
       <div>
         <div className="text-2xl font-black text-slate-900">Share</div>
-        <div className="text-sm text-slate-500 mt-1 font-medium">Choose platform, copy your content, post.</div>
+        <div className="text-sm text-slate-500 mt-1 font-medium">Format for your platform, then share.</div>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-        {[
-          { id: "tiktok", label: "TikTok" },
-          { id: "instagram", label: "Instagram" },
-          { id: "facebook", label: "Facebook" },
-          { id: "twitter", label: "Twitter / X" },
-          { id: "email", label: "Email" },
-          { id: "generic", label: "Generic" },
-        ].map((p) => (
-          <Chip key={p.id} active={platform === p.id} onClick={() => setPlatform(p.id)}>
-            {p.label}
-          </Chip>
-        ))}
+      <div className="flex items-center gap-2">
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Platform</label>
+        <select
+          value={platform}
+          onChange={(e) => setPlatform(e.target.value)}
+          className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+        >
+          <option value="tiktok">TikTok</option>
+          <option value="instagram">Instagram</option>
+          <option value="facebook">Facebook</option>
+          <option value="twitter">Twitter / X</option>
+          <option value="email">Email</option>
+          <option value="generic">Generic</option>
+        </select>
       </div>
 
       <div className="flex gap-2">
@@ -2861,7 +2887,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">OUTPUT</div>
           <div className="flex items-start gap-2 mt-2 mb-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-            <span className="text-xs text-amber-800 font-semibold">Edits here are for formatting only — they won't change your saved entry. <button type="button" onClick={onBackToWrite} className="underline font-bold hover:text-amber-900 transition-colors">Edit entry instead →</button></span>
+            <span className="text-xs text-amber-800 font-semibold">Edits here are for formatting only — they won't change your saved entry. <button type="button" onClick={onBackToWrite} className="underline font-bold hover:text-amber-900 transition-colors">Edit entry instead</button></span>
           </div>
           <div className="text-sm text-slate-500 mb-1">Tap <b>Copy</b> then open your app — or tap <b>Open in {platform}</b> below. Limit: {limit} chars.</div>
           <textarea
@@ -2885,7 +2911,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
             <div className="grid grid-cols-2 gap-2 mb-2">
               <SmallButton onClick={copy} icon={Copy} tone="neutral">Copy</SmallButton>
               <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy} tone="primary">
-                {shareBusy ? "Sharing..." : "Share Now"}
+                {shareBusy ? "Sharing..." : "Share"}
               </SmallButton>
             </div>
             {/* Row 2: context-aware open — matches the platform chip selected above */}
@@ -2902,7 +2928,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
                   className="w-full justify-center"
                   tone="neutral"
                 >
-                  Open in {platform === "tiktok" ? "TikTok" : platform === "instagram" ? "Instagram" : platform === "facebook" ? "Facebook" : platform === "twitter" ? "Twitter / X" : "App"} →
+                  Open in {platform === "tiktok" ? "TikTok" : platform === "instagram" ? "Instagram" : platform === "facebook" ? "Facebook" : platform === "twitter" ? "Twitter / X" : "App"}
                 </SmallButton>
               </div>
             ) : null}
@@ -3080,7 +3106,7 @@ function DraftPreviewModal({ devotional, settings, onClose, onShare, compileForP
             ← Back to Edit
           </button>
           <button type="button" onClick={onShare} className="flex-1 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm transition-colors flex items-center justify-center gap-2 shadow-sm">
-            <Share2 className="w-4 h-4" /> Share →
+            <Share2 className="w-4 h-4" /> Share
           </button>
         </div>
       </div>
@@ -4027,4 +4053,3 @@ export default function App() {
     </ErrorBoundary>
   );
 }
-
