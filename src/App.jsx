@@ -122,7 +122,7 @@ function useToast() {
 function ToastTicker({ toast }) {
   if (!toast) return null;
   return (
-    <div className="fixed bottom-24 left-0 right-0 z-[60] pointer-events-none flex justify-center">
+    <div className="fixed bottom-20 left-0 right-0 z-[60] pointer-events-none flex justify-center">
       <div className="max-w-xs w-full px-4">
         <div className="rounded-full border border-slate-200 bg-white/95 backdrop-blur-xl shadow-xl px-4 py-2.5 flex items-center justify-center animate-toast gap-2">
           <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -970,101 +970,67 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
   };
 
   return (
-    <div className="space-y-6 pb-28 animate-enter">
-      <div>
-        <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+    <div className="space-y-4 pb-20 animate-enter">
+      {/* ── Header ── */}
+      <div className="pt-1">
+        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
         </div>
-        <div className="text-4xl font-black text-slate-900 mt-1 tracking-tight">{getTimeGreeting(displayName)}</div>
-        <div className="text-sm text-slate-600 mt-2 font-medium">{hasActive ? "Continue your last entry below." : "Start a devotional or pick a verse to reflect."}</div>
+        <div className="text-3xl font-black text-slate-900 mt-0.5 tracking-tight leading-tight">{getTimeGreeting(displayName)}</div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2 bg-white rounded-[2rem] border border-slate-200 shadow-sm p-6 overflow-hidden relative group transition-all hover:shadow-md hover:border-emerald-100">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 via-transparent to-sky-50/30 pointer-events-none transition-colors" />
-          <div className="relative flex items-center justify-between">
+      {/* ── Streak + CTA ── */}
+      <div className="bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 overflow-hidden relative">
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/60 via-transparent to-sky-50/20 pointer-events-none" />
+        <div className="relative flex items-center justify-between gap-4">
+          <div className="flex items-baseline gap-2">
+            <div className="text-5xl font-black text-slate-900 tabular-nums">{streak.count}</div>
+            <div className="relative w-7 h-7 flex-shrink-0">
+              <Flame className="w-7 h-7 text-orange-500 drop-shadow-sm animate-pulse-slow absolute inset-0" fill="currentColor" />
+              <Flame className="w-7 h-7 text-yellow-400 absolute inset-0 mix-blend-overlay" fill="currentColor" />
+            </div>
             <div>
-              <div className="text-[10px] font-black text-slate-400 tracking-widest uppercase">CURRENT STREAK</div>
-              <div className="text-5xl font-black text-slate-900 mt-2 flex items-baseline">
-                {streak.count} 
-                <div className="relative ml-2 w-8 h-8">
-                  <Flame className="w-8 h-8 text-orange-500 drop-shadow-sm animate-pulse-slow absolute inset-0" fill="currentColor" />
-                  <Flame className="w-8 h-8 text-yellow-400 absolute inset-0 mix-blend-overlay animate-pulse" fill="currentColor" />
-                </div>
-                <span className="text-slate-400 text-lg font-bold ml-1">days</span>
-              </div>
-              <div className="text-xs text-slate-500 mt-2 font-medium">Keep showing up — God meets you here.</div>
-            </div>
-            
-            <div className="flex flex-col gap-2">
-            <button
-              onClick={hasActive ? onContinue : onNew}
-              className="px-6 py-4 rounded-2xl bg-slate-900 text-white font-extrabold shadow-xl hover:bg-slate-800 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
-              type="button"
-            >
-              {hasActive ? "Continue" : "Check In"} <ArrowRight className="w-4 h-4" />
-            </button>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-tight">Day streak</div>
+              <div className="text-[11px] text-slate-500 font-medium leading-tight">God meets you here.</div>
             </div>
           </div>
-        </div>
-
-        <button
-          onClick={onNew}
-          className="bg-white rounded-[1.5rem] border border-slate-200 p-5 text-left hover:bg-slate-50 transition-all active:scale-[0.98] hover:shadow-sm group hover:border-emerald-100"
-          type="button"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-sm">
-             <PenTool className="w-6 h-6 text-emerald-700" />
-          </div>
-          <div className="font-extrabold text-slate-900 text-lg">New Entry</div>
-          <div className="text-xs text-slate-500 mt-1">Start fresh</div>
-        </button>
-
-        <button
-          onClick={onLibrary}
-          className="bg-white rounded-[1.5rem] border border-slate-200 p-5 text-left hover:bg-slate-50 transition-all active:scale-[0.98] hover:shadow-sm group hover:border-sky-100"
-          type="button"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-sky-100 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-sm">
-             <Library className="w-6 h-6 text-sky-700" />
-          </div>
-          <div className="font-extrabold text-slate-900 text-lg">Library</div>
-          <div className="text-xs text-slate-500 mt-1">View archive</div>
-        </button>
-      </div>
-
-      <Card className="overflow-hidden border-emerald-100 bg-emerald-50/30">
-        <div className="flex items-center justify-between">
-          <div className="font-extrabold text-slate-900 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-600" />
-            Verse of the Day
-          </div>
-          <div className="text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full">Daily</div>
-        </div>
-        <div className="mt-4 bg-gradient-to-br from-emerald-600 to-teal-800 rounded-[1.5rem] p-8 text-white shadow-lg relative overflow-hidden group">
-            {/* Texture */}
-            <Quote className="absolute -bottom-4 -right-4 w-32 h-32 text-white/10 rotate-12" fill="currentColor" />
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-            
-          <div className="text-2xl leading-relaxed font-serif-scripture relative z-10 font-medium">{`“${VERSE_OF_DAY.verseText}”`}</div>
-          <div className="mt-6 text-xs font-black tracking-widest opacity-80 relative z-10">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
           <button
-            onClick={onReflectVerseOfDay}
-            className="mt-6 px-5 py-2.5 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md active:scale-[0.985] transition-all flex items-center gap-2 border border-white/10"
+            onClick={hasActive ? onContinue : onNew}
+            className="flex-shrink-0 px-5 py-3 rounded-2xl bg-slate-900 text-white text-sm font-extrabold shadow-lg hover:bg-slate-800 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
             type="button"
           >
-            Reflect on this <ArrowRight className="w-3 h-3" />
+            {hasActive ? "Continue" : "Start"} <ArrowRight className="w-4 h-4" />
           </button>
         </div>
-      </Card>
+      </div>
 
+      {/* ── Verse of the Day ── */}
+      <div className="bg-gradient-to-br from-emerald-600 to-teal-800 rounded-[1.75rem] p-6 text-white shadow-lg relative overflow-hidden">
+        <Quote className="absolute -bottom-4 -right-4 w-28 h-28 text-white/10 rotate-12" fill="currentColor" />
+        <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+        <div className="flex items-center gap-2 mb-3 relative z-10">
+          <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-200">Verse of the Day</span>
+        </div>
+        <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${VERSE_OF_DAY.verseText}"`}</div>
+        <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
+        <button
+          onClick={onReflectVerseOfDay}
+          className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md active:scale-[0.985] transition-all flex items-center gap-2 border border-white/10 relative z-10"
+          type="button"
+        >
+          Reflect on this <ArrowRight className="w-3 h-3" />
+        </button>
+      </div>
+
+      {/* ── Pick a Verse by Theme ── */}
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between">
-          <div className="font-extrabold text-slate-900">Pick a Verse</div>
-          <div className="text-xs font-bold text-slate-500">By theme</div>
+          <div className="font-extrabold text-slate-900 text-sm">Pick a Verse</div>
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">By theme</div>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-1.5">
           {MOOD_VERSE_ORDER.map((key) => (
             <button
               key={key}
@@ -1082,10 +1048,10 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
           ))}
         </div>
 
-        <div className="mt-5 bg-gradient-to-br from-slate-800 to-slate-950 rounded-3xl p-6 text-white shadow-md relative overflow-hidden">
-            <div className="absolute bottom-0 left-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl -ml-10 -mb-10 pointer-events-none"></div>
-          <div className="text-xl leading-relaxed font-serif-scripture opacity-90">{`“${moodVerse.verseText}”`}</div>
-          <div className="mt-4 text-xs font-extrabold tracking-wider opacity-70">{moodVerse.verseRef.toUpperCase()}</div>
+        <div className="mt-3 bg-gradient-to-br from-slate-800 to-slate-950 rounded-2xl p-4 text-white shadow-md relative overflow-hidden">
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -ml-8 -mb-8 pointer-events-none" />
+          <div className="text-base leading-relaxed font-serif-scripture opacity-90">{`"${moodVerse.verseText}"`}</div>
+          <div className="mt-2 text-[10px] font-extrabold tracking-wider opacity-60">{moodVerse.verseRef.toUpperCase()}</div>
         </div>
       </Card>
 
@@ -1719,7 +1685,7 @@ ${devotional.reflection}`;
   const hasReflection = Boolean(String(devotional.reflection || "").trim());
 
   return (
-    <div className="space-y-5 pb-28 animate-enter">
+    <div className="space-y-5 pb-20 animate-enter">
       {/* ── Draft Preview Modal — rendered at top level to avoid overflow-hidden trapping ── */}
       {writeTab === "preview" && (
         <DraftPreviewModal
@@ -2197,7 +2163,7 @@ ${devotional.reflection}`;
 
 function PolishView({ devotional, onBackToWrite, onGoShare }) {
   return (
-    <div className="space-y-6 pb-28 animate-enter">
+    <div className="space-y-6 pb-20 animate-enter">
       <Card>
         <div className="text-2xl font-black text-slate-900">Polish</div>
         <div className="text-sm text-slate-500 mt-1 font-medium">Review and refine. Then export.</div>
@@ -2251,7 +2217,7 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
   }, [q, devotionals]);
 
   return (
-    <div className="space-y-6 pb-28 animate-enter">
+    <div className="space-y-6 pb-20 animate-enter">
       <Card>
         <div className="flex items-center justify-between">
           <div>
@@ -2305,7 +2271,7 @@ function SettingsView({ settings, onUpdate, onReset, onLogout }) {
     (settings.aiProvider === "gemini" && !settings.geminiKey);
 
 return (
-    <div className="space-y-6 pb-28 animate-enter">
+    <div className="space-y-6 pb-20 animate-enter">
       <Card>
         <div className="text-2xl font-black text-slate-900">Settings</div>
         <div className="text-sm text-slate-500 mt-1 font-medium">AI keys, defaults, OCR, guidance.</div>
@@ -3349,15 +3315,15 @@ function NavButton({ active, onClick, icon: Icon, label }) {
     <button
       onClick={onClick}
       className={cn(
-        "flex flex-col items-center justify-center gap-0.5 py-2 rounded-2xl transition-all duration-200 relative overflow-hidden",
-        active ? "text-emerald-700 bg-emerald-50/60" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50/50"
+        "flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl transition-all duration-200 relative",
+        active ? "text-emerald-700" : "text-slate-400 hover:text-slate-600"
       )}
       type="button"
       title={label}
     >
-      <Icon className={cn("transition-all duration-200", active ? "w-5 h-5" : "w-5 h-5")} strokeWidth={active ? 2.5 : 2} />
-      <span className="text-[10px] font-bold leading-none">{label}</span>
-      {active && <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-emerald-500 rounded-full" />}
+      <Icon className="w-5 h-5 transition-all duration-200" strokeWidth={active ? 2.5 : 2} />
+      <span className={cn("text-[10px] font-bold leading-none transition-all", active ? "text-emerald-700" : "text-slate-400")}>{label}</span>
+      {active && <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-emerald-500 rounded-full" />}
     </button>
   );
 }
@@ -3557,27 +3523,33 @@ const onSaved = () => {
         </PageTransition>
       </main>
 
-      <div className="fixed bottom-6 left-4 right-4 z-40">
-        <div className="max-w-md mx-auto">
-          <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(0,0,0,0.12)] rounded-[2rem] px-4 py-2 transition-all duration-300 hover:shadow-[0_12px_40px_rgba(0,0,0,0.15)]">
-            <div className="grid grid-cols-4 gap-1">
+      {/* ── Bottom Nav Bar ── */}
+      <div className="fixed bottom-0 left-0 right-0 z-40">
+        <div className="max-w-md mx-auto px-3 pb-safe">
+          <div className="bg-white/90 backdrop-blur-xl border-t border-slate-100 shadow-[0_-4px_24px_rgba(0,0,0,0.07)] px-2 pt-1 pb-2">
+            <div className="grid grid-cols-5 items-end">
               <NavButton active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
-              <NavButton active={view === "write"} onClick={() => { if (!active) newEntry(); else setView("write"); }} icon={ICONS.nav.write} label="Write" />
+              <NavButton active={view === "write" && !!active} onClick={() => { if (active) setView("write"); }} icon={ICONS.nav.write} label="Write" />
+
+              {/* Centre New-Entry button */}
+              <div className="flex flex-col items-center justify-center pb-0.5">
+                <button
+                  onClick={newEntry}
+                  type="button"
+                  className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-lg hover:bg-slate-700 active:scale-95 transition-all duration-200 group -mt-4 border-2 border-white"
+                  title="New Entry"
+                >
+                  <Plus className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
+                </button>
+                <span className="text-[10px] font-bold text-slate-400 mt-1 leading-none">New</span>
+              </div>
+
               <NavButton active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ICONS.nav.compile} label="Share" />
               <NavButton active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
             </div>
           </div>
         </div>
       </div>
-
-      <button
-        onClick={newEntry}
-        className="fixed bottom-28 right-6 z-50 w-14 h-14 rounded-full bg-slate-900 text-white shadow-2xl shadow-slate-900/30 flex items-center justify-center hover:bg-slate-800 hover:scale-110 active:scale-95 transition-all duration-300 group"
-        title="New Entry"
-        type="button"
-      >
-        <Plus className="w-7 h-7 group-hover:rotate-90 transition-transform duration-300" />
-      </button>
     </div>
     </ToastContext.Provider>
   );
