@@ -3370,7 +3370,7 @@ function LandingView({ onGetStarted, onViewDemo }) {
           <img
             src={assetUrl("logo.png")}
             alt="VersedUP"
-            className="h-28 w-auto mx-auto drop-shadow-md mb-6"
+            className="h-36 sm:h-40 w-auto mx-auto drop-shadow-md mb-6"
             draggable="false"
             onError={(e) => {
               e.currentTarget.onerror = null;
