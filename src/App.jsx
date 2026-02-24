@@ -1053,7 +1053,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
         return (
           <button
             type="button"
-            onClick={() => onOpen(last)}
+            onClick={() => onOpen(last.id)}
             className="w-full text-left bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-slate-200 active:scale-[0.99] transition-all group"
           >
             <div className="flex items-center justify-between mb-2">
@@ -1784,24 +1784,35 @@ ${devotional.reflection}`;
         </div>
       </div>
 
-      {/* ── Write / Preview tab bar ── */}
-      <div className="flex items-center border-b border-slate-200">
+      {/* ── Write / Preview icon toggle ── */}
+      <div className="flex items-center justify-end gap-2">
         <button
+          type="button"
+          aria-label="Write"
+          title="Write"
           onClick={() => setWriteTab("write")}
           className={cn(
-            "px-5 py-2.5 text-sm font-extrabold border-b-2 -mb-px transition-colors",
+            "rounded-xl p-2.5 border transition-colors",
             writeTab === "write"
-              ? "border-emerald-500 text-emerald-700"
-              : "border-transparent text-slate-400 hover:text-slate-700"
+              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+              : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
           )}
         >
-          Write
+          <Pencil className="w-4 h-4" />
         </button>
         <button
+          type="button"
+          aria-label="Preview"
+          title="Preview"
           onClick={() => setWriteTab("preview")}
-          className="ml-auto mb-1 flex items-center gap-1.5 px-3 py-1.5 mr-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-extrabold transition-colors"
+          className={cn(
+            "rounded-xl p-2.5 border transition-colors",
+            writeTab === "preview"
+              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+              : "border-slate-200 bg-white text-slate-500 hover:text-slate-700"
+          )}
         >
-          <Maximize2 className="w-3.5 h-3.5" /> Preview
+          <Eye className="w-4 h-4" />
         </button>
       </div>
 
@@ -2096,7 +2107,7 @@ ${devotional.reflection}`;
           icon={Share2}
           tone="primary"
         >
-          Share →
+          Share
         </SmallButton>
       </div>
       </div>
@@ -2253,7 +2264,7 @@ function PolishView({ devotional, onBackToWrite, onGoShare }) {
       <div className="flex gap-2 pb-4">
         <SmallButton onClick={onBackToWrite} icon={ChevronLeft}>Edit</SmallButton>
         <div className="flex-1" />
-        <SmallButton onClick={onGoShare} tone="primary" icon={Share2}>Share →</SmallButton>
+        <SmallButton onClick={onGoShare} tone="primary" icon={Share2}>Format & Share</SmallButton>
       </div>
     </div>
   );
@@ -2822,22 +2833,23 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     <div className="space-y-6 pb-56 animate-enter">
       <div>
         <div className="text-2xl font-black text-slate-900">Share</div>
-        <div className="text-sm text-slate-500 mt-1 font-medium">Choose platform, copy your content, post.</div>
+        <div className="text-sm text-slate-500 mt-1 font-medium">Format for your platform, then share.</div>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-        {[
-          { id: "tiktok", label: "TikTok" },
-          { id: "instagram", label: "Instagram" },
-          { id: "facebook", label: "Facebook" },
-          { id: "twitter", label: "Twitter / X" },
-          { id: "email", label: "Email" },
-          { id: "generic", label: "Generic" },
-        ].map((p) => (
-          <Chip key={p.id} active={platform === p.id} onClick={() => setPlatform(p.id)}>
-            {p.label}
-          </Chip>
-        ))}
+      <div className="flex items-center gap-2">
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Platform</label>
+        <select
+          value={platform}
+          onChange={(e) => setPlatform(e.target.value)}
+          className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+        >
+          <option value="tiktok">TikTok</option>
+          <option value="instagram">Instagram</option>
+          <option value="facebook">Facebook</option>
+          <option value="twitter">Twitter / X</option>
+          <option value="email">Email</option>
+          <option value="generic">Generic</option>
+        </select>
       </div>
 
       <div className="flex gap-2">
@@ -2875,7 +2887,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">OUTPUT</div>
           <div className="flex items-start gap-2 mt-2 mb-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-            <span className="text-xs text-amber-800 font-semibold">Edits here are for formatting only — they won't change your saved entry. <button type="button" onClick={onBackToWrite} className="underline font-bold hover:text-amber-900 transition-colors">Edit entry instead →</button></span>
+            <span className="text-xs text-amber-800 font-semibold">Edits here are for formatting only — they won't change your saved entry. <button type="button" onClick={onBackToWrite} className="underline font-bold hover:text-amber-900 transition-colors">Edit entry instead</button></span>
           </div>
           <div className="text-sm text-slate-500 mb-1">Tap <b>Copy</b> then open your app — or tap <b>Open in {platform}</b> below. Limit: {limit} chars.</div>
           <textarea
@@ -2899,7 +2911,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
             <div className="grid grid-cols-2 gap-2 mb-2">
               <SmallButton onClick={copy} icon={Copy} tone="neutral">Copy</SmallButton>
               <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy} tone="primary">
-                {shareBusy ? "Sharing..." : "Share Now"}
+                {shareBusy ? "Sharing..." : "Share"}
               </SmallButton>
             </div>
             {/* Row 2: context-aware open — matches the platform chip selected above */}
@@ -2916,7 +2928,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
                   className="w-full justify-center"
                   tone="neutral"
                 >
-                  Open in {platform === "tiktok" ? "TikTok" : platform === "instagram" ? "Instagram" : platform === "facebook" ? "Facebook" : platform === "twitter" ? "Twitter / X" : "App"} →
+                  Open in {platform === "tiktok" ? "TikTok" : platform === "instagram" ? "Instagram" : platform === "facebook" ? "Facebook" : platform === "twitter" ? "Twitter / X" : "App"}
                 </SmallButton>
               </div>
             ) : null}
@@ -3094,7 +3106,7 @@ function DraftPreviewModal({ devotional, settings, onClose, onShare, compileForP
             ← Back to Edit
           </button>
           <button type="button" onClick={onShare} className="flex-1 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm transition-colors flex items-center justify-center gap-2 shadow-sm">
-            <Share2 className="w-4 h-4" /> Share →
+            <Share2 className="w-4 h-4" /> Share
           </button>
         </div>
       </div>
