@@ -255,6 +255,7 @@ const DEFAULT_SETTINGS = {
   autoFillEmptyOnTopicTap: true, // title/prayer/questions templates on topic click
   guidedAutoGenerateTikTok: true, // in Guided Fill modal: Apply also generates TikTok script
   onboardingComplete: false,
+  myPlatforms: ["tiktok", "instagram"],
 
   exportPrefs: {
     tiktokTemplate: "minimalLight",
@@ -2430,6 +2431,8 @@ function AiKeyTestButton({ provider, apiKey }) {
 
 function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals }) {
   const { pushToast } = useToast();
+  const [aiOpen, setAiOpen] = useState(false);
+
   const aiNeedsKey =
     (settings.aiProvider === "openai" && !settings.openaiKey) ||
     (settings.aiProvider === "gemini" && !settings.geminiKey);
@@ -2453,237 +2456,169 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals }) {
     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{children}</div>
   );
 
-  const FieldLabel = ({ children }) => (
-    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{children}</label>
-  );
-
-  const Toggle = ({ checked, onChange, label }) => (
-    <label className="flex items-center gap-2 cursor-pointer select-none group">
-      <div className={cn(
-        "relative w-10 h-5.5 rounded-full transition-colors",
-        checked ? "bg-emerald-500" : "bg-slate-200"
-      )}>
-        <div className={cn(
-          "absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform",
-          checked ? "translate-x-5" : "translate-x-0.5"
-        )} />
+  const CompactToggleRow = ({ title, desc, checked, onChange }) => (
+    <label className="flex items-center justify-between gap-3 py-2.5 cursor-pointer">
+      <div>
+        <div className="text-sm font-extrabold text-slate-800 leading-tight">{title}</div>
+        <div className="text-[11px] text-slate-500 leading-tight mt-0.5">{desc}</div>
       </div>
-      <span className="text-xs font-semibold text-slate-700">{label}</span>
+      <input type="checkbox" checked={checked} onChange={onChange} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
     </label>
   );
 
-  return (
-    <div className="space-y-5 pb-20 animate-enter">
+  const aiSummary = settings.aiProvider === "mock"
+    ? "AI: Built-in (no key)"
+    : settings.aiProvider === "openai"
+      ? `AI: OpenAI (${settings.openaiKey ? "key set" : "missing key"})`
+      : `AI: Gemini (${settings.geminiKey ? "key set" : "missing key"})`;
 
-      {/* ── Header ── */}
+  const platforms = [
+    { id: "tiktok", label: "TikTok" },
+    { id: "instagram", label: "Instagram" },
+    { id: "twitter", label: "Twitter" },
+    { id: "facebook", label: "Facebook" },
+    { id: "email", label: "Email" },
+  ];
+
+  const selectedPlatforms = Array.isArray(settings.myPlatforms) && settings.myPlatforms.length ? settings.myPlatforms : ["tiktok"];
+
+  const togglePlatform = (id) => {
+    const set = new Set(selectedPlatforms);
+    if (set.has(id)) set.delete(id); else set.add(id);
+    const next = Array.from(set);
+    onUpdate({ myPlatforms: next.length ? next : ["tiktok"] });
+  };
+
+  return (
+    <div className="space-y-4 pb-20 animate-enter">
       <div>
         <div className="text-2xl font-black text-slate-900">Settings</div>
-        <div className="text-sm text-slate-500 mt-0.5 font-medium">Customize your experience.</div>
+        <div className="text-sm text-slate-500 mt-0.5 font-medium">Short, scannable, and creator-first.</div>
       </div>
 
-      {/* ── PROFILE ── */}
       <Card>
         <SectionLabel>Profile</SectionLabel>
-        <FieldLabel>Display Name</FieldLabel>
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Name / Username</label>
         <input
           value={settings.username || ""}
           onChange={(e) => onUpdate({ username: e.target.value })}
-          placeholder="How should we greet you?"
-          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow focus:border-emerald-300"
+          placeholder="@yourname"
+          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
         />
-        <div className="text-[11px] text-slate-400 mt-1.5">Used in the greeting and email exports. Not synced anywhere.</div>
       </Card>
 
-      {/* ── APPEARANCE ── */}
       <Card>
-        <SectionLabel>Appearance</SectionLabel>
-        <FieldLabel>Theme</FieldLabel>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          {THEME_OPTIONS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onUpdate({ theme: t.id })}
-              className={cn(
-                "rounded-2xl py-2.5 text-xs font-bold border transition-all",
-                settings.theme === t.id
-                  ? "bg-slate-900 text-white border-slate-900 shadow-md"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-              )}
+        <SectionLabel>AI Provider + Keys</SectionLabel>
+        <button type="button" onClick={() => setAiOpen((v) => !v)} className="w-full flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700">
+          <span>{aiSummary}</span>
+          <ChevronDown className={cn("w-4 h-4 transition-transform", aiOpen ? "rotate-180" : "")} />
+        </button>
+
+        {aiOpen ? (
+          <div className="mt-3 space-y-3">
+            {aiNeedsKey && settings.aiProvider !== "mock" ? (
+              <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                <div className="text-xs font-semibold text-amber-800">AI selected but missing key.</div>
+              </div>
+            ) : null}
+
+            <select
+              value={settings.aiProvider}
+              onChange={(e) => onUpdate({ aiProvider: e.target.value })}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
             >
+              <option value="mock">Built-in (no key needed)</option>
+              <option value="openai">OpenAI (GPT-4)</option>
+              <option value="gemini">Google Gemini</option>
+            </select>
+
+            {settings.aiProvider === "openai" ? (
+              <div>
+                <input value={settings.openaiKey} onChange={(e) => onUpdate({ openaiKey: e.target.value })} placeholder="OpenAI key" type="password" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
+                <AiKeyTestButton provider="openai" apiKey={settings.openaiKey} />
+              </div>
+            ) : null}
+
+            {settings.aiProvider === "gemini" ? (
+              <div>
+                <input value={settings.geminiKey} onChange={(e) => onUpdate({ geminiKey: e.target.value })} placeholder="Gemini key" type="password" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
+                <AiKeyTestButton provider="gemini" apiKey={settings.geminiKey} />
+              </div>
+            ) : null}
+
+            <input
+              value={settings.ocrEndpoint || ""}
+              onChange={(e) => onUpdate({ ocrEndpoint: e.target.value })}
+              placeholder="OCR endpoint (optional)"
+              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-200 bg-white"
+            />
+          </div>
+        ) : null}
+      </Card>
+
+      <Card>
+        <SectionLabel>Writing Preferences</SectionLabel>
+        <select
+          value={settings.defaultBibleVersion}
+          onChange={(e) => onUpdate({ defaultBibleVersion: e.target.value })}
+          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
+        >
+          {BIBLE_VERSIONS.map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+        <div className="mt-2 divide-y divide-slate-100">
+          <CompactToggleRow title="Guided mode" desc="Hints and suggested flows while writing." checked={Boolean(settings.guidedMode)} onChange={(e) => onUpdate({ guidedMode: e.target.checked })} />
+          <CompactToggleRow title="Auto-fill on topic tap" desc="Fill Title / Prayer / Questions when empty." checked={Boolean(settings.autoFillEmptyOnTopicTap)} onChange={(e) => onUpdate({ autoFillEmptyOnTopicTap: e.target.checked })} />
+          <CompactToggleRow title="Auto-generate TikTok script" desc="Default for Draft for Me flow." checked={Boolean(settings.guidedAutoGenerateTikTok)} onChange={(e) => onUpdate({ guidedAutoGenerateTikTok: e.target.checked })} />
+          <CompactToggleRow title="Include watermark" desc="Adds VersedUP on shares." checked={Boolean(settings.includeWatermark !== false)} onChange={(e) => onUpdate({ includeWatermark: e.target.checked })} />
+        </div>
+      </Card>
+
+      <Card>
+        <SectionLabel>Export & Share</SectionLabel>
+        <div className="text-xs text-slate-500">Pick your primary platforms (used as Compile default).</div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {platforms.map((p) => (
+            <button key={p.id} type="button" onClick={() => togglePlatform(p.id)} className={cn("rounded-full border px-3 py-1.5 text-xs font-extrabold", selectedPlatforms.includes(p.id) ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <button type="button" onClick={handleExport} className="mt-3 w-full flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98]">
+          <Download className="w-4 h-4" /> Export all entries as JSON
+        </button>
+      </Card>
+
+      <Card>
+        <SectionLabel>Appearance / Theme</SectionLabel>
+        <div className="grid grid-cols-3 gap-2">
+          {THEME_OPTIONS.map((t) => (
+            <button key={t.id} type="button" onClick={() => onUpdate({ theme: t.id })} className={cn("rounded-2xl py-2.5 text-xs font-bold border", settings.theme === t.id ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
               {t.label}
             </button>
           ))}
         </div>
       </Card>
 
-      {/* ── WRITING ── */}
       <Card>
-        <SectionLabel>Writing</SectionLabel>
-        <div className="space-y-4">
-          <div>
-            <FieldLabel>Default Bible Version</FieldLabel>
-            <select
-              value={settings.defaultBibleVersion}
-              onChange={(e) => onUpdate({ defaultBibleVersion: e.target.value })}
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
-            >
-              {BIBLE_VERSIONS.map((v) => (
-                <option key={v} value={v}>{v}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-3 pt-1">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold text-slate-900">Guided Mode</div>
-                <div className="text-xs text-slate-500 mt-0.5">Show hints and suggested flows.</div>
-              </div>
-              <input type="checkbox" checked={Boolean(settings.guidedMode)} onChange={(e) => onUpdate({ guidedMode: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold text-slate-900">Auto-fill on Topic tap</div>
-                <div className="text-xs text-slate-500 mt-0.5">Fill Title / Prayer / Questions when empty.</div>
-              </div>
-              <input type="checkbox" checked={Boolean(settings.autoFillEmptyOnTopicTap)} onChange={(e) => onUpdate({ autoFillEmptyOnTopicTap: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold text-slate-900">Auto-generate TikTok script</div>
-                <div className="text-xs text-slate-500 mt-0.5">Default for "Draft for Me" checkbox.</div>
-              </div>
-              <input type="checkbox" checked={Boolean(settings.guidedAutoGenerateTikTok)} onChange={(e) => onUpdate({ guidedAutoGenerateTikTok: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold text-slate-900">Include watermark on shares</div>
-                <div className="text-xs text-slate-500 mt-0.5">Adds "VersedUP" to shared posts.</div>
-              </div>
-              <input type="checkbox" checked={Boolean(settings.includeWatermark !== false)} onChange={(e) => onUpdate({ includeWatermark: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
-            </div>
-          </div>
-        </div>
+        <SectionLabel>Data & Privacy</SectionLabel>
+        <div className="text-xs text-slate-500">All data stays on this device except AI calls you explicitly trigger.</div>
       </Card>
 
-      {/* ── AI & TOOLS ── */}
-      <Card>
-        <SectionLabel>AI &amp; Tools</SectionLabel>
-        <div className="space-y-4">
-          {aiNeedsKey && settings.aiProvider !== "mock" ? (
-            <div className="flex items-start gap-3 rounded-2xl bg-amber-50 border border-amber-200 p-3">
-              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-              <div className="text-xs font-semibold text-amber-800">AI selected but missing key — add one below or switch to Built-in.</div>
-            </div>
-          ) : null}
-
-          <div>
-            <FieldLabel>AI Provider</FieldLabel>
-            <select
-              value={settings.aiProvider}
-              onChange={(e) => onUpdate({ aiProvider: e.target.value })}
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
-            >
-              <option value="mock">Built-in (no key needed)</option>
-              <option value="openai">OpenAI (GPT-4)</option>
-              <option value="gemini">Google Gemini</option>
-            </select>
-            <div className="text-[11px] text-slate-400 mt-1.5">Keys are stored locally and never sent anywhere except the AI provider.</div>
-          </div>
-
-          {settings.aiProvider === "openai" ? (
-            <div>
-              <FieldLabel>OpenAI API Key</FieldLabel>
-              <input
-                value={settings.openaiKey}
-                onChange={(e) => onUpdate({ openaiKey: e.target.value })}
-                placeholder="sk-..."
-                type="password"
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
-              />
-              <AiKeyTestButton provider="openai" apiKey={settings.openaiKey} />
-            </div>
-          ) : null}
-
-          {settings.aiProvider === "gemini" ? (
-            <div>
-              <FieldLabel>Gemini API Key</FieldLabel>
-              <input
-                value={settings.geminiKey}
-                onChange={(e) => onUpdate({ geminiKey: e.target.value })}
-                placeholder="AIza..."
-                type="password"
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
-              />
-              <AiKeyTestButton provider="gemini" apiKey={settings.geminiKey} />
-            </div>
-          ) : null}
-
-          <div className="border-t border-slate-100 pt-4">
-            <FieldLabel>Scan / OCR Endpoint</FieldLabel>
-            <input
-              value={settings.ocrEndpoint || ""}
-              onChange={(e) => onUpdate({ ocrEndpoint: e.target.value })}
-              placeholder="https://your-vercel-app.vercel.app/api/ocr"
-              className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-200 bg-white"
-            />
-            <div className="text-[11px] text-slate-400 mt-1.5">Optional — best quality OCR uses Google Vision behind this endpoint.</div>
-            <div className="mt-3 flex items-center justify-between">
-              <div className="text-xs font-extrabold text-slate-700">Auto-structure after scan</div>
-              <input type="checkbox" checked={Boolean(settings.ocrAutoStructure)} onChange={(e) => onUpdate({ ocrAutoStructure: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* ── DATA ── */}
-      <Card>
-        <SectionLabel>Data &amp; Privacy</SectionLabel>
-        <div className="space-y-3">
-          <div className="text-xs text-slate-500">All data lives on this device only. Nothing is sent to external servers except AI calls when you choose to use them.</div>
-          <button
-            type="button"
-            onClick={handleExport}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-[0.98]"
-          >
-            <Download className="w-4 h-4" />
-            Export all entries as JSON
-          </button>
-          <div className="text-[11px] text-slate-400">Downloads a .json backup of all your devotionals.</div>
-        </div>
-      </Card>
-
-      {/* ── DANGER ZONE ── */}
       <Card className="border-red-100">
         <SectionLabel>Danger Zone</SectionLabel>
-        <div className="space-y-3">
-          <button
-            type="button"
-            onClick={onReset}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 py-3 text-sm font-extrabold text-red-700 hover:bg-red-100 transition-all active:scale-[0.98]"
-          >
-            <Trash2 className="w-4 h-4" />
-            Reset all local data
-          </button>
-          <div className="text-[11px] text-slate-400">This deletes all entries, settings, and streaks. Irreversible.</div>
-        </div>
+        <button type="button" onClick={onReset} className="w-full flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 py-3 text-sm font-extrabold text-red-700 hover:bg-red-100 transition-all active:scale-[0.98]">
+          <Trash2 className="w-4 h-4" /> Reset all local data
+        </button>
       </Card>
 
-      {/* ── SESSION ── */}
-      <Card className="border-slate-200">
-        <div className="text-sm font-extrabold text-slate-900 mb-2">Session</div>
-        <div className="text-xs text-slate-500 mb-3">Sign out is placed here to avoid accidental taps while writing.</div>
+      <Card>
+        <SectionLabel>Session</SectionLabel>
         <SmallButton onClick={onLogout} tone="danger" icon={LogOut}>Sign out</SmallButton>
       </Card>
-
     </div>
   );
 }
-
 
 /* ---------------- Compile + previews ---------------- */
 
@@ -2711,7 +2646,7 @@ function compileForPlatform(platform, d, settings) {
 
 function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   const { pushToast } = useToast();
-  const [platform, setPlatform] = useState("tiktok");
+  const [platform, setPlatform] = useState(() => (settings.myPlatforms && settings.myPlatforms[0]) || "tiktok");
   const [text, setText] = useState("");
   const [shareBusy, setShareBusy] = useState(false);
   const [tiktokOverlay, setTiktokOverlay] = useState(false);
