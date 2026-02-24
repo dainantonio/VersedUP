@@ -30,7 +30,10 @@ import {
   Quote,
   ExternalLink,
   Sun,
-  Maximize2
+  Maximize2,
+  Eye,
+  Pencil,
+  Download
 } from "lucide-react";
 
 /* --- Mocks & Global Styles for Preview --- */
@@ -110,7 +113,8 @@ const ICONS = Object.freeze({
   nav: Object.freeze({
     home: BookOpen,
     write: PenTool,
-    compile: Share2,             // fixed: was ScanLine (OCR)
+    review: Eye,
+    compile: Share2,
   }),
 });
 const ToastContext = React.createContext({ pushToast: () => {} });
@@ -260,11 +264,19 @@ const DEFAULT_SETTINGS = {
 
 
 const THEME_OPTIONS = Object.freeze([
-  { id: "light", label: "Light" },
+  { id: "light",   label: "☀️  Light" },
+  { id: "warm",    label: "🌅  Warm" },
+  { id: "forest",  label: "🌿  Forest" },
+  { id: "ocean",   label: "🌊  Ocean" },
+  { id: "slate",   label: "🪨  Slate" },
 ]);
 
 const THEME_STYLES = Object.freeze({
-  light: "from-emerald-50/60 via-slate-50 to-sky-50",
+  light:  "from-emerald-50/60 via-slate-50 to-sky-50",
+  warm:   "from-amber-50 via-orange-50/40 to-rose-50/50",
+  forest: "from-green-50/80 via-emerald-50/60 to-teal-50/50",
+  ocean:  "from-sky-50/80 via-blue-50/60 to-cyan-50/50",
+  slate:  "from-slate-100 via-slate-50 to-zinc-50",
 });
 
 
@@ -2227,6 +2239,8 @@ function PolishView({ devotional, onBackToWrite, onGoShare }) {
 
 function LibraryView({ devotionals, onOpen, onDelete }) {
   const [q, setQ] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     if (!query) return devotionals;
@@ -2237,20 +2251,20 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
   }, [q, devotionals]);
 
   return (
-    <div className="space-y-6 pb-20 animate-enter">
+    <div className="space-y-5 pb-20 animate-enter">
       <Card>
         <div className="flex items-center justify-between">
           <div>
             <div className="text-2xl font-black text-slate-900">Library</div>
-            <div className="text-sm text-slate-500 mt-1 font-medium">Your saved devotionals.</div>
+            <div className="text-sm text-slate-500 mt-0.5 font-medium">{devotionals.length} {devotionals.length === 1 ? "entry" : "entries"}</div>
           </div>
         </div>
-        <div className="mt-5 relative">
+        <div className="mt-4 relative">
           <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search your history..."
+            placeholder="Search your devotionals..."
             className="w-full rounded-2xl border border-slate-200 pl-10 pr-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow bg-slate-50 focus:bg-white focus:border-emerald-300"
           />
         </div>
@@ -2258,199 +2272,258 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
 
       <div className="space-y-3">
         {filtered.map((d) => (
-          <div key={d.id} className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm p-5 transition-all hover:shadow-md active:scale-[0.99] hover:border-emerald-100">
-            <div className="flex items-start justify-between gap-3">
-              <button onClick={() => onOpen(d.id)} className="text-left flex-1" type="button">
-                <div className="font-extrabold text-slate-900 text-lg">{d.title || "Untitled"}</div>
-                <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wide">{d.verseRef || "No scripture"}</div>
-                <div className="text-xs text-slate-400 mt-2 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+          <div key={d.id} className="bg-white rounded-[1.75rem] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md hover:border-emerald-100">
+            {/* Main row */}
+            <button
+              onClick={() => onOpen(d.id)}
+              className="w-full text-left p-5 active:scale-[0.99] transition-transform"
+              type="button"
+            >
+              <div className="font-extrabold text-slate-900 text-[15px] leading-snug">{d.title || "Untitled"}</div>
+              {d.verseRef ? (
+                <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wide">{d.verseRef}</div>
+              ) : null}
+              {d.reflection ? (
+                <div className="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">{d.reflection}</div>
+              ) : null}
+              <div className="text-[11px] text-slate-300 mt-2 font-medium">
+                {new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+              </div>
+            </button>
+
+            {/* Action bar */}
+            <div className="border-t border-slate-100 flex">
+              <button
+                type="button"
+                onClick={() => onOpen(d.id)}
+                className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit
               </button>
-              <SmallButton tone="danger" onClick={() => onDelete(d.id)} icon={Trash2}>
-                Delete
-              </SmallButton>
+              <div className="w-px bg-slate-100" />
+              {confirmDeleteId === d.id ? (
+                <div className="flex-1 flex items-center justify-center gap-2 py-3">
+                  <span className="text-xs font-bold text-slate-500">Delete?</span>
+                  <button
+                    type="button"
+                    onClick={() => { onDelete(d.id); setConfirmDeleteId(null); }}
+                    className="text-xs font-extrabold text-red-600 hover:text-red-800 transition-colors"
+                  >
+                    Yes
+                  </button>
+                  <span className="text-slate-300">·</span>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteId(null)}
+                    className="text-xs font-extrabold text-slate-500 hover:text-slate-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteId(d.id)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         ))}
         {filtered.length === 0 ? (
-          <Card className="bg-transparent border-dashed flex flex-col items-center justify-center py-10">
+          <div className="flex flex-col items-center justify-center py-14 text-center">
             <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-3">
-                <BookOpen className="w-8 h-8 text-slate-300" />
+              <BookOpen className="w-8 h-8 text-slate-300" />
             </div>
-            <div className="text-sm font-bold text-slate-400">No entries yet. Start one!</div>
-          </Card>
+            <div className="text-sm font-bold text-slate-400">
+              {q ? "No matches found." : "No entries yet. Start one!"}
+            </div>
+          </div>
         ) : null}
       </div>
     </div>
   );
 }
 
-function SettingsView({ settings, onUpdate, onReset, onLogout }) {
+function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals }) {
   const { pushToast } = useToast();
   const aiNeedsKey =
     (settings.aiProvider === "openai" && !settings.openaiKey) ||
     (settings.aiProvider === "gemini" && !settings.geminiKey);
 
-return (
-    <div className="space-y-6 pb-20 animate-enter">
-      <Card>
+  const handleExport = () => {
+    try {
+      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), entries: devotionals || [] }, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `versedup-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      pushToast({ message: "Export downloaded ✓", tone: "success" });
+    } catch {
+      pushToast({ message: "Export failed", tone: "error" });
+    }
+  };
+
+  const SectionLabel = ({ children }) => (
+    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{children}</div>
+  );
+
+  const FieldLabel = ({ children }) => (
+    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{children}</label>
+  );
+
+  const Toggle = ({ checked, onChange, label }) => (
+    <label className="flex items-center gap-2 cursor-pointer select-none group">
+      <div className={cn(
+        "relative w-10 h-5.5 rounded-full transition-colors",
+        checked ? "bg-emerald-500" : "bg-slate-200"
+      )}>
+        <div className={cn(
+          "absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform",
+          checked ? "translate-x-5" : "translate-x-0.5"
+        )} />
+      </div>
+      <span className="text-xs font-semibold text-slate-700">{label}</span>
+    </label>
+  );
+
+  return (
+    <div className="space-y-5 pb-20 animate-enter">
+
+      {/* ── Header ── */}
+      <div>
         <div className="text-2xl font-black text-slate-900">Settings</div>
-        <div className="text-sm text-slate-500 mt-1 font-medium">AI keys, defaults, OCR, guidance.</div>
-      </Card>
+        <div className="text-sm text-slate-500 mt-0.5 font-medium">Customize your experience.</div>
+      </div>
 
-      <Card className="border-slate-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-extrabold text-slate-900">Guided Mode</div>
-            <div className="text-xs text-slate-500 mt-1">Show helpful hints and suggested flows across the app.</div>
-          </div>
-          <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer">
-            <input type="checkbox" checked={Boolean(settings.guidedMode)} onChange={(e) => onUpdate({ guidedMode: e.target.checked })} className="rounded text-emerald-600 focus:ring-emerald-500" />
-            On
-          </label>
-        </div>
-      </Card>
-
-      <Card className="border-slate-200">
-        <div className="space-y-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-extrabold text-slate-900">Auto-fill empty sections on Topic tap</div>
-              <div className="text-xs text-slate-500 mt-1">When you tap a Topic Chip, auto-fill Title/Prayer/Questions if empty.</div>
-            </div>
-            <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={Boolean(settings.autoFillEmptyOnTopicTap)}
-                onChange={(e) => onUpdate({ autoFillEmptyOnTopicTap: e.target.checked })}
-                className="rounded text-emerald-600 focus:ring-emerald-500"
-              />
-              On
-            </label>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-extrabold text-slate-900">Draft for Me: auto-generate TikTok script</div>
-              <div className="text-xs text-slate-500 mt-1">Default for the “Apply + Script” checkbox in Draft for Me.</div>
-            </div>
-            <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={Boolean(settings.guidedAutoGenerateTikTok)}
-                onChange={(e) => onUpdate({ guidedAutoGenerateTikTok: e.target.checked })}
-                className="rounded text-emerald-600 focus:ring-emerald-500"
-              />
-              On
-            </label>
-          </div>
-        </div>
-      </Card>
-
-      {aiNeedsKey && settings.aiProvider !== "mock" ? (
-        <Card className="border-amber-200 bg-amber-50">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
-            <div>
-              <div className="font-extrabold text-slate-900">AI selected but missing key</div>
-              <div className="text-sm text-slate-600 mt-1">Add a key below or switch to Built-in (no key).</div>
-            </div>
-          </div>
-        </Card>
-      ) : null}
-
+      {/* ── PROFILE ── */}
       <Card>
+        <SectionLabel>Profile</SectionLabel>
+        <FieldLabel>Display Name</FieldLabel>
+        <input
+          value={settings.username || ""}
+          onChange={(e) => onUpdate({ username: e.target.value })}
+          placeholder="How should we greet you?"
+          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow focus:border-emerald-300"
+        />
+        <div className="text-[11px] text-slate-400 mt-1.5">Used in the greeting and email exports. Not synced anywhere.</div>
+      </Card>
+
+      {/* ── APPEARANCE ── */}
+      <Card>
+        <SectionLabel>Appearance</SectionLabel>
+        <FieldLabel>Theme</FieldLabel>
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          {THEME_OPTIONS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onUpdate({ theme: t.id })}
+              className={cn(
+                "rounded-2xl py-2.5 text-xs font-bold border transition-all",
+                settings.theme === t.id
+                  ? "bg-slate-900 text-white border-slate-900 shadow-md"
+                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {/* ── WRITING ── */}
+      <Card>
+        <SectionLabel>Writing</SectionLabel>
         <div className="space-y-4">
           <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">USERNAME / HANDLE</label>
-            <input
-              value={settings.username}
-              onChange={(e) => onUpdate({ username: e.target.value })}
-              placeholder="@yourname"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow focus:border-emerald-300"
-            />
-          </div>
-
-
-          <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">THEME</label>
-            <select
-              value={settings.theme || "light"}
-              onChange={(e) => onUpdate({ theme: e.target.value })}
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 bg-white"
-            >
-              {THEME_OPTIONS.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-            <div className="mt-2 text-[11px] font-bold text-slate-500">
-              Sunrise / Sunset / Classic adjust the app background only so everything stays readable.
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DEFAULT BIBLE VERSION</label>
+            <FieldLabel>Default Bible Version</FieldLabel>
             <select
               value={settings.defaultBibleVersion}
               onChange={(e) => onUpdate({ defaultBibleVersion: e.target.value })}
               className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
             >
               {BIBLE_VERSIONS.map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
+                <option key={v} value={v}>{v}</option>
               ))}
             </select>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 p-4 bg-slate-50">
-            <div className="text-[10px] font-black text-slate-600 uppercase tracking-widest">SCAN / OCR</div>
-
-            <div className="mt-3">
-              <label className="text-xs font-extrabold text-slate-500">OCR ENDPOINT (Vercel)</label>
-              <input
-                value={settings.ocrEndpoint || ""}
-                onChange={(e) => onUpdate({ ocrEndpoint: e.target.value })}
-                placeholder="https://your-vercel-app.vercel.app/api/ocr"
-                className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-200 bg-white"
-              />
-              <div className="text-xs text-slate-500 mt-2">Best quality OCR uses Google Vision behind this endpoint.</div>
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-extrabold text-slate-900">Guided Mode</div>
+                <div className="text-xs text-slate-500 mt-0.5">Show hints and suggested flows.</div>
+              </div>
+              <input type="checkbox" checked={Boolean(settings.guidedMode)} onChange={(e) => onUpdate({ guidedMode: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
             </div>
 
-            <div className="mt-3 flex items-center justify-between">
-              <div className="text-xs font-extrabold text-slate-600">AUTO STRUCTURE AFTER SCAN</div>
-              <label className="inline-flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer">
-                <input type="checkbox" checked={Boolean(settings.ocrAutoStructure)} onChange={(e) => onUpdate({ ocrAutoStructure: e.target.checked })} className="rounded text-emerald-600 focus:ring-emerald-500" />
-                On
-              </label>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-extrabold text-slate-900">Auto-fill on Topic tap</div>
+                <div className="text-xs text-slate-500 mt-0.5">Fill Title / Prayer / Questions when empty.</div>
+              </div>
+              <input type="checkbox" checked={Boolean(settings.autoFillEmptyOnTopicTap)} onChange={(e) => onUpdate({ autoFillEmptyOnTopicTap: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
             </div>
-            <div className="text-xs text-slate-500 mt-1">After OCR, generate an AI Structured preview (editable + apply per section).</div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-extrabold text-slate-900">Auto-generate TikTok script</div>
+                <div className="text-xs text-slate-500 mt-0.5">Default for "Draft for Me" checkbox.</div>
+              </div>
+              <input type="checkbox" checked={Boolean(settings.guidedAutoGenerateTikTok)} onChange={(e) => onUpdate({ guidedAutoGenerateTikTok: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-extrabold text-slate-900">Include watermark on shares</div>
+                <div className="text-xs text-slate-500 mt-0.5">Adds "VersedUP" to shared posts.</div>
+              </div>
+              <input type="checkbox" checked={Boolean(settings.includeWatermark !== false)} onChange={(e) => onUpdate({ includeWatermark: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+            </div>
           </div>
+        </div>
+      </Card>
+
+      {/* ── AI & TOOLS ── */}
+      <Card>
+        <SectionLabel>AI &amp; Tools</SectionLabel>
+        <div className="space-y-4">
+          {aiNeedsKey && settings.aiProvider !== "mock" ? (
+            <div className="flex items-start gap-3 rounded-2xl bg-amber-50 border border-amber-200 p-3">
+              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+              <div className="text-xs font-semibold text-amber-800">AI selected but missing key — add one below or switch to Built-in.</div>
+            </div>
+          ) : null}
 
           <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">AI PROVIDER</label>
+            <FieldLabel>AI Provider</FieldLabel>
             <select
               value={settings.aiProvider}
               onChange={(e) => onUpdate({ aiProvider: e.target.value })}
               className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
             >
-              <option value="mock">Built-in (no key)</option>
-              <option value="openai">OpenAI</option>
-              <option value="gemini">Gemini</option>
+              <option value="mock">Built-in (no key needed)</option>
+              <option value="openai">OpenAI (GPT-4)</option>
+              <option value="gemini">Google Gemini</option>
             </select>
-            <div className="text-xs text-slate-500 mt-2">
-              Keys are stored locally. If an AI call fails, the app falls back to offline mode automatically.
-            </div>
+            <div className="text-[11px] text-slate-400 mt-1.5">Keys are stored locally and never sent anywhere except the AI provider.</div>
           </div>
 
           {settings.aiProvider === "openai" ? (
             <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">OPENAI API KEY</label>
+              <FieldLabel>OpenAI API Key</FieldLabel>
               <input
                 value={settings.openaiKey}
                 onChange={(e) => onUpdate({ openaiKey: e.target.value })}
                 placeholder="sk-..."
+                type="password"
                 className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
               />
             </div>
@@ -2458,33 +2531,78 @@ return (
 
           {settings.aiProvider === "gemini" ? (
             <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">GEMINI API KEY</label>
+              <FieldLabel>Gemini API Key</FieldLabel>
               <input
                 value={settings.geminiKey}
                 onChange={(e) => onUpdate({ geminiKey: e.target.value })}
                 placeholder="AIza..."
+                type="password"
                 className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
               />
             </div>
           ) : null}
+
+          <div className="border-t border-slate-100 pt-4">
+            <FieldLabel>Scan / OCR Endpoint</FieldLabel>
+            <input
+              value={settings.ocrEndpoint || ""}
+              onChange={(e) => onUpdate({ ocrEndpoint: e.target.value })}
+              placeholder="https://your-vercel-app.vercel.app/api/ocr"
+              className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-200 bg-white"
+            />
+            <div className="text-[11px] text-slate-400 mt-1.5">Optional — best quality OCR uses Google Vision behind this endpoint.</div>
+            <div className="mt-3 flex items-center justify-between">
+              <div className="text-xs font-extrabold text-slate-700">Auto-structure after scan</div>
+              <input type="checkbox" checked={Boolean(settings.ocrAutoStructure)} onChange={(e) => onUpdate({ ocrAutoStructure: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+            </div>
+          </div>
         </div>
       </Card>
 
-      <PrimaryButton onClick={onReset} icon={Trash2}>
-        Reset Local Data
-      </PrimaryButton>
-
-      <Card className="border-slate-200">
+      {/* ── DATA ── */}
+      <Card>
+        <SectionLabel>Data &amp; Privacy</SectionLabel>
         <div className="space-y-3">
-          <div className="text-sm font-extrabold text-slate-900">Session</div>
-          <div className="text-xs text-slate-500">Sign out is placed here to avoid accidental taps while writing.</div>
-          <SmallButton onClick={onLogout} tone="danger">Logout</SmallButton>
+          <div className="text-xs text-slate-500">All data lives on this device only. Nothing is sent to external servers except AI calls when you choose to use them.</div>
+          <button
+            type="button"
+            onClick={handleExport}
+            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-[0.98]"
+          >
+            <Download className="w-4 h-4" />
+            Export all entries as JSON
+          </button>
+          <div className="text-[11px] text-slate-400">Downloads a .json backup of all your devotionals.</div>
         </div>
+      </Card>
+
+      {/* ── DANGER ZONE ── */}
+      <Card className="border-red-100">
+        <SectionLabel>Danger Zone</SectionLabel>
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={onReset}
+            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 py-3 text-sm font-extrabold text-red-700 hover:bg-red-100 transition-all active:scale-[0.98]"
+          >
+            <Trash2 className="w-4 h-4" />
+            Reset all local data
+          </button>
+          <div className="text-[11px] text-slate-400">This deletes all entries, settings, and streaks. Irreversible.</div>
+        </div>
+      </Card>
+
+      {/* ── SESSION ── */}
+      <Card className="border-slate-200">
+        <div className="text-sm font-extrabold text-slate-900 mb-2">Session</div>
+        <div className="text-xs text-slate-500 mb-3">Sign out is placed here to avoid accidental taps while writing.</div>
+        <SmallButton onClick={onLogout} tone="danger" icon={LogOut}>Sign out</SmallButton>
       </Card>
 
     </div>
   );
 }
+
 
 /* ---------------- Compile + previews ---------------- */
 
@@ -3479,12 +3597,12 @@ const onSaved = () => {
         <div className="fixed inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] pointer-events-none mix-blend-multiply"></div>
       <ToastTicker toast={toast} />
 
-      <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/50 px-4 py-3 transition-all duration-300">
+      <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/50 px-4 py-3.5 transition-all duration-300">
         <div className="max-w-md mx-auto flex items-center gap-4">
           <img
             src={assetUrl("logo.png")}
             alt="VersedUP"
-            className="h-10 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105"
+            className="h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105"
             draggable="false"
             onError={(e) => {
               e.currentTarget.onerror = null;
@@ -3492,8 +3610,8 @@ const onSaved = () => {
             }}
           />
           <div className="min-w-0 leading-tight flex-1">
-            <div className="text-sm font-extrabold text-slate-900 tracking-tight">Rooted in Christ</div>
-            <div className="text-xs font-bold text-slate-500 truncate mt-0.5">{getTimeGreeting(getDisplayName(session, settings))}</div>
+            <div className="text-[15px] font-extrabold text-slate-900 tracking-tight">Rooted in Christ</div>
+            <div className="text-[12px] font-bold text-slate-500 truncate mt-0.5">{getTimeGreeting(getDisplayName(session, settings))}</div>
           </div>
 <button
             type="button"
@@ -3541,7 +3659,7 @@ const onSaved = () => {
 
         {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} /> : null}
 
-        {view === "settings" ? <SettingsView settings={settings} onUpdate={updateSettings} onReset={reset} onLogout={onLogout} /> : null}
+        {view === "settings" ? <SettingsView settings={settings} onUpdate={updateSettings} onReset={reset} onLogout={onLogout} devotionals={safeDevotionals} /> : null}
         </PageTransition>
       </main>
 
@@ -3551,7 +3669,7 @@ const onSaved = () => {
           <div className="bg-white/90 backdrop-blur-xl border-t border-slate-100 shadow-[0_-4px_24px_rgba(0,0,0,0.07)] px-2 pt-1 pb-2">
             <div className="grid grid-cols-5 items-end">
               <NavButton active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
-              <NavButton active={view === "polish"} onClick={() => { if (active) setView("polish"); else setView("library"); }} icon={ICONS.nav.compile} label="Review" />
+              <NavButton active={view === "polish"} onClick={() => { if (active) setView("polish"); else setView("library"); }} icon={ICONS.nav.review} label="Review" />
 
               {/* Centre New-Entry button */}
               <div className="flex flex-col items-center justify-center pb-0.5">
