@@ -153,6 +153,8 @@ const STORAGE_SETTINGS = `${APP_ID}_settings`;
 const STORAGE_DEVOTIONALS = `${APP_ID}_devotionals`;
 const STORAGE_STREAK = `${APP_ID}_streak`;
 const STORAGE_SESSION = `${APP_ID}_session`;
+const STORAGE_VIEW = `${APP_ID}_view`;
+const STORAGE_ACTIVE_ID = `${APP_ID}_active_id`;
 
 const PLATFORM_LIMITS = {
   tiktok: 2200,
@@ -3760,7 +3762,7 @@ function NavButton({ active, onClick, icon: Icon, label }) {
     <button
       onClick={onClick}
       className={cn(
-        "flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl transition-all duration-200 relative",
+        "flex w-full min-h-12 flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl transition-all duration-200 relative touch-manipulation",
         active ? "text-emerald-700" : "text-slate-400 hover:text-slate-600"
       )}
       type="button"
@@ -3789,14 +3791,31 @@ function AppInner({ session, starterMood, onLogout }) {
   });
 
   const [streak, setStreak] = useState(() => loadStreak());
-  const [activeId, setActiveId] = useState(() => (Array.isArray(devotionals) && devotionals[0] ? devotionals[0].id : ""));
-  const [view, setView] = useState("home");
-  const [lastNonSettingsView, setLastNonSettingsView] = useState("home");
+  const [activeId, setActiveId] = useState(() => {
+    const saved = String(localStorage.getItem(STORAGE_ACTIVE_ID) || "");
+    if (saved) return saved;
+    return Array.isArray(devotionals) && devotionals[0] ? devotionals[0].id : "";
+  });
+  const [view, setView] = useState(() => String(localStorage.getItem(STORAGE_VIEW) || "home"));
+  const [lastNonSettingsView, setLastNonSettingsView] = useState(() => String(localStorage.getItem(`${STORAGE_VIEW}_last`) || "home"));
  // home | write | polish | compile | library | settings
 
   useEffect(() => {
     if (view !== "settings") setLastNonSettingsView(view);
   }, [view]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_VIEW, view);
+  }, [view]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_VIEW}_last`, lastNonSettingsView || "home");
+  }, [lastNonSettingsView]);
+
+  useEffect(() => {
+    if (activeId) localStorage.setItem(STORAGE_ACTIVE_ID, activeId);
+    else localStorage.removeItem(STORAGE_ACTIVE_ID);
+  }, [activeId]);
 
   const toggleSettings = () => {
     setView((v) => (v === "settings" ? (lastNonSettingsView || "home") : "settings"));
@@ -3816,6 +3835,17 @@ function AppInner({ session, starterMood, onLogout }) {
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
   const greetingName = (settings.username || session?.name || "Friend").replace(/^@/, "");
+
+  useEffect(() => {
+    const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
+    if (!allowed.has(view)) {
+      setView("home");
+      return;
+    }
+    if ((view === "write" || view === "polish" || view === "compile") && !active) {
+      setView(safeDevotionals.length ? "library" : "home");
+    }
+  }, [view, active, safeDevotionals.length]);
 
   useEffect(() => {
     if (!starterMood) return;
@@ -3932,7 +3962,7 @@ const onSaved = () => {
         </div>
       </div>
 
-      <main className="max-w-md mx-auto px-4 pt-8 relative z-10">
+      <main className="max-w-md mx-auto w-full px-3 pt-5 sm:px-4 sm:pt-8 relative z-10">
         <PageTransition key={view}>
         {view === "home" ? (
           <HomeView
