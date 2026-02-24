@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  ArrowUpDown,
   BookOpen,
   Camera,
   Check,
+  CheckCircle,
   Copy,
   Library,
   Loader2,
@@ -24,6 +26,7 @@ import {
   Trash2,
   Wand2,
   X,
+  XCircle,
   ScanLine,
   Flame,
   ArrowRight,
@@ -1705,8 +1708,7 @@ ${devotional.reflection}`;
 
   const openScan = () => {
     if (!settings.ocrEndpoint?.trim()) {
-      const go = confirm("OCR is not connected yet. Go to Settings to paste your Vercel OCR URL?");
-      if (go) onGoSettings();
+      pushToast("To scan a page, add your OCR endpoint in Settings → AI & Tools.");
       return;
     }
     setScanOpen(true);
@@ -1863,6 +1865,12 @@ ${devotional.reflection}`;
               <div className="text-xs font-medium text-slate-500">
                 Try: <span className="font-extrabold text-slate-700">John 3:16-18</span> or{" "}
                 <span className="font-extrabold text-slate-700">Psalm 23</span>
+              </div>
+            ) : null}
+            {hasVerseRef && !hasVerseText && !fetching ? (
+              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 animate-enter">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+                Tap <span className="underline">Load Verse</span> above to fetch the text →
               </div>
             ) : null}
 
@@ -2240,15 +2248,23 @@ function PolishView({ devotional, onBackToWrite, onGoShare }) {
 function LibraryView({ devotionals, onOpen, onDelete }) {
   const [q, setQ] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [sortOrder, setSortOrder] = useState("newest");
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
-    if (!query) return devotionals;
-    return devotionals.filter((d) => {
-      const hay = `${d.title} ${d.verseRef} ${d.reflection}`.toLowerCase();
-      return hay.includes(query);
+    let results = devotionals;
+    if (query) {
+      results = results.filter((d) => {
+        const hay = `${d.title} ${d.verseRef} ${d.reflection}`.toLowerCase();
+        return hay.includes(query);
+      });
+    }
+    return [...results].sort((a, b) => {
+      const da = new Date(a.updatedAt).getTime();
+      const db = new Date(b.updatedAt).getTime();
+      return sortOrder === "newest" ? db - da : da - db;
     });
-  }, [q, devotionals]);
+  }, [q, devotionals, sortOrder]);
 
   return (
     <div className="space-y-5 pb-20 animate-enter">
@@ -2258,6 +2274,14 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
             <div className="text-2xl font-black text-slate-900">Library</div>
             <div className="text-sm text-slate-500 mt-0.5 font-medium">{devotionals.length} {devotionals.length === 1 ? "entry" : "entries"}</div>
           </div>
+          <button
+            type="button"
+            onClick={() => setSortOrder(s => s === "newest" ? "oldest" : "newest")}
+            className="flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors"
+          >
+            <ArrowUpDown className="w-3.5 h-3.5" />
+            {sortOrder === "newest" ? "Newest" : "Oldest"}
+          </button>
         </div>
         <div className="mt-4 relative">
           <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -2345,6 +2369,47 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function AiKeyTestButton({ provider, apiKey }) {
+  const [status, setStatus] = useState(null); // null | "testing" | "ok" | "fail"
+  const [msg, setMsg] = useState("");
+
+  const test = async () => {
+    if (!apiKey?.trim()) { setStatus("fail"); setMsg("Enter a key first."); return; }
+    setStatus("testing");
+    try {
+      if (provider === "openai") {
+        const res = await fetch("https://api.openai.com/v1/models", {
+          headers: { Authorization: `Bearer ${apiKey.trim()}` },
+        });
+        if (res.ok) { setStatus("ok"); setMsg("Connected ✓"); }
+        else { const j = await res.json().catch(() => ({})); setStatus("fail"); setMsg(j?.error?.message || `Error ${res.status}`); }
+      } else if (provider === "gemini") {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey.trim()}`);
+        if (res.ok) { setStatus("ok"); setMsg("Connected ✓"); }
+        else { const j = await res.json().catch(() => ({})); setStatus("fail"); setMsg(j?.error?.message || `Error ${res.status}`); }
+      }
+    } catch (e) {
+      setStatus("fail"); setMsg(e?.message || "Network error");
+    }
+  };
+
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => void test()}
+        disabled={status === "testing"}
+        className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+      >
+        {status === "testing" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+        {status === "testing" ? "Testing..." : "Test Connection"}
+      </button>
+      {status === "ok" && <span className="flex items-center gap-1 text-xs font-bold text-emerald-600"><CheckCircle className="w-3.5 h-3.5" />{msg}</span>}
+      {status === "fail" && <span className="flex items-center gap-1 text-xs font-bold text-red-500"><XCircle className="w-3.5 h-3.5" />{msg}</span>}
     </div>
   );
 }
@@ -2526,6 +2591,7 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals }) {
                 type="password"
                 className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
               />
+              <AiKeyTestButton provider="openai" apiKey={settings.openaiKey} />
             </div>
           ) : null}
 
@@ -2539,6 +2605,7 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals }) {
                 type="password"
                 className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
               />
+              <AiKeyTestButton provider="gemini" apiKey={settings.geminiKey} />
             </div>
           ) : null}
 
@@ -2710,6 +2777,21 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
   };
 
+  const shareToInstagram = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      pushToast("Caption copied! Opening Instagram Create...");
+    } catch {
+      pushToast("Opening Instagram...");
+    }
+    // Try deep link on mobile, fall back to web create page
+    const deepLink = "instagram://camera";
+    window.location.href = deepLink;
+    setTimeout(() => {
+      window.open("https://www.instagram.com/create/select/", "_blank", "noopener,noreferrer");
+    }, 800);
+  };
+
 
   const autoShorten = async () => {
     try {
@@ -2777,7 +2859,11 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
       {mode === "text" ? (
         <Card>
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">OUTPUT</div>
-          <div className="text-sm text-slate-500 mt-2">Tap <b>Copy</b> then open your app — or tap <b>Open in {platform}</b> below. Limit: {limit} chars.</div>
+          <div className="flex items-start gap-2 mt-2 mb-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+            <span className="text-xs text-amber-800 font-semibold">Edits here are for formatting only — they won't change your saved entry. <button type="button" onClick={onBackToWrite} className="underline font-bold hover:text-amber-900 transition-colors">Edit entry instead →</button></span>
+          </div>
+          <div className="text-sm text-slate-500 mb-1">Tap <b>Copy</b> then open your app — or tap <b>Open in {platform}</b> below. Limit: {limit} chars.</div>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -2808,6 +2894,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
                 <SmallButton
                   onClick={() => {
                     if (platform === "tiktok") void shareToTikTok();
+                    else if (platform === "instagram") void shareToInstagram();
                     else if (platform === "facebook") void shareToFacebook();
                     else if (platform === "twitter") shareToX();
                     else copy();
@@ -2815,7 +2902,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
                   className="w-full justify-center"
                   tone="neutral"
                 >
-                  Open in {platform === "tiktok" ? "TikTok" : platform === "facebook" ? "Facebook" : platform === "twitter" ? "Twitter / X" : "App"} →
+                  Open in {platform === "tiktok" ? "TikTok" : platform === "instagram" ? "Instagram" : platform === "facebook" ? "Facebook" : platform === "twitter" ? "Twitter / X" : "App"} →
                 </SmallButton>
               </div>
             ) : null}
@@ -3333,13 +3420,15 @@ function AuthView({ onBack, onContinue }) {
 }
 
 function OnboardingWizard({ authDraft, onFinish }) {
-  const [step, setStep] = useState(1);
+  // Demo slides: 0=Welcome, 1=Verse+Heart, 2=Write+AI, 3=Share, 4=Setup
+  const [slide, setSlide] = useState(0);
+  const [demoMood, setDemoMood] = useState(null);
+  const [demoDrafted, setDemoDrafted] = useState(false);
+  const [demoPlatform, setDemoPlatform] = useState(null);
   const [name, setName] = useState(authDraft?.name || "");
-  const [mood, setMood] = useState("hopeful");
   const [version, setVersion] = useState("KJV");
   const [guidedMode, setGuidedMode] = useState(true);
-
-  const total = 3;
+  const totalSlides = 5;
 
   const finish = () => {
     onFinish({
@@ -3351,100 +3440,292 @@ function OnboardingWizard({ authDraft, onFinish }) {
         guidedMode,
         onboardingComplete: true,
       },
-      starterMood: mood,
+      starterMood: demoMood || "hopeful",
     });
   };
 
+  const DEMO_MOODS = [
+    { id: "peaceful", label: "😌 Peaceful" },
+    { id: "grateful", label: "🙏 Grateful" },
+    { id: "hopeful", label: "💪 Hopeful" },
+    { id: "inspired", label: "✨ Inspired" },
+  ];
+
+  const DEMO_PLATFORMS = [
+    { id: "instagram", label: "Instagram", color: "from-purple-500 to-pink-500", emoji: "📸" },
+    { id: "tiktok", label: "TikTok", color: "from-black to-slate-700", emoji: "🎵" },
+    { id: "twitter", label: "Twitter / X", color: "from-sky-400 to-blue-500", emoji: "🐦" },
+    { id: "facebook", label: "Facebook", color: "from-blue-600 to-blue-700", emoji: "👥" },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-sky-50 px-4 py-8 animate-enter">
-      <div className="max-w-md mx-auto">
-        <Card>
-          <div className="flex items-center justify-between">
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ONBOARDING</div>
-            <div className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">Step {step} / {total}</div>
-          </div>
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-emerald-50 via-sky-50 to-white px-4 py-8 animate-enter">
+      <div className="max-w-md mx-auto w-full flex flex-col flex-1">
 
-          <div className="py-2">
-          {step === 1 ? (
-            <div className="mt-4 animate-enter">
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight">What should we call you?</h2>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Your name or handle"
-                className="mt-4 w-full rounded-2xl border border-slate-200 px-4 py-4 text-lg font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-all"
-              />
+        {/* Progress dots */}
+        <div className="flex justify-center gap-2 mb-8">
+          {Array.from({ length: totalSlides }).map((_, i) => (
+            <div
+              key={i}
+              className={`transition-all duration-300 rounded-full ${
+                i === slide ? "w-6 h-2 bg-emerald-500" : i < slide ? "w-2 h-2 bg-emerald-300" : "w-2 h-2 bg-slate-200"
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* ── SLIDE 0: Welcome ── */}
+        {slide === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center animate-enter space-y-6">
+            <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-2xl shadow-emerald-200">
+              <BookOpen className="w-12 h-12 text-white" />
             </div>
-          ) : null}
+            <div>
+              <div className="text-4xl font-black text-slate-900 tracking-tight">VersedUP</div>
+              <div className="text-lg font-bold text-emerald-600 mt-1">Write. Reflect. Share.</div>
+            </div>
+            <div className="text-base text-slate-500 font-medium max-w-xs leading-relaxed">
+              A spiritual companion for capturing God's word, writing your heart, and sharing your faith — in one flowing motion.
+            </div>
+            <div className="w-full pt-4">
+              <button
+                type="button"
+                onClick={() => setSlide(1)}
+                className="w-full rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold text-base py-4 shadow-lg shadow-emerald-200 hover:shadow-xl hover:scale-[1.01] transition-all active:scale-[0.99]"
+              >
+                See how it works →
+              </button>
+              <button
+                type="button"
+                onClick={() => setSlide(4)}
+                className="mt-3 w-full text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                Skip intro
+              </button>
+            </div>
+          </div>
+        ) : null}
 
-          {step === 2 ? (
-            <div className="mt-4 space-y-6 animate-enter">
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Set personalized defaults</h2>
-              <div>
-                <div className="text-xs font-extrabold text-slate-500 uppercase tracking-wide">CURRENT SEASON</div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {MOODS.map((m) => (
-                    <Chip key={m.id} active={mood === m.id} onClick={() => setMood(m.id)}>
-                      {m.label}
-                    </Chip>
-                  ))}
+        {/* ── SLIDE 1: Verse + Heart demo ── */}
+        {slide === 1 ? (
+          <div className="flex-1 flex flex-col animate-enter space-y-5">
+            <div>
+              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 1 of 3</div>
+              <h2 className="text-2xl font-black text-slate-900 mt-1">Capture your verse & heart</h2>
+              <p className="text-sm text-slate-500 mt-1.5 font-medium">Start with the scripture that's speaking to you. Then pick where your heart is today.</p>
+            </div>
+
+            {/* Mini verse card demo */}
+            <div className="rounded-[1.75rem] border-2 border-emerald-100 bg-white p-5 shadow-sm space-y-3">
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TODAY'S VERSE</div>
+              <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">
+                <div className="text-xs font-bold text-emerald-700 flex-1">John 3:16</div>
+                <div className="text-[10px] font-extrabold text-emerald-500 bg-emerald-100 rounded-lg px-2 py-1">Load Verse ↓</div>
+              </div>
+              <div className="text-xs text-slate-600 font-serif leading-relaxed px-1 italic">
+                "For God so loved the world, that he gave his only begotten Son…"
+              </div>
+            </div>
+
+            {/* Interactive mood picker */}
+            <div className="rounded-[1.75rem] border-2 border-slate-100 bg-white p-5 shadow-sm">
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">WHERE IS YOUR HEART? <span className="text-emerald-500 normal-case font-bold ml-1">← tap one</span></div>
+              <div className="flex flex-wrap gap-2">
+                {DEMO_MOODS.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setDemoMood(m.id)}
+                    className={`rounded-2xl border px-3 py-2 text-sm font-extrabold transition-all ${
+                      demoMood === m.id
+                        ? "bg-emerald-500 border-emerald-500 text-white scale-105 shadow-md shadow-emerald-200"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200 hover:bg-emerald-50"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              {demoMood ? (
+                <div className="mt-3 text-xs font-bold text-emerald-600 flex items-center gap-1 animate-enter">
+                  <CheckCircle className="w-3.5 h-3.5" /> Perfect. Your heart is set.
                 </div>
+              ) : null}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setSlide(0)} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"><ChevronLeft className="w-4 h-4" /> Back</button>
+              <button type="button" onClick={() => setSlide(2)} className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3 shadow-md hover:shadow-lg transition-all">
+                Next →
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {/* ── SLIDE 2: Write + AI demo ── */}
+        {slide === 2 ? (
+          <div className="flex-1 flex flex-col animate-enter space-y-5">
+            <div>
+              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 2 of 3</div>
+              <h2 className="text-2xl font-black text-slate-900 mt-1">Write with AI at your side</h2>
+              <p className="text-sm text-slate-500 mt-1.5 font-medium">Reflect freely, or let AI draft a caption in any tone. You can Fix, Shorten, or Expand instantly.</p>
+            </div>
+
+            {/* Mini write card demo */}
+            <div className="rounded-[1.75rem] border-2 border-slate-100 bg-white p-5 shadow-sm space-y-3">
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">YOUR REFLECTION</div>
+              <div className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-3 min-h-[72px] text-xs text-slate-600 leading-relaxed font-medium">
+                {demoDrafted
+                  ? '"God\'s love isn\'t a reward — it\'s a gift. Today I\'m reminded that I don\'t have to earn what\'s already been freely given. 🙏 #Faith #John316"'
+                  : <span className="text-slate-400 italic">Your reflection will appear here…</span>
+                }
+              </div>
+              {/* AI toolbar strip */}
+              <div className="flex gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setDemoDrafted(true)}
+                  className={`flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-extrabold transition-all ${
+                    demoDrafted ? "bg-emerald-100 text-emerald-700 border border-emerald-200" : "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:shadow-md"
+                  }`}
+                >
+                  <Sparkles className="w-3 h-3" />
+                  {demoDrafted ? "Drafted ✓" : "✨ Draft for Me"}
+                </button>
+                {["Fix", "Shorten", "Expand"].map((t) => (
+                  <button key={t} type="button" className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-50 transition-colors">{t}</button>
+                ))}
+              </div>
+              {demoDrafted ? (
+                <div className="text-xs font-bold text-emerald-600 flex items-center gap-1 animate-enter">
+                  <CheckCircle className="w-3.5 h-3.5" /> Caption drafted in Poetic tone. Edit or post as-is.
+                </div>
+              ) : <div className="text-[11px] text-slate-400 font-medium">← Tap Draft for Me to see AI in action</div>}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setSlide(1)} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"><ChevronLeft className="w-4 h-4" /> Back</button>
+              <button type="button" onClick={() => setSlide(3)} className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3 shadow-md hover:shadow-lg transition-all">
+                Next →
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {/* ── SLIDE 3: Share demo ── */}
+        {slide === 3 ? (
+          <div className="flex-1 flex flex-col animate-enter space-y-5">
+            <div>
+              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 3 of 3</div>
+              <h2 className="text-2xl font-black text-slate-900 mt-1">Share to any platform</h2>
+              <p className="text-sm text-slate-500 mt-1.5 font-medium">Format your post for Instagram, TikTok, Twitter, or Facebook. One tap copies the optimized caption.</p>
+            </div>
+
+            {/* Platform picker demo */}
+            <div className="rounded-[1.75rem] border-2 border-slate-100 bg-white p-5 shadow-sm space-y-4">
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">CHOOSE A PLATFORM <span className="text-emerald-500 normal-case font-bold ml-1">← tap one</span></div>
+              <div className="grid grid-cols-2 gap-2">
+                {DEMO_PLATFORMS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setDemoPlatform(p.id)}
+                    className={`rounded-2xl px-3 py-3 text-sm font-extrabold text-left transition-all flex items-center gap-2 ${
+                      demoPlatform === p.id
+                        ? `bg-gradient-to-r ${p.color} text-white shadow-lg scale-[1.02]`
+                        : "border border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    <span className="text-lg">{p.emoji}</span>
+                    <span>{p.label}</span>
+                  </button>
+                ))}
+              </div>
+              {demoPlatform ? (
+                <div className="rounded-xl bg-slate-50 border border-slate-100 p-3 animate-enter">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">PREVIEW — {demoPlatform.toUpperCase()}</div>
+                  <div className="text-xs text-slate-700 leading-relaxed font-medium">
+                    "God's love isn't a reward — it's a gift. Today I'm reminded that I don't have to earn what's already been freely given. 🙏 #Faith #John316"
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className={`text-[10px] font-bold ${demoPlatform === "twitter" ? "text-amber-600" : "text-emerald-600"}`}>
+                      {demoPlatform === "instagram" ? "142 / 2,200 chars ✓" : demoPlatform === "tiktok" ? "142 / 2,200 chars ✓" : demoPlatform === "twitter" ? "142 / 280 chars ✓" : "142 / 63,206 chars ✓"}
+                    </div>
+                    <div className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 rounded-lg px-2 py-1">Copy & Open →</div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setSlide(2)} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"><ChevronLeft className="w-4 h-4" /> Back</button>
+              <button type="button" onClick={() => setSlide(4)} className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3 shadow-md hover:shadow-lg transition-all">
+                Let's set you up →
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {/* ── SLIDE 4: Setup ── */}
+        {slide === 4 ? (
+          <div className="flex-1 flex flex-col animate-enter space-y-5">
+            <div>
+              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Quick Setup</div>
+              <h2 className="text-2xl font-black text-slate-900 mt-1">One last thing</h2>
+              <p className="text-sm text-slate-500 mt-1.5 font-medium">Personalize your experience. You can change these any time in Settings.</p>
+            </div>
+
+            <div className="rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm space-y-5">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">YOUR NAME</label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="What should we call you?"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3.5 text-base font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-all bg-slate-50 focus:bg-white focus:border-emerald-300"
+                />
               </div>
               <div>
-                <div className="text-xs font-extrabold text-slate-500 uppercase tracking-wide">DEFAULT BIBLE VERSION</div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DEFAULT BIBLE VERSION</label>
                 <select
                   value={version}
                   onChange={(e) => setVersion(e.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-4 text-lg font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3.5 text-base font-extrabold bg-slate-50 outline-none focus:ring-4 focus:ring-emerald-100 focus:bg-white focus:border-emerald-300 transition-all"
                 >
                   {BIBLE_VERSIONS.map((v) => (
-                    <option key={v} value={v}>
-                      {v}
-                    </option>
+                    <option key={v} value={v}>{v}</option>
                   ))}
                 </select>
               </div>
-            </div>
-          ) : null}
-
-          {step === 3 ? (
-            <div className="mt-4 space-y-6 animate-enter">
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Choose your writing experience</h2>
-              <label className="flex items-center justify-between rounded-2xl border border-slate-200 p-5 cursor-pointer hover:bg-slate-50 transition-colors">
+              <label className="flex items-center justify-between cursor-pointer">
                 <div>
-                  <div className="text-base font-extrabold text-slate-900">Guided mode</div>
-                  <div className="text-xs text-slate-500 mt-1">Show helper hints and one-click structure prompts.</div>
+                  <div className="text-sm font-extrabold text-slate-900">Guided writing hints</div>
+                  <div className="text-xs text-slate-500 mt-0.5">Structure prompts and helper text while you write.</div>
                 </div>
-                <input type="checkbox" checked={guidedMode} onChange={(e) => setGuidedMode(e.target.checked)} className="rounded text-emerald-600 w-5 h-5 focus:ring-emerald-500" />
+                <input type="checkbox" checked={guidedMode} onChange={(e) => setGuidedMode(e.target.checked)} className="w-5 h-5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
               </label>
             </div>
-          ) : null}
-          </div>
 
-          <div className="mt-8 flex gap-2 pt-4 border-t border-slate-100">
-            {step > 1 ? (
-              <SmallButton onClick={() => setStep((s) => Math.max(1, s - 1))} icon={ChevronLeft}>
-                Back
-              </SmallButton>
-            ) : (
-              <div />
-            )}
-            <div className="flex-1" />
-            {step < total ? (
-              <SmallButton onClick={() => setStep((s) => Math.min(total, s + 1))} tone="primary" icon={ChevronRight}>
-                Next
-              </SmallButton>
-            ) : (
-              <SmallButton onClick={finish} tone="primary">
-                Start App
-              </SmallButton>
-            )}
+            <div className="flex gap-3 pt-2">
+              {slide > 0 ? (
+                <button type="button" onClick={() => setSlide(3)} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"><ChevronLeft className="w-4 h-4" /> Back</button>
+              ) : <div />}
+              <button
+                type="button"
+                onClick={finish}
+                className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold text-base py-4 shadow-lg shadow-emerald-200 hover:shadow-xl hover:scale-[1.01] transition-all active:scale-[0.99]"
+              >
+                🙏 Start Writing
+              </button>
+            </div>
           </div>
-        </Card>
+        ) : null}
+
       </div>
     </div>
   );
 }
+
 
 /* ---------------- App shell ---------------- */
 
@@ -3669,7 +3950,7 @@ const onSaved = () => {
           <div className="bg-white/90 backdrop-blur-xl border-t border-slate-100 shadow-[0_-4px_24px_rgba(0,0,0,0.07)] px-2 pt-1 pb-2">
             <div className="grid grid-cols-5 items-end">
               <NavButton active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
-              <NavButton active={view === "polish"} onClick={() => { if (active) setView("polish"); else setView("library"); }} icon={ICONS.nav.review} label="Review" />
+              <NavButton active={view === "polish"} onClick={() => { if (active) setView("polish"); else setView("library"); }} icon={ICONS.nav.review} label="Polish" />
 
               {/* Centre New-Entry button */}
               <div className="flex flex-col items-center justify-center pb-0.5">
@@ -3746,3 +4027,4 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+
