@@ -958,7 +958,7 @@ function bumpStreakOnSave() {
 
 /* ---------------- Views ---------------- */
 
-function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak, displayName }) {
+function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak, displayName, devotionals, onOpen }) {
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
   const moodVerse = MOOD_VERSES[moodVerseKey] || MOOD_VERSES.joy;
@@ -1023,37 +1023,57 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
         </button>
       </div>
 
-      {/* ── Pick a Verse by Theme ── */}
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between">
-          <div className="font-extrabold text-slate-900 text-sm">Pick a Verse</div>
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">By theme</div>
+      {/* ── Recent Draft ── */}
+      {devotionals.length > 0 ? (() => {
+        const last = devotionals[devotionals.length - 1];
+        const preview = (last.reflection || last.aiDraft || "").slice(0, 120).trim();
+        const ago = (() => {
+          const diff = Date.now() - new Date(last.updatedAt || last.createdAt || Date.now()).getTime();
+          const mins = Math.floor(diff / 60000);
+          if (mins < 60) return mins <= 1 ? "just now" : `${mins}m ago`;
+          const hrs = Math.floor(mins / 60);
+          if (hrs < 24) return `${hrs}h ago`;
+          return `${Math.floor(hrs / 24)}d ago`;
+        })();
+        return (
+          <button
+            type="button"
+            onClick={() => onOpen(last)}
+            className="w-full text-left bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-slate-200 active:scale-[0.99] transition-all group"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Recent Draft</span>
+              </div>
+              <span className="text-[10px] text-slate-400 font-medium">{ago}</span>
+            </div>
+            {last.verseRef ? (
+              <div className="text-xs font-bold text-emerald-700 mb-1">{last.verseRef}</div>
+            ) : null}
+            <div className="text-sm text-slate-700 leading-relaxed line-clamp-2">
+              {preview ? `"${preview}${preview.length >= 120 ? "…" : ""}"` : "Tap to continue writing…"}
+            </div>
+            <div className="mt-3 flex items-center gap-1 text-xs font-extrabold text-slate-900 group-hover:gap-2 transition-all">
+              Continue writing <ArrowRight className="w-3.5 h-3.5" />
+            </div>
+          </button>
+        );
+      })() : (
+        <div className="bg-gradient-to-br from-sky-50 to-indigo-50 rounded-[1.75rem] border border-sky-100 p-5">
+          <div className="text-[10px] font-black uppercase tracking-widest text-sky-400 mb-2">Today's Prompt</div>
+          <div className="text-sm text-slate-700 leading-relaxed font-serif-scripture italic">
+            "What is one thing God has shown you recently that you haven't yet written down?"
+          </div>
+          <button
+            type="button"
+            onClick={onNew}
+            className="mt-3 flex items-center gap-1.5 text-xs font-extrabold text-sky-700 hover:text-sky-900 transition-colors"
+          >
+            Start writing <ArrowRight className="w-3 h-3" />
+          </button>
         </div>
-
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {MOOD_VERSE_ORDER.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => handleSelectMoodVerse(key)}
-              className={cn(
-                "px-4 py-2 rounded-full text-xs font-bold border transition-all active:scale-[0.95]",
-                moodVerseKey === key
-                  ? "bg-slate-900 text-white border-slate-900 shadow-md transform scale-105"
-                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
-              )}
-            >
-              {MOOD_VERSES[key].label}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-3 bg-gradient-to-br from-slate-800 to-slate-950 rounded-2xl p-4 text-white shadow-md relative overflow-hidden">
-          <div className="absolute bottom-0 left-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -ml-8 -mb-8 pointer-events-none" />
-          <div className="text-base leading-relaxed font-serif-scripture opacity-90">{`"${moodVerse.verseText}"`}</div>
-          <div className="mt-2 text-[10px] font-extrabold tracking-wider opacity-60">{moodVerse.verseRef.toUpperCase()}</div>
-        </div>
-      </Card>
+      )}
 
     </div>
   );
@@ -3498,6 +3518,8 @@ const onSaved = () => {
             hasActive={Boolean(active)}
             streak={streak}
             displayName={getDisplayName(session, settings)}
+            devotionals={safeDevotionals}
+            onOpen={openEntry}
           />
         ) : null}
 
@@ -3529,7 +3551,7 @@ const onSaved = () => {
           <div className="bg-white/90 backdrop-blur-xl border-t border-slate-100 shadow-[0_-4px_24px_rgba(0,0,0,0.07)] px-2 pt-1 pb-2">
             <div className="grid grid-cols-5 items-end">
               <NavButton active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
-              <NavButton active={view === "write" && !!active} onClick={() => { if (active) setView("write"); }} icon={ICONS.nav.write} label="Write" />
+              <NavButton active={view === "polish"} onClick={() => { if (active) setView("polish"); else setView("library"); }} icon={ICONS.nav.compile} label="Review" />
 
               {/* Centre New-Entry button */}
               <div className="flex flex-col items-center justify-center pb-0.5">
@@ -3541,7 +3563,7 @@ const onSaved = () => {
                 >
                   <Plus className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
                 </button>
-                <span className="text-[10px] font-bold text-slate-400 mt-1 leading-none">New</span>
+
               </div>
 
               <NavButton active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ICONS.nav.compile} label="Share" />
