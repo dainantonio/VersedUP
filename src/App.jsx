@@ -2722,18 +2722,35 @@ function compileForPlatform(platform, d, settings) {
 function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   const { pushToast } = useToast();
   const [platform, setPlatform] = useState("tiktok");
-  const [mode, setMode] = useState("preview");
   const [text, setText] = useState("");
-  const [scriptOpen, setScriptOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
+  const [tiktokOverlay, setTiktokOverlay] = useState(false);
+  const [ttCountdown, setTtCountdown] = useState(2);
+  const [showTikTokScript, setShowTikTokScript] = useState(false);
+  const [inlineScriptBusy, setInlineScriptBusy] = useState(false);
+  const [igBg, setIgBg] = useState("white");
+  const igCardRef = useRef(null);
 
   useEffect(() => {
     setText(compileForPlatform(platform, devotional, settings));
   }, [platform, devotional, settings]);
 
+  useEffect(() => {
+    if (!tiktokOverlay) return;
+    if (ttCountdown <= 0) {
+      window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
+      setTiktokOverlay(false);
+      setTtCountdown(2);
+      return;
+    }
+    const t = setTimeout(() => setTtCountdown((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [tiktokOverlay, ttCountdown]);
+
   const limit = PLATFORM_LIMITS[platform] || 999999;
-  const over = text.length > limit;
+  const charCount = text.length;
+  const pct = Math.min(1, charCount / limit);
+  const over = charCount > limit;
 
   const copy = async () => {
     try {
@@ -2748,19 +2765,12 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     setShareBusy(true);
     try {
       if (navigator.share) {
-        await navigator.share({
-          title: devotional.title || devotional.verseRef || "Devotional",
-          text,
-          url: window.location.href,
-        });
+        await navigator.share({ title: devotional.title || devotional.verseRef || "Devotional", text, url: window.location.href });
       } else {
         await copy();
       }
-    } catch {
-      // no-op when user cancels native share
-    } finally {
-      setShareBusy(false);
-    }
+    } catch {}
+    finally { setShareBusy(false); }
   };
 
   const openEmailDraft = () => {
@@ -2775,47 +2785,31 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   };
 
   const shareToFacebook = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      pushToast("Caption copied. Facebook opened.");
-    } catch {
-      pushToast("Facebook opened.");
-    }
+    await copy();
     const u = encodeURIComponent(window.location.href);
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}`, "_blank", "noopener,noreferrer");
   };
 
-  const shareToX = () => {
+  const shareToX = async () => {
     const shareUrl = encodeURIComponent(window.location.href);
     const shareText = encodeURIComponent(text);
     window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`, "_blank", "noopener,noreferrer");
   };
 
   const shareToTikTok = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      pushToast("Caption copied. TikTok upload opened.");
-    } catch {
-      pushToast("TikTok upload opened.");
-    }
-    window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
+    await copy();
+    setTiktokOverlay(true);
+    setTtCountdown(2);
   };
 
   const shareToInstagram = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      pushToast("Caption copied! Opening Instagram Create...");
-    } catch {
-      pushToast("Opening Instagram...");
-    }
-    // Try deep link on mobile, fall back to web create page
+    await copy();
     const deepLink = "instagram://camera";
     window.location.href = deepLink;
     setTimeout(() => {
       window.open("https://www.instagram.com/create/select/", "_blank", "noopener,noreferrer");
     }, 800);
   };
-
 
   const autoShorten = async () => {
     try {
@@ -2826,287 +2820,176 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     }
   };
 
+  const generateInlineScript = async (mode = "regenerate") => {
+    setInlineScriptBusy(true);
+    try {
+      const out = await aiTikTokScript(settings, {
+        verseRef: devotional.verseRef,
+        verseText: devotional.verseText,
+        reflection: devotional.reflection,
+        mood: devotional.mood,
+        baseScript: devotional.tiktokScript || "",
+        mode,
+      });
+      onUpdate({ tiktokScript: out });
+      setText(out);
+      setShowTikTokScript(true);
+    } catch (e) {
+      pushToast(e?.message || "AI failed.");
+    } finally {
+      setInlineScriptBusy(false);
+    }
+  };
 
+  const exportInstagramCard = async () => {
+    try {
+      const dataUrl = await toPng(igCardRef.current, { cacheBust: true });
+      if (!dataUrl) return;
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `instagram-card-${(devotional.verseRef || "verse").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`;
+      a.click();
+      pushToast("Instagram card exported");
+    } catch (e) {
+      pushToast(e?.message || "Export failed");
+    }
+  };
+
+  const tabDefs = [
+    { id: "tiktok", label: "🎵 TikTok" },
+    { id: "instagram", label: "📸 Instagram" },
+    { id: "twitter", label: "🐦 Twitter" },
+    { id: "facebook", label: "👥 Facebook" },
+    { id: "email", label: "✉️ Email" },
+  ];
+
+  const igBgClass = igBg === "white" ? "bg-white" : igBg === "dark" ? "bg-gradient-to-br from-slate-900 to-slate-700 text-white" : "bg-gradient-to-br from-emerald-600 to-teal-700 text-white";
 
   return (
-    <div className="space-y-6 pb-56 animate-enter">
+    <div className="space-y-5 pb-24 animate-enter relative">
+      {tiktokOverlay ? (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+            <CheckCircle className="w-14 h-14 text-emerald-600 mx-auto" />
+            <div className="mt-3 text-lg font-black text-slate-900">Caption copied to clipboard!</div>
+            <div className="mt-1 text-sm text-slate-600">Now opening TikTok in {ttCountdown}...</div>
+          </div>
+        </div>
+      ) : null}
+
       <div>
-        <div className="text-2xl font-black text-slate-900">Share</div>
-        <div className="text-sm text-slate-500 mt-1 font-medium">Format for your platform, then share.</div>
+        <div className="text-2xl font-black text-slate-900">Launch Pad</div>
+        <div className="text-sm text-slate-500 mt-1 font-medium">Ready to publish. Pick a platform and go.</div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Platform</label>
-        <select
-          value={platform}
-          onChange={(e) => setPlatform(e.target.value)}
-          className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
-        >
-          <option value="tiktok">TikTok</option>
-          <option value="instagram">Instagram</option>
-          <option value="facebook">Facebook</option>
-          <option value="twitter">Twitter / X</option>
-          <option value="email">Email</option>
-          <option value="generic">Generic</option>
-        </select>
-      </div>
-
-      <div className="flex gap-2">
-        <Chip active={mode === "preview"} onClick={() => setMode("preview")}>
-          Preview
-        </Chip>
-        <Chip active={mode === "text"} onClick={() => setMode("text")}>
-          Text
-        </Chip>
-        <div className="flex-1" />
-        {platform === "tiktok" ? (
-          <SmallButton onClick={() => setScriptOpen(true)} icon={Wand2}>
-            TikTok Script
-          </SmallButton>
-        ) : null}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+        {tabDefs.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => setPlatform(p.id)}
+            className={cn("shrink-0 rounded-full px-3 py-2 text-xs font-extrabold border", platform === p.id ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600")}
+          >
+            {p.label}
+          </button>
+        ))}
       </div>
 
       {over ? (
         <Card>
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
-            <div className="flex-1">
-              <div className="font-extrabold text-slate-900">Over limit for {platform}</div>
-              <div className="text-sm text-slate-500">
-                {text.length} / {limit}
-              </div>
-            </div>
-            <SmallButton onClick={() => void autoShorten()}>Auto-Shorten</SmallButton>
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+            <div className="text-sm font-extrabold text-red-700">{charCount - limit} characters over limit.</div>
+            <SmallButton onClick={() => void autoShorten()} className="mt-2">Auto-Shorten</SmallButton>
           </div>
         </Card>
       ) : null}
 
-      {mode === "text" ? (
-        <Card>
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">OUTPUT</div>
-          <div className="flex items-start gap-2 mt-2 mb-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-            <span className="text-xs text-amber-800 font-semibold">Edits here are for formatting only — they won't change your saved entry. <button type="button" onClick={onBackToWrite} className="underline font-bold hover:text-amber-900 transition-colors">Edit entry instead</button></span>
-          </div>
-          <div className="text-sm text-slate-500 mb-1">Tap <b>Copy</b> then open your app — or tap <b>Open in {platform}</b> below. Limit: {limit} chars.</div>
+      <Card>
+        <SocialPreview platform={platform} devotional={devotional} settings={settings} text={text} />
+        <div className="mt-3">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            rows={16}
-            className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-inner bg-slate-50"
+            rows={10}
+            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none bg-slate-50"
           />
-          <div className={cn("mt-2 text-xs font-bold", over ? "text-red-600" : "text-slate-500")}>
-            {text.length} / {limit}
-          </div>
-        </Card>
-      ) : (
-        <SocialPreview platform={platform} devotional={devotional} settings={settings} text={text} />
-      )}
-
-      <div className="fixed left-0 right-0 bottom-24 z-30 pointer-events-none">
-        <div className="max-w-md mx-auto px-4 pointer-events-auto">
-          <div className="rounded-3xl border border-slate-200 bg-white/95 backdrop-blur-xl p-3 shadow-2xl">
-            {/* Row 1: primary actions */}
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <SmallButton onClick={copy} icon={Copy} tone="neutral">Copy</SmallButton>
-              <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy} tone="primary">
-                {shareBusy ? "Sharing..." : "Share"}
-              </SmallButton>
-            </div>
-            {/* Row 2: context-aware open — matches the platform chip selected above */}
-            {(platform === "tiktok" || platform === "instagram" || platform === "facebook" || platform === "twitter") ? (
-              <div className="mt-2">
-                <SmallButton
-                  onClick={() => {
-                    if (platform === "tiktok") void shareToTikTok();
-                    else if (platform === "instagram") void shareToInstagram();
-                    else if (platform === "facebook") void shareToFacebook();
-                    else if (platform === "twitter") shareToX();
-                    else copy();
-                  }}
-                  className="w-full justify-center"
-                  tone="neutral"
-                >
-                  Open in {platform === "tiktok" ? "TikTok" : platform === "instagram" ? "Instagram" : platform === "facebook" ? "Facebook" : platform === "twitter" ? "Twitter / X" : "App"}
-                </SmallButton>
-              </div>
-            ) : null}
-            {/* Row 3: other channels */}
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
-              <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {scriptOpen ? <TikTokScriptModal devotional={devotional} settings={settings} onClose={() => setScriptOpen(false)} onUpdate={onUpdate} /> : null}
-
-      {exportOpen ? <TikTokExportModal devotional={devotional} settings={settings} onClose={() => setExportOpen(false)} /> : null}
-    </div>
-  );
-}
-
-const PREVIEW_PLATFORMS = [
-  { id: "instagram", label: "Instagram", color: "from-purple-500 to-pink-500" },
-  { id: "tiktok", label: "TikTok", color: "from-black to-slate-800" },
-  { id: "twitter", label: "Twitter / X", color: "from-sky-500 to-blue-600" },
-  { id: "facebook", label: "Facebook", color: "from-blue-600 to-blue-700" },
-  { id: "email", label: "Email", color: "from-slate-500 to-slate-700" },
-  { id: "generic", label: "Generic", color: "from-emerald-500 to-teal-600" },
-];
-
-function DraftPreviewModal({ devotional, settings, onClose, onShare, compileForPlatform }) {
-  const [platform, setPlatform] = useState("instagram");
-  const text = compileForPlatform(platform, devotional, settings);
-  const charCount = text.length;
-  const limit = PLATFORM_LIMITS[platform] || PLATFORM_LIMITS.generic;
-  const over = charCount > limit;
-  const pct = Math.min(charCount / limit, 1);
-  const platformInfo = PREVIEW_PLATFORMS.find(p => p.id === platform);
-
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/80 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="flex flex-col flex-1 mx-auto w-full max-w-lg mt-6 mb-0 rounded-t-3xl bg-slate-50 overflow-hidden shadow-2xl"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-200 bg-white">
-          <div className="font-extrabold text-slate-900 text-base">Draft Preview</div>
-          <div className="flex items-center gap-3">
-            <div className={`text-xs font-extrabold px-2.5 py-1 rounded-full ${over ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
+          <div className="mt-2">
+            <span className={cn(
+              "inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold",
+              pct < 0.8 ? "bg-emerald-50 border-emerald-200 text-emerald-700" : pct <= 1 ? "bg-amber-50 border-amber-200 text-amber-700 text-sm" : "bg-red-50 border-red-200 text-red-700"
+            )}>
               {charCount} / {limit}
-            </div>
-            <button type="button" onClick={onClose} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
-              <X className="w-4 h-4 text-slate-600" />
-            </button>
+            </span>
           </div>
         </div>
+      </Card>
 
-        {/* Platform tabs */}
-        <div className="flex gap-2 px-4 py-3 overflow-x-auto no-scrollbar bg-white border-b border-slate-100">
-          {PREVIEW_PLATFORMS.map(p => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setPlatform(p.id)}
-              className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-extrabold transition-all ${
-                platform === p.id
-                  ? `bg-gradient-to-r ${p.color} text-white shadow-sm`
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
+      {platform === "tiktok" ? (
+        <Card>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-black text-slate-800">TikTok Script</div>
+            <SmallButton onClick={() => setShowTikTokScript((v) => !v)}>{showTikTokScript ? "Hide" : "Show"}</SmallButton>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <SmallButton onClick={() => void generateInlineScript("regenerate")} disabled={inlineScriptBusy}>{inlineScriptBusy ? "Generating..." : "Generate Script"}</SmallButton>
+            <SmallButton onClick={() => onUpdate({ tiktokScript: "" })} tone="neutral">Clear</SmallButton>
+          </div>
+          {showTikTokScript ? (
+            <textarea
+              className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none"
+              rows={8}
+              value={devotional.tiktokScript || ""}
+              onChange={(e) => { onUpdate({ tiktokScript: e.target.value }); setText(e.target.value); }}
+            />
+          ) : null}
+        </Card>
+      ) : null}
+
+      {platform === "instagram" ? (
+        <Card>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-black text-slate-800">Instagram Visual Card Export</div>
+            <div className="flex gap-1">
+              {["white","dark","emerald"].map((bg) => (
+                <button key={bg} onClick={() => setIgBg(bg)} className={cn("px-2 py-1 rounded-lg text-[10px] font-bold border", igBg===bg?"border-slate-900 text-slate-900":"border-slate-200 text-slate-500")}>{bg}</button>
+              ))}
+            </div>
+          </div>
+          <div ref={igCardRef} className={cn("mt-3 aspect-square rounded-3xl border p-6 flex flex-col justify-between", igBgClass)}>
+            <div className="text-2xl leading-relaxed font-serif-scripture whitespace-pre-wrap">{devotional.verseText || text.slice(0, 220)}</div>
+            <div className="flex items-end justify-between text-xs font-bold">
+              <span>{devotional.verseRef || "Scripture"} {devotional.bibleVersion ? `(${devotional.bibleVersion})` : ""}</span>
+              <span>{settings.username || "@yourname"}</span>
+            </div>
+          </div>
+          <SmallButton onClick={() => void exportInstagramCard()} className="mt-3">Export PNG</SmallButton>
+        </Card>
+      ) : null}
+
+      <div className="sticky bottom-20 z-20">
+        <div className="rounded-3xl border border-slate-200 bg-white/95 backdrop-blur-xl p-3 shadow-2xl">
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <SmallButton onClick={copy} icon={Copy} tone="neutral">Copy</SmallButton>
+            <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy} tone="primary">{shareBusy ? "Sharing..." : "Share"}</SmallButton>
+          </div>
+          {(platform === "tiktok" || platform === "instagram" || platform === "facebook" || platform === "twitter") ? (
+            <SmallButton
+              onClick={() => {
+                if (platform === "tiktok") void shareToTikTok();
+                else if (platform === "instagram") void shareToInstagram();
+                else if (platform === "facebook") void shareToFacebook();
+                else if (platform === "twitter") void shareToX();
+              }}
+              className="w-full justify-center"
+              tone="neutral"
             >
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Preview area — scrollable */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {/* Platform header accent */}
-          <div className={`h-1.5 w-16 rounded-full bg-gradient-to-r ${platformInfo?.color}`} />
-
-          {platform === "instagram" && (
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-100">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-400 to-pink-500 shadow-sm" />
-                <div>
-                  <div className="text-sm font-extrabold text-slate-900">{settings.username || "yourprofile"}</div>
-                  <div className="text-[11px] text-slate-400 font-semibold">Instagram</div>
-                </div>
-              </div>
-              <div className="px-4 py-4">
-                <p className="text-sm text-slate-800 leading-relaxed font-serif-scripture whitespace-pre-wrap">{text}</p>
-              </div>
-              <div className="px-4 pb-4 flex gap-4 text-slate-400 text-lg">❤️ 💬 📤 🔖</div>
-            </div>
-          )}
-
-          {platform === "tiktok" && (
-            <div className="rounded-3xl overflow-hidden shadow-lg">
-              <div className="bg-gradient-to-b from-black to-slate-900 p-5 min-h-[260px] flex flex-col justify-end relative">
-                <div className="absolute top-4 right-4 flex flex-col gap-4 items-center text-white text-xl">❤️<br/>💬<br/>🔖<br/>▶️</div>
-                <p className="text-white text-sm leading-relaxed whitespace-pre-wrap font-semibold drop-shadow">{text}</p>
-                <div className="mt-3 text-xs text-white/70 font-bold">{settings.username || "@yourname"}</div>
-              </div>
-            </div>
-          )}
-
-          {platform === "twitter" && (
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="px-4 py-3 flex gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 shrink-0 shadow-sm" />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-sm text-slate-900">{settings.username || "You"}</span>
-                    <span className="text-xs text-slate-400">· now</span>
-                  </div>
-                  <p className="mt-1 text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{text}</p>
-                  <div className="mt-3 flex gap-5 text-slate-400 text-xs">💬 Repost ❤️ Share</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {platform === "facebook" && (
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-100">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 shadow-sm" />
-                <div>
-                  <div className="text-sm font-extrabold text-slate-900">{settings.username || "Your Page"}</div>
-                  <div className="text-[11px] text-slate-400 font-semibold">Just now · 🌐</div>
-                </div>
-              </div>
-              <div className="px-4 py-4">
-                <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{text}</p>
-              </div>
-              <div className="px-4 pb-3 flex gap-4 text-slate-500 text-sm border-t border-slate-100 pt-3">👍 Like · 💬 Comment · ↗️ Share</div>
-            </div>
-          )}
-
-          {platform === "email" && (
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
-                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">EMAIL</div>
-                <div className="text-xs font-extrabold text-slate-700">To: {settings.username || "subscriber@email.com"}</div>
-                <div className="text-xs text-slate-500 mt-0.5">Subject: {devotional.title || "Daily Devotional"}</div>
-              </div>
-              <div className="px-4 py-4">
-                <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap font-serif-scripture">{text}</p>
-              </div>
-            </div>
-          )}
-
-          {platform === "generic" && (
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="px-5 py-4">
-                <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-3">Post Copy</div>
-                <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap font-serif-scripture">{text}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Char bar */}
-          <div className="space-y-1.5">
-            <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${over ? "bg-red-500" : pct > 0.85 ? "bg-amber-500" : "bg-emerald-500"}`}
-                style={{ width: `${pct * 100}%` }}
-              />
-            </div>
-            {over && <div className="text-xs font-bold text-red-600">{charCount - limit} characters over limit — consider shortening.</div>}
+              Open in {platform === "tiktok" ? "TikTok" : platform === "instagram" ? "Instagram" : platform === "facebook" ? "Facebook" : "Twitter / X"}
+            </SmallButton>
+          ) : null}
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
+            <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
           </div>
-        </div>
-
-        {/* Footer CTA */}
-        <div className="px-5 py-4 border-t border-slate-200 bg-white flex items-center gap-3">
-          <button type="button" onClick={onClose} className="flex-1 py-3 rounded-2xl bg-slate-100 text-slate-700 font-extrabold text-sm hover:bg-slate-200 transition-colors">
-            ← Back to Edit
-          </button>
-          <button type="button" onClick={onShare} className="flex-1 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm transition-colors flex items-center justify-center gap-2 shadow-sm">
-            <Share2 className="w-4 h-4" /> Share
-          </button>
         </div>
       </div>
     </div>
