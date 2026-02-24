@@ -975,9 +975,10 @@ function bumpStreakOnSave() {
 
 /* ---------------- Views ---------------- */
 
-function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak, displayName, devotionals, onOpen }) {
+function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, onStartWithVerse, hasActive, streak, displayName, devotionals, onOpen }) {
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
+  const [homeVerseRef, setHomeVerseRef] = useState("");
   const moodVerse = MOOD_VERSES[moodVerseKey] || MOOD_VERSES.joy;
 
   const handleSelectMoodVerse = (key) => {
@@ -986,9 +987,15 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
     pushToast(`${label} verse ready.`);
   };
 
+  const latest = devotionals[devotionals.length - 1] || null;
+  const todaysAction = hasActive
+    ? { tone: "bg-emerald-50 border-emerald-200 text-emerald-800", text: "🟢 You're ready to post — 1 entry draft waiting" }
+    : latest
+      ? { tone: "bg-amber-50 border-amber-200 text-amber-800", text: "🟡 You started something yesterday — finish it" }
+      : { tone: "bg-sky-50 border-sky-200 text-sky-800", text: "🔵 Fresh start — what's on your heart today?" };
+
   return (
     <div className="space-y-4 pb-20 animate-enter">
-      {/* ── Header ── */}
       <div className="pt-1">
         <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
@@ -996,10 +1003,13 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
         <div className="text-3xl font-black text-slate-900 mt-0.5 tracking-tight leading-tight">{getTimeGreeting(displayName)}</div>
       </div>
 
-      {/* ── Streak + CTA ── */}
+      <div className={`rounded-2xl border px-4 py-3 text-sm font-extrabold ${todaysAction.tone}`}>
+        {todaysAction.text}
+      </div>
+
       <div className="bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 overflow-hidden relative">
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/60 via-transparent to-sky-50/20 pointer-events-none" />
-        <div className="relative flex items-center justify-between gap-4">
+        <div className="relative flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-baseline gap-2">
             <div className="text-5xl font-black text-slate-900 tabular-nums">{streak.count}</div>
             <div className="relative w-7 h-7 flex-shrink-0">
@@ -1011,17 +1021,48 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
               <div className="text-[11px] text-slate-500 font-medium leading-tight">God meets you here.</div>
             </div>
           </div>
-          <button
-            onClick={hasActive ? onContinue : onNew}
-            className="flex-shrink-0 px-5 py-3 rounded-2xl bg-slate-900 text-white text-sm font-extrabold shadow-lg hover:bg-slate-800 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
-            type="button"
-          >
-            {hasActive ? "Continue" : "Start"} <ArrowRight className="w-4 h-4" />
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={hasActive ? onContinue : onNew}
+              className="flex-shrink-0 px-4 py-3 rounded-2xl bg-slate-900 text-white text-sm font-extrabold shadow-lg hover:bg-slate-800 active:scale-95 transition-all"
+              type="button"
+            >
+              {hasActive ? "Continue" : "Start"}
+            </button>
+            <button
+              onClick={onQuickPost}
+              className="flex-shrink-0 px-4 py-3 rounded-2xl bg-emerald-600 text-white text-sm font-extrabold shadow-lg hover:bg-emerald-700 active:scale-95 transition-all"
+              type="button"
+            >
+              60-Second Post
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ── Verse of the Day ── */}
+      <div className="rounded-[1.5rem] border border-emerald-100 bg-white p-4 shadow-sm space-y-3">
+        <div className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Mood verse carousel</div>
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          {Object.entries(MOOD_VERSES).map(([k, mv]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => handleSelectMoodVerse(k)}
+              className={cn(
+                "shrink-0 rounded-full border px-3 py-1.5 text-xs font-extrabold transition-colors",
+                moodVerseKey === k ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-600 border-slate-200"
+              )}
+            >
+              {mv.label}
+            </button>
+          ))}
+        </div>
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+          <div className="text-xs font-black text-emerald-700">{moodVerse.verseRef}</div>
+          <div className="mt-1 text-sm text-slate-700 font-serif-scripture">{moodVerse.verseText}</div>
+        </div>
+      </div>
+
       <div className="bg-gradient-to-br from-emerald-600 to-teal-800 rounded-[1.75rem] p-6 text-white shadow-lg relative overflow-hidden">
         <Quote className="absolute -bottom-4 -right-4 w-28 h-28 text-white/10 rotate-12" fill="currentColor" />
         <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
@@ -1031,16 +1072,11 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
         </div>
         <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${VERSE_OF_DAY.verseText}"`}</div>
         <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
-        <button
-          onClick={onReflectVerseOfDay}
-          className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md active:scale-[0.985] transition-all flex items-center gap-2 border border-white/10 relative z-10"
-          type="button"
-        >
+        <button onClick={onReflectVerseOfDay} className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md active:scale-[0.985] transition-all flex items-center gap-2 border border-white/10 relative z-10" type="button">
           Reflect on this <ArrowRight className="w-3 h-3" />
         </button>
       </div>
 
-      {/* ── Recent Draft ── */}
       {devotionals.length > 0 ? (() => {
         const last = devotionals[devotionals.length - 1];
         const preview = (last.reflection || last.aiDraft || "").slice(0, 120).trim();
@@ -1052,22 +1088,20 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
           if (hrs < 24) return `${hrs}h ago`;
           return `${Math.floor(hrs / 24)}d ago`;
         })();
+        const statusReady = Boolean(last.reflection && (last.reflection || "").length > 120);
         return (
-          <button
-            type="button"
-            onClick={() => onOpen(last.id)}
-            className="w-full text-left bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-slate-200 active:scale-[0.99] transition-all group"
-          >
+          <button type="button" onClick={() => onOpen(last.id)} className="w-full text-left bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-slate-200 active:scale-[0.99] transition-all group">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Recent Draft</span>
+                <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-black", statusReady ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-amber-50 border-amber-200 text-amber-700")}>
+                  {statusReady ? "Ready to Post" : "In Progress"}
+                </span>
               </div>
               <span className="text-[10px] text-slate-400 font-medium">{ago}</span>
             </div>
-            {last.verseRef ? (
-              <div className="text-xs font-bold text-emerald-700 mb-1">{last.verseRef}</div>
-            ) : null}
+            {last.verseRef ? <div className="text-xs font-bold text-emerald-700 mb-1">{last.verseRef}</div> : null}
             <div className="text-sm text-slate-700 leading-relaxed line-clamp-2">
               {preview ? `"${preview}${preview.length >= 120 ? "…" : ""}"` : "Tap to continue writing…"}
             </div>
@@ -1078,20 +1112,25 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
         );
       })() : (
         <div className="bg-gradient-to-br from-sky-50 to-indigo-50 rounded-[1.75rem] border border-sky-100 p-5">
-          <div className="text-[10px] font-black uppercase tracking-widest text-sky-400 mb-2">Today's Prompt</div>
-          <div className="text-sm text-slate-700 leading-relaxed font-serif-scripture italic">
-            "What is one thing God has shown you recently that you haven't yet written down?"
+          <div className="text-[10px] font-black uppercase tracking-widest text-sky-400 mb-2">Fresh Start</div>
+          <div className="text-sm text-slate-700 leading-relaxed font-semibold mb-3">What verse is speaking to you today?</div>
+          <div className="flex gap-2">
+            <input
+              value={homeVerseRef}
+              onChange={(e) => setHomeVerseRef(e.target.value)}
+              placeholder="e.g. John 15:5"
+              className="flex-1 rounded-xl border border-sky-200 px-3 py-2.5 text-sm font-semibold outline-none focus:ring-4 focus:ring-sky-100"
+            />
+            <button
+              type="button"
+              onClick={() => onStartWithVerse(homeVerseRef)}
+              className="rounded-xl bg-sky-600 text-white px-3 py-2.5 text-xs font-extrabold"
+            >
+              Start
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onNew}
-            className="mt-3 flex items-center gap-1.5 text-xs font-extrabold text-sky-700 hover:text-sky-900 transition-colors"
-          >
-            Start writing <ArrowRight className="w-3 h-3" />
-          </button>
         </div>
       )}
-
     </div>
   );
 }
@@ -3882,6 +3921,29 @@ function AppInner({ session, starterMood, onLogout }) {
     setView("write");
   };
 
+  const quickPost = () => {
+    const d = createDevotional(settings);
+    d.title = "60-Second Faith Post";
+    d.reflection = "Jesus, give me one clear truth to share today.";
+    setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
+    setActiveId(d.id);
+    setView("write");
+  };
+
+  const startWithVerse = (verseRef) => {
+    const cleaned = String(verseRef || "").trim();
+    if (!cleaned) {
+      pushToast("Add a verse reference to start.");
+      return;
+    }
+    const d = createDevotional(settings);
+    d.verseRef = cleaned;
+    d.reflection = `Today I’m reflecting on ${cleaned}.`;
+    setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
+    setActiveId(d.id);
+    setView("write");
+  };
+
   const reflectVerseOfDay = () => {
     const d = createDevotional(settings);
     d.verseRef = VERSE_OF_DAY.verseRef;
@@ -3970,6 +4032,8 @@ const onSaved = () => {
             onLibrary={() => setView("library")}
             onContinue={() => setView(active ? "write" : "home")}
             onReflectVerseOfDay={reflectVerseOfDay}
+            onQuickPost={quickPost}
+            onStartWithVerse={startWithVerse}
             hasActive={Boolean(active)}
             streak={streak}
             displayName={getDisplayName(session, settings)}
