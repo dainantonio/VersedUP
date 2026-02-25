@@ -1700,14 +1700,6 @@ ${devotional.reflection}`);
   const progress = (step / 4) * 100;
   const verseReady = Boolean(verseText);
 
-  const contentTabs = [
-    { key: "reflection", label: "Reflection", value: devotional.reflection || "", placeholder: "Start writing your reflection...", rows: 10 },
-    { key: "prayer", label: "Prayer", value: devotional.prayer || "", placeholder: "Lord, help me...", rows: 8 },
-    { key: "questions", label: "Questions", value: devotional.questions || "", placeholder: "1) ...\n2) ...", rows: 8 },
-  ];
-  const activeTab = contentTabs.find((t) => t.key === activeContentTab) || contentTabs[0];
-  const hasActiveContent = Boolean(String(activeTab.value || "").trim());
-
   return (
     <div className="space-y-4 pb-20 animate-enter relative">
       {ttOverlay ? (
@@ -1819,11 +1811,37 @@ ${devotional.reflection}`);
 
             {platform === "tiktok" ? (
               <div className="rounded-2xl border border-slate-200 p-3">
-                <div className="flex items-center justify-between"><div className="text-sm font-extrabold">TikTok Script</div><button type="button" className="text-xs underline" onClick={()=>setShowTikTokScript((v)=>!v)}>{showTikTokScript?"Hide":"Show"}</button></div>
-                <div className="mt-2 flex gap-2"><SmallButton onClick={() => void generateTikTokScriptInline("regenerate")} disabled={scriptBusy}>{scriptBusy?"Generating...":"Generate"}</SmallButton><SmallButton onClick={() => void generateTikTokScriptInline("improve")} disabled={scriptBusy}>Improve</SmallButton><SmallButton onClick={() => void doLength("shorten")} disabled={scriptBusy}>Shorten</SmallButton></div>
-                {showTikTokScript ? <textarea rows={6} className="mt-2 w-full rounded-xl border px-3 py-2" value={devotional.tiktokScript || ""} onChange={(e) => onUpdate({ tiktokScript: e.target.value })} /> : null}
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-extrabold">TikTok Script</div>
+                  <button
+                    type="button"
+                    className="text-xs underline"
+                    onClick={() => setShowTikTokScript((v) => !v)}
+                  >
+                    {showTikTokScript ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <SmallButton onClick={() => void generateTikTokScriptInline("regenerate")} disabled={scriptBusy}>
+                    {scriptBusy ? "Generating..." : "Generate"}
+                  </SmallButton>
+                  <SmallButton onClick={() => void generateTikTokScriptInline("improve")} disabled={scriptBusy}>
+                    Improve
+                  </SmallButton>
+                  <SmallButton onClick={() => void doLength("shorten")} disabled={scriptBusy}>
+                    Shorten
+                  </SmallButton>
+                </div>
+                {showTikTokScript ? (
+                  <textarea
+                    rows={6}
+                    className="mt-2 w-full rounded-xl border px-3 py-2"
+                    value={devotional.tiktokScript || ""}
+                    onChange={(e) => onUpdate({ tiktokScript: e.target.value })}
+                  />
+                ) : null}
               </div>
-            </div>
+            ) : null}
 
             <button type="button" onClick={() => setStep(4)} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold">Preview & Post →</button>
           </div>
