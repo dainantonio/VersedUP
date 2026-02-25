@@ -1749,6 +1749,17 @@ ${devotional.reflection}`);
   const stepTitles = ["Scripture", "Your Heart", "Shape It", "Post It"];
   const progress = (step / 4) * 100;
   const verseReady = Boolean(verseText);
+  const heartReady = Boolean(String(devotional.reflection || "").trim() || String(devotional.prayer || "").trim() || String(devotional.questions || "").trim());
+  const canAccessStep = (nextStep) => {
+    if (nextStep <= 1) return true;
+    if (nextStep === 2) return verseReady;
+    if (nextStep === 3) return verseReady;
+    if (nextStep === 4) return verseReady && heartReady;
+    return false;
+  };
+  const goToStep = (nextStep) => {
+    if (canAccessStep(nextStep)) setStep(nextStep);
+  };
 
   return (
     <div className="space-y-4 pb-20 animate-enter relative">
@@ -1762,258 +1773,79 @@ ${devotional.reflection}`);
         </div>
       ) : null}
 
-      {/* ── Wizard Header ── */}
-      <div className="rounded-2xl bg-white/80 backdrop-blur border border-slate-200/80 px-3 py-2.5">
+      <div className="rounded-2xl bg-white border border-slate-200 p-3">
         <div className="flex items-center gap-2">
-          {step > 1 ? (
-            <button
-              type="button"
-              onClick={() => setStep((s) => Math.max(1, s - 1))}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1"
-            >
-              <ChevronLeft className="w-3 h-3" /> Back
-            </button>
-          ) : (
-            <div className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
-          )}
-
-          <div className="flex-1 flex items-center gap-2 min-w-0">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
-              {step} / 4
-            </span>
-            <span className="text-[10px] font-extrabold text-slate-600 truncate">
-              {stepTitles[step - 1]}
-            </span>
-            {step > 1 && verseRef ? (
-              <span className="shrink-0 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700 truncate max-w-[120px]">
-                {verseRef}
-              </span>
-            ) : null}
-          </div>
-
           <button
             type="button"
-            onClick={onGoSettings}
-            className="rounded-xl border border-slate-200 bg-slate-50 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-            title="Save & exit"
+            onClick={() => (step === 1 ? onGoCompile() : setStep((s) => Math.max(1, s - 1)))}
+            className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold"
           >
-            <X className="w-3.5 h-3.5" />
+            {step === 1 ? "← Exit" : "← Back"}
           </button>
+          <div className="text-xs font-black text-slate-500 uppercase">{step} of 4 · {stepTitles[step - 1]}</div>
+          <button type="button" onClick={onGoSettings} className="ml-auto rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold">⚙ Settings</button>
         </div>
-
-        {/* Progress bar */}
-        <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-500 ease-out"
-            style={{
-              width: `${progress}%`,
-              background: step === 4
-                ? "linear-gradient(90deg, #10b981, #14b8a6)"
-                : "linear-gradient(90deg, #10b981, #6ee7b7)",
-            }}
-          />
+        <div className="mt-3 grid grid-cols-4 gap-2">
+          {stepTitles.map((title, idx) => {
+            const stepNum = idx + 1;
+            const enabled = canAccessStep(stepNum);
+            const active = stepNum === step;
+            return (
+              <button
+                key={title}
+                type="button"
+                disabled={!enabled}
+                onClick={() => goToStep(stepNum)}
+                className={cn(
+                  "rounded-xl border px-2 py-2 text-[11px] font-black transition",
+                  active
+                    ? "bg-emerald-600 border-emerald-600 text-white"
+                    : enabled
+                      ? "bg-white border-slate-200 text-slate-700"
+                      : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                )}
+              >
+                {stepNum}. {title}
+              </button>
+            );
+          })}
         </div>
-
-        {/* Step dots */}
-        <div className="mt-2 flex justify-between px-1">
-          {stepTitles.map((t, i) => (
-            <div
-              key={i}
-              className={cn(
-                "flex items-center gap-1 text-[9px] font-bold transition-colors",
-                i + 1 === step ? "text-emerald-600" : i + 1 < step ? "text-emerald-400" : "text-slate-300"
-              )}
-            >
-              <div className={cn(
-                "w-1.5 h-1.5 rounded-full transition-colors",
-                i + 1 === step ? "bg-emerald-500" : i + 1 < step ? "bg-emerald-300" : "bg-slate-200"
-              )} />
-              {t}
-            </div>
-          ))}
+        <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
+          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
         </div>
-      </div>
+      ) : null}
 
       {step === 1 ? (
-        /* ── VERSE ARRIVAL: two-state screen ──
-           State A (no verse): search UI visible, spacious, focused
-           State B (verse loaded): search fades up, verse DOMINATES the screen,
-           everything else steps back, CTA button rises in from below           */
-        <div className="space-y-3">
-          {/* ── State A: Search UI — fades to background once verse is loaded ── */}
-          <div className={cn(
-            "transition-all duration-500",
-            verseText ? "opacity-40 pointer-events-none select-none" : "opacity-100"
-          )}>
-            <Card className="border-0 shadow-none bg-transparent p-0">
-              <div className="space-y-3">
-                <div className={cn(
-                  "text-2xl font-black text-slate-900 transition-all duration-300",
-                  verseText ? "text-base text-slate-400" : ""
-                )}>
-                  {verseText ? "Verse loaded" : "What verse is speaking to you today?"}
-                </div>
+        <Card>
+          <div className="space-y-4">
+            <div className="text-2xl font-black text-slate-900">What verse is speaking to you today?</div>
+            <button type="button" onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false })} className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">Verse of the Day</div>
+              <div className="text-sm font-bold text-emerald-700 mt-1">{VERSE_OF_DAY.verseRef}</div>
+              <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
+            </button>
 
-                {/* Verse of the Day shortcut */}
-                {!verseText ? (
-                  <button
-                    type="button"
-                    onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false })}
-                    className="w-full text-left rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 p-4 hover:border-emerald-300 transition-colors group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">✨ Verse of the Day</div>
-                      <div className="text-[10px] font-black text-emerald-500 group-hover:translate-x-0.5 transition-transform">Tap to use →</div>
-                    </div>
-                    <div className="text-sm font-bold text-emerald-700 mt-1.5">{VERSE_OF_DAY.verseRef}</div>
-                    <div className="text-xs mt-1 font-serif-scripture text-slate-600 leading-relaxed line-clamp-2">{VERSE_OF_DAY.verseText}</div>
-                  </button>
-                ) : null}
+            <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
+            <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
 
-                {/* Verse reference input */}
-                <div className="relative">
-                  <input
-                    list="bible-books-list"
-                    value={devotional.verseRef}
-                    onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "" })}
-                    placeholder="or type a reference — e.g. John 15:5"
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-300 transition-all pr-10"
-                  />
-                  {fetching ? (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
-                    </div>
-                  ) : devotional.verseRef && !verseText ? (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">↵</div>
-                  ) : null}
-                </div>
-                <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              {["KJV", "NLT", "ESV", "NKJV"].map((v) => (
+                <button key={v} type="button" onClick={() => onUpdate({ bibleVersion: v, verseText: "" })} className={cn("rounded-full px-3 py-1.5 text-xs font-extrabold border", version === v ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600")}>{v}</button>
+              ))}
+            </div>
 
-                {/* Version pills */}
-                <div className="flex gap-2">
-                  {["KJV", "NLT", "ESV", "NKJV"].map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => onUpdate({ bibleVersion: v, verseText: "" })}
-                      className={cn(
-                        "rounded-full px-3 py-1.5 text-xs font-extrabold border transition-all",
-                        version === v
-                          ? "bg-slate-900 text-white border-slate-900"
-                          : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-                      )}
-                    >
-                      {v}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={onGoSettings}
-                    className="ml-auto rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:bg-slate-50 flex items-center gap-1"
-                  >
-                    <ScanLine className="w-3 h-3" /> Scan
-                  </button>
-                </div>
+            {fetching ? <div className="text-xs text-slate-500">Loading verse...</div> : null}
+            {verseText ? (
+              <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
+                <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{verseRef} ({version})</div>
+                <div className="mt-2 text-lg leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">{verseText}</div>
               </div>
-            </Card>
+            ) : null}
+
+            <SmallButton onClick={onGoSettings} tone="neutral">Scan a page instead</SmallButton>
+            <button type="button" disabled={!verseReady} onClick={() => goToStep(2)} className="w-full rounded-2xl bg-emerald-600 disabled:opacity-40 text-white py-3 font-extrabold">Use this verse →</button>
           </div>
-
-          {/* ── State B: Verse arrival — the moment ── */}
-          {verseText ? (
-            <div key={verseText} className="verse-reveal">
-              {/* Ambient glow behind the card */}
-              <div className="relative">
-                <div className="absolute -inset-4 bg-gradient-to-b from-emerald-100/60 via-teal-50/40 to-transparent rounded-[3rem] blur-2xl pointer-events-none" />
-
-                {/* The verse card itself */}
-                <div className="relative rounded-[2rem] overflow-hidden border border-emerald-100/80 bg-white shadow-xl shadow-emerald-900/8 verse-card-glow">
-                  {/* Decorative top band */}
-                  <div className="h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-400" />
-
-                  <div className="p-7 pb-6">
-                    {/* Reference + version badge */}
-                    <div className="verse-fade flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Scripture</div>
-                        <div className="text-sm font-black text-slate-900 shimmer-text">{verseRef}</div>
-                      </div>
-                      <div className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-extrabold text-slate-500 border border-slate-200">
-                        {version}
-                      </div>
-                    </div>
-
-                    {/* The verse text — the centrepiece */}
-                    <div className="verse-fade mt-5">
-                      <div
-                        className="font-serif-scripture text-slate-800 leading-[1.85] whitespace-pre-wrap"
-                        style={{
-                          fontSize: verseText.length < 120 ? "1.35rem" : verseText.length < 250 ? "1.15rem" : "1rem",
-                          lineHeight: "1.85",
-                        }}
-                      >
-                        <span className="text-emerald-400 font-black text-2xl leading-none align-top mr-1">"</span>
-                        {verseText}
-                        <span className="text-emerald-400 font-black text-2xl leading-none align-bottom ml-1">"</span>
-                      </div>
-                    </div>
-
-                    {/* Edit override — neutral, not accusatory */}
-                    {devotional.verseTextEdited ? (
-                      <div className="verse-fade mt-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold text-slate-500">
-                        <Pencil className="w-3 h-3" /> Custom text
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {/* Subtle bottom — change verse link */}
-                  <div className="px-7 pb-5 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => onUpdate({ verseRef: "", verseText: "", verseTextEdited: false })}
-                      className="text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors underline underline-offset-2"
-                    >
-                      Change verse
-                    </button>
-                    <textarea
-                      value={verseText}
-                      onChange={(e) => onUpdate({ verseText: e.target.value, verseTextEdited: true })}
-                      rows={1}
-                      className="hidden"
-                      aria-hidden
-                    />
-                    <div className="text-[10px] text-slate-300 font-medium">
-                      {verseText.split(" ").length} words
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* CTA button rises in after verse settles */}
-              <div className="button-rise mt-5">
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-emerald-600 text-white py-4 font-extrabold text-base shadow-lg shadow-emerald-600/25 hover:bg-emerald-700 active:scale-[0.985] transition-all group relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-                  <BookOpen className="w-5 h-5 relative z-10 group-hover:scale-110 transition-transform" />
-                  <span className="relative z-10">Reflect on this verse →</span>
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          {/* Fetching state — gentle, not clinical */}
-          {fetching && !verseText ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-3 animate-enter">
-              <div className="relative w-12 h-12">
-                <div className="absolute inset-0 rounded-full border-2 border-emerald-100" />
-                <div className="absolute inset-0 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
-              </div>
-              <div className="text-xs font-bold text-slate-400">Finding your verse…</div>
-            </div>
-          ) : null}
-        </div>
+        </Card>
       ) : null}
 
       {step === 2 ? (
@@ -2030,9 +1862,9 @@ ${devotional.reflection}`);
             {showPrompts ? <div className="flex gap-1 overflow-x-auto no-scrollbar">{TOPIC_CHIPS.map((t)=><button key={t.id} type="button" onClick={() => onTopicClick(t)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-extrabold", selectedTopic===t.id?"bg-emerald-600 border-emerald-600 text-white":"bg-white text-slate-600 border-slate-200")}>{t.label}</button>)}</div> : null}
 
             <div className="flex items-center gap-2">
-              <button type="button" className="text-xs font-bold text-slate-500 underline" onClick={() => { void doDraftForMe(); setStep(3); }}>Skip, just use AI →</button>
+              <button type="button" className="text-xs font-bold text-slate-500 underline" onClick={() => { void doDraftForMe(); goToStep(3); }}>Skip, just use AI →</button>
               <div className="flex-1" />
-              <button type="button" onClick={() => setStep(3)} className="rounded-2xl bg-emerald-600 text-white px-4 py-3 font-extrabold">Shape my writing →</button>
+              <button type="button" onClick={() => goToStep(3)} className="rounded-2xl bg-emerald-600 text-white px-4 py-3 font-extrabold">Shape my writing →</button>
             </div>
           </div>
         </Card>
@@ -2044,74 +1876,20 @@ ${devotional.reflection}`);
             <button type="button" onClick={() => setStep(1)} className="text-xs rounded-full border px-3 py-1 font-bold text-emerald-700 border-emerald-200 bg-emerald-50">{verseRef || "No verse"}</button>
             <input value={devotional.title} onChange={(e) => onUpdate({ title: e.target.value })} placeholder="Give it a title (optional)" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
 
-            {/* FIX 2: Draft for Me as hero, secondary tools below */}
-            <button
-              onClick={() => void doDraftForMe()}
-              disabled={busy || aiNeedsKey}
-              className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-emerald-600 text-white font-extrabold text-base shadow-md shadow-emerald-600/25 hover:bg-emerald-700 active:scale-[0.985] transition-all disabled:opacity-40 relative overflow-hidden group"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-              {busy ? <Loader2 className="w-5 h-5 animate-spin relative z-10" /> : <Sparkles className="w-5 h-5 relative z-10" />}
-              <span className="relative z-10">{busy ? "Drafting your content..." : "✨ Draft for Me"}</span>
-            </button>
-            {aiNeedsKey ? (
-              <div className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-                Add an AI key in Settings to use AI drafting.
-              </div>
-            ) : null}
             <div className="flex gap-2 overflow-x-auto no-scrollbar">
-              <button onClick={() => void doFix()} disabled={busy} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50 disabled:opacity-40">Fix Grammar</button>
-              <button onClick={() => void doLength("shorten")} disabled={busy} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50 disabled:opacity-40">Shorten</button>
-              <button onClick={() => void doLength("lengthen")} disabled={busy} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50 disabled:opacity-40">Expand</button>
-              <div className="relative shrink-0">
-                <button onClick={() => setToneMenuOpen((o) => !o)} disabled={busy} className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50 disabled:opacity-40">Tone ▾</button>
-                {toneMenuOpen ? (
-                  <div className="absolute top-full left-0 mt-1 z-30 w-44 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
-                    {["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t) => (
-                      <button key={t} onClick={() => void doTone(t)} className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">{t}</button>
-                    ))}
-                  </div>
-                ) : null}
+              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey} className="rounded-full bg-emerald-600 text-white px-3 py-2 text-xs font-extrabold disabled:opacity-40">✨ Draft for Me</button>
+              <button onClick={() => void doFix()} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Fix Grammar</button>
+              <button onClick={() => void doLength("shorten")} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Shorten</button>
+              <button onClick={() => void doLength("lengthen")} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Expand</button>
+              <div className="relative">
+                <button onClick={() => setToneMenuOpen((o) => !o)} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Tone ▾</button>
+                {toneMenuOpen ? <div className="absolute top-full right-0 mt-1 z-30 w-40 rounded-xl border bg-white shadow">{["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t)=><button key={t} onClick={() => void doTone(t)} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50">{t}</button>)}</div> : null}
               </div>
             </div>
 
-            {/* FIX 1: Tabs ABOVE textarea */}
-            <div className="grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1">
-              {[
-                { k: "reflection", label: "✍️ Reflection" },
-                { k: "prayer", label: "🙏 Prayer" },
-                { k: "questions", label: "❓ Questions" },
-              ].map(({ k, label }) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setContentTab(k)}
-                  className={cn(
-                    "rounded-xl py-2.5 text-xs font-extrabold transition-all",
-                    contentTab === k
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-400 hover:text-slate-600"
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="relative">
-              <textarea
-                value={contentTab === "reflection" ? (devotional.reflection || "") : contentTab === "prayer" ? (devotional.prayer || "") : (devotional.questions || "")}
-                onChange={(e) => onUpdate({ [contentTab]: e.target.value })}
-                rows={10}
-                placeholder={
-                  contentTab === "reflection" ? "Write your reflection here..." :
-                  contentTab === "prayer" ? "Lord Jesus,\n" :
-                  "1) What truth from this verse do I need to carry today?\n2) What is one action I can take in the next 24 hours?"
-                }
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none transition-all"
-              />
-              <div className="absolute bottom-3 right-3 text-[10px] font-bold text-slate-300">
-                {(contentTab === "reflection" ? String(devotional.reflection || "") : contentTab === "prayer" ? String(devotional.prayer || "") : String(devotional.questions || "")).trim().split(/\s+/).filter(Boolean).length} words
-              </div>
+            <textarea value={contentTab==="reflection"?devotional.reflection:contentTab==="prayer"?devotional.prayer:devotional.questions} onChange={(e)=>onUpdate({ [contentTab]: e.target.value })} rows={10} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
+            <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1">
+              {["reflection","prayer","questions"].map((k)=><button key={k} type="button" onClick={()=>setContentTab(k)} className={cn("rounded-xl py-2 text-xs font-extrabold", contentTab===k?"bg-white text-slate-900 shadow-sm":"text-slate-500")}>{k[0].toUpperCase()+k.slice(1)}</button>)}
             </div>
 
             <div className="flex items-center gap-2">
@@ -2157,7 +1935,8 @@ ${devotional.reflection}`);
               </div>
             ) : null}
 
-            <button type="button" onClick={() => setStep(4)} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold">Preview & Post →</button>
+            <button type="button" onClick={() => goToStep(4)} disabled={!heartReady} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold disabled:opacity-40">Preview & Post →</button>
+            {!heartReady ? <div className="text-xs text-slate-500">Add a reflection, prayer, or question before posting.</div> : null}
           </div>
         </Card>
       ) : null}
@@ -2165,29 +1944,15 @@ ${devotional.reflection}`);
       {step === 4 ? (
         <Card>
           <div className="space-y-4">
-            {/* FIX 5: Platform colors as inline styles to bypass Tailwind dynamic class issues */}
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
               {[
-                { id: "tiktok",    label: "🎵 TikTok",    active: { background: "#000", color: "#fff" },                             inactive: {} },
-                { id: "instagram", label: "📸 Instagram",  active: { background: "linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045)", color: "#fff" }, inactive: {} },
-                { id: "twitter",   label: "𝕏 Twitter/X",  active: { background: "#1DA1F2", color: "#fff" },                          inactive: {} },
-                { id: "facebook",  label: "👥 Facebook",   active: { background: "#1877F2", color: "#fff" },                          inactive: {} },
-                { id: "email",     label: "✉️ Email",      active: { background: "#475569", color: "#fff" },                          inactive: {} },
+                { id: "tiktok", label: "🎵 TikTok", tone: "bg-black text-white" },
+                { id: "instagram", label: "📸 Instagram", tone: "bg-gradient-to-r from-purple-500 to-pink-500 text-white" },
+                { id: "twitter", label: "🐦 Twitter/X", tone: "bg-sky-500 text-white" },
+                { id: "facebook", label: "👥 Facebook", tone: "bg-blue-600 text-white" },
+                { id: "email", label: "✉️ Email", tone: "bg-slate-700 text-white" },
               ].map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setPlatform(p.id)}
-                  style={platform === p.id ? p.active : {}}
-                  className={cn(
-                    "shrink-0 rounded-full px-4 py-2 text-xs font-extrabold border transition-all duration-200",
-                    platform === p.id
-                      ? "border-transparent shadow-md scale-105"
-                      : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-                  )}
-                >
-                  {p.label}
-                </button>
+                <button key={p.id} type="button" onClick={() => setPlatform(p.id)} className={cn("shrink-0 rounded-full px-3 py-2 text-xs font-extrabold border", platform===p.id ? p.tone+" border-transparent" : "bg-white border-slate-200 text-slate-600")}>{p.label}</button>
               ))}
             </div>
 
@@ -2219,29 +1984,10 @@ ${devotional.reflection}`);
               </div>
             ) : null}
 
-            {/* FIX 4: fixed positioning to avoid nav bar collision */}
-            <div className="h-36" />{/* spacer so content isn't hidden behind fixed bar */}
-            <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-0 right-0 z-30 px-3">
-              <div className="max-w-md mx-auto rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-xl p-3 shadow-2xl shadow-slate-900/10">
-                <button
-                  type="button"
-                  onClick={() => void copyAndOpen()}
-                  className="w-full rounded-2xl bg-slate-900 text-white py-3.5 font-extrabold text-sm hover:bg-slate-800 active:scale-[0.985] transition-all"
-                >
-                  Copy & Open in {platform[0].toUpperCase()+platform.slice(1)} →
-                </button>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <SmallButton onClick={() => { const s=encodeURIComponent(devotional.title||devotional.verseRef||"Encouragement"); window.location.href=`mailto:?subject=${s}&body=${encodeURIComponent(postText)}`; }}>Email Draft</SmallButton>
-                  <SmallButton onClick={() => { window.location.href=`sms:?&body=${encodeURIComponent(postText)}`; }}>Text Draft</SmallButton>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { onUpdate({ status: "posted", reviewed: true }); pushToast("Another seed planted 🌱"); }}
-                  className="w-full mt-2 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-extrabold hover:bg-emerald-100 transition-colors"
-                >
-                  ✅ Mark as Posted
-                </button>
-              </div>
+            <div className="sticky bottom-20 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-3 shadow">
+              <button type="button" onClick={() => void copyAndOpen()} className="w-full rounded-2xl bg-slate-900 text-white py-3 font-extrabold">Copy & Open in {platform[0].toUpperCase()+platform.slice(1)}</button>
+              <div className="grid grid-cols-2 gap-2 mt-2"><SmallButton onClick={() => { const s=encodeURIComponent(devotional.title||devotional.verseRef||"Encouragement"); window.location.href=`mailto:?subject=${s}&body=${encodeURIComponent(postText)}`; }}>Email Draft</SmallButton><SmallButton onClick={() => { window.location.href=`sms:?&body=${encodeURIComponent(postText)}`; }}>Text Draft</SmallButton></div>
+              <SmallButton onClick={() => { onUpdate({ status: "posted", reviewed: true }); pushToast("Another seed planted 🌱"); }} className="w-full mt-2">Mark as Posted</SmallButton>
             </div>
           </div>
         </Card>
@@ -2883,24 +2629,12 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
 
       {/* FIX 5b: Platform colors on CompileView tabs */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-        {[
-          { id: "tiktok",    label: "🎵 TikTok",    activeStyle: { background: "#000", color: "#fff" } },
-          { id: "instagram", label: "📸 Instagram",  activeStyle: { background: "linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045)", color: "#fff" } },
-          { id: "twitter",   label: "𝕏 Twitter/X",  activeStyle: { background: "#1DA1F2", color: "#fff" } },
-          { id: "facebook",  label: "👥 Facebook",   activeStyle: { background: "#1877F2", color: "#fff" } },
-          { id: "email",     label: "✉️ Email",      activeStyle: { background: "#475569", color: "#fff" } },
-        ].map((p) => (
+        {tabDefs.map((p) => (
           <button
             key={p.id}
             type="button"
             onClick={() => setPlatform(p.id)}
-            style={platform === p.id ? p.activeStyle : {}}
-            className={cn(
-              "shrink-0 rounded-full px-4 py-2 text-xs font-extrabold border transition-all duration-200",
-              platform === p.id
-                ? "border-transparent shadow-md scale-105"
-                : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-            )}
+            className={cn("shrink-0 rounded-full px-3 py-2 text-xs font-extrabold border", platform === p.id ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600")}
           >
             {p.label}
           </button>
@@ -2978,111 +2712,29 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
         </Card>
       ) : null}
 
-      <div className="h-36" />{/* spacer for fixed action bar */}
-      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-0 right-0 z-30 px-3">
-        <div className="max-w-md mx-auto rounded-3xl border border-slate-200 bg-white/95 backdrop-blur-xl p-3 shadow-2xl shadow-slate-900/10">
+      <div className="sticky bottom-20 z-20">
+        <div className="rounded-3xl border border-slate-200 bg-white/95 backdrop-blur-xl p-3 shadow-2xl">
           <div className="grid grid-cols-2 gap-2 mb-2">
             <SmallButton onClick={copy} icon={Copy} tone="neutral">Copy</SmallButton>
             <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy} tone="primary">{shareBusy ? "Sharing..." : "Share"}</SmallButton>
           </div>
           {(platform === "tiktok" || platform === "instagram" || platform === "facebook" || platform === "twitter") ? (
-            <button
-              type="button"
+            <SmallButton
               onClick={() => {
                 if (platform === "tiktok") void shareToTikTok();
                 else if (platform === "instagram") void shareToInstagram();
                 else if (platform === "facebook") void shareToFacebook();
                 else if (platform === "twitter") void shareToX();
               }}
-              className="w-full py-3 rounded-2xl bg-slate-900 text-white text-sm font-extrabold hover:bg-slate-800 active:scale-[0.985] transition-all"
+              className="w-full justify-center"
+              tone="neutral"
             >
-              Open in {platform === "tiktok" ? "TikTok" : platform === "instagram" ? "Instagram" : platform === "facebook" ? "Facebook" : "Twitter / X"} →
-            </button>
+              Open in {platform === "tiktok" ? "TikTok" : platform === "instagram" ? "Instagram" : platform === "facebook" ? "Facebook" : "Twitter / X"}
+            </SmallButton>
           ) : null}
           <div className="grid grid-cols-2 gap-2 mt-2">
             <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
             <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SocialPreview({ platform, devotional, settings, text }) {
-  /* FIX 3: Full platform-accurate previews for all 5 platforms */
-
-  if (platform === "tiktok") {
-    return (
-      <div className="rounded-3xl overflow-hidden shadow-sm border border-slate-200">
-        <div className="bg-black px-4 py-3 flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-white/40" />
-          <span className="text-white/60 text-[11px] font-bold uppercase tracking-widest">TikTok</span>
-          <div className="ml-auto text-white/40 text-[11px] font-bold">{devotional.mood ? `#${devotional.mood}` : ""}</div>
-        </div>
-        <div className="bg-gradient-to-b from-slate-900 to-black p-5 min-h-[180px] flex flex-col justify-between relative">
-          <div className="absolute right-4 top-4 flex flex-col gap-4 items-center">
-            <div className="flex flex-col items-center gap-0.5"><span className="text-white text-lg">❤️</span><span className="text-white/60 text-[10px]">24.1K</span></div>
-            <div className="flex flex-col items-center gap-0.5"><span className="text-white text-lg">💬</span><span className="text-white/60 text-[10px]">847</span></div>
-            <div className="flex flex-col items-center gap-0.5"><span className="text-white text-lg">🔖</span><span className="text-white/60 text-[10px]">5.2K</span></div>
-          </div>
-          <div className="pr-10">
-            <p className="text-white text-sm leading-relaxed font-semibold whitespace-pre-wrap drop-shadow-sm">{text}</p>
-          </div>
-          <div className="mt-4 pr-10">
-            <span className="text-white/70 text-xs font-bold">{settings.username ? `@${settings.username.replace(/^@/,"")}` : "@yourname"}</span>
-            <div className="text-white/40 text-[10px] mt-0.5">♫ Original sound</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (platform === "instagram") {
-    return (
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 flex items-center gap-3 border-b border-slate-200 bg-white">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600 p-0.5">
-            <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-400 to-pink-500" />
-            </div>
-          </div>
-          <div className="flex-1">
-            <div className="text-sm font-extrabold text-slate-900">{settings.username || "yourprofile"}</div>
-            <div className="text-[11px] text-slate-400">Sponsored</div>
-          </div>
-          <span className="text-slate-400 text-lg">···</span>
-        </div>
-        <div className="p-4">
-          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
-        </div>
-        <div className="px-4 pb-3 flex items-center gap-4 text-xl border-t border-slate-100 pt-3">
-          <span>🤍</span><span>💬</span><span>✈️</span>
-          <span className="ml-auto">🔖</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (platform === "twitter") {
-    return (
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-4 pt-4 pb-3 flex gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 flex-shrink-0 flex items-center justify-center text-white font-black text-sm">
-            {(settings.username || "Y")[0].toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="font-extrabold text-sm text-slate-900">{settings.username || "You"}</span>
-              <span className="text-xs text-slate-400">· now</span>
-            </div>
-            <p className="mt-1.5 text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{text}</p>
-            <div className="mt-3 flex items-center gap-5 text-slate-400">
-              <span className="text-xs flex items-center gap-1">💬 <span>24</span></span>
-              <span className="text-xs flex items-center gap-1">🔁 <span>68</span></span>
-              <span className="text-xs flex items-center gap-1">❤️ <span>412</span></span>
-              <span className="text-xs flex items-center gap-1">📊 <span>5.8K</span></span>
-            </div>
           </div>
         </div>
       </div>
