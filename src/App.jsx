@@ -1921,9 +1921,6 @@ ${devotional.reflection}`);
                 {toneMenuOpen ? <div className="absolute top-full right-0 mt-1 z-30 w-40 rounded-xl border bg-white shadow">{["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t)=><button key={t} onClick={() => void doTone(t)} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50">{t}</button>)}</div> : null}
               </div>
             </div>
-          </div>
-        </Card>
-      ) : null}
 
             <textarea value={contentTab==="reflection"?devotional.reflection:contentTab==="prayer"?devotional.prayer:devotional.questions} onChange={(e)=>onUpdate({ [contentTab]: e.target.value })} rows={10} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
             <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1">
