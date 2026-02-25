@@ -93,6 +93,56 @@ const GlobalStyles = () => (
       animation: pulse-soft 3s ease-in-out infinite;
     }
 
+    /* Verse arrival animations */
+    @keyframes verseReveal {
+      from { opacity: 0; transform: translateY(24px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0)   scale(1);    }
+    }
+    @keyframes verseFadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes shimmerSweep {
+      0%   { background-position: -200% center; }
+      100% { background-position:  200% center; }
+    }
+    @keyframes buttonRise {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0);    }
+    }
+    @keyframes inputFadeOut {
+      from { opacity: 1; transform: translateY(0);    }
+      to   { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+    }
+    @keyframes glowPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+      50%       { box-shadow: 0 0 0 8px rgba(16,185,129,0.12); }
+    }
+    .verse-reveal {
+      animation: verseReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .verse-fade {
+      animation: verseFadeIn 0.4s ease forwards;
+      animation-delay: 0.2s;
+      opacity: 0;
+    }
+    .button-rise {
+      animation: buttonRise 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      animation-delay: 0.35s;
+      opacity: 0;
+    }
+    .shimmer-text {
+      background: linear-gradient(90deg, #1e293b 0%, #1e293b 40%, #10b981 50%, #1e293b 60%, #1e293b 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmerSweep 2.5s linear 1;
+    }
+    .verse-card-glow {
+      animation: glowPulse 2s ease-in-out 3;
+    }
+
     /* Serif class for scripture */
     .font-serif-scripture {
       font-family: 'Merriweather', serif;
@@ -1712,48 +1762,258 @@ ${devotional.reflection}`);
         </div>
       ) : null}
 
-      <div className="rounded-2xl bg-white border border-slate-200 p-3">
+      {/* ── Wizard Header ── */}
+      <div className="rounded-2xl bg-white/80 backdrop-blur border border-slate-200/80 px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setStep((s) => Math.max(1, s - 1))} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold">← Back</button>
-          <div className="text-xs font-black text-slate-500 uppercase">{step} of 4 · {stepTitles[step - 1]}</div>
-          <button type="button" onClick={onGoSettings} className="ml-auto rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold">✕</button>
+          {step > 1 ? (
+            <button
+              type="button"
+              onClick={() => setStep((s) => Math.max(1, s - 1))}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-1"
+            >
+              <ChevronLeft className="w-3 h-3" /> Back
+            </button>
+          ) : (
+            <div className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
+          )}
+
+          <div className="flex-1 flex items-center gap-2 min-w-0">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
+              {step} / 4
+            </span>
+            <span className="text-[10px] font-extrabold text-slate-600 truncate">
+              {stepTitles[step - 1]}
+            </span>
+            {step > 1 && verseRef ? (
+              <span className="shrink-0 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700 truncate max-w-[120px]">
+                {verseRef}
+              </span>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            onClick={onGoSettings}
+            className="rounded-xl border border-slate-200 bg-slate-50 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            title="Save & exit"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
-        <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
-          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
+
+        {/* Progress bar */}
+        <div className="mt-2 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500 ease-out"
+            style={{
+              width: `${progress}%`,
+              background: step === 4
+                ? "linear-gradient(90deg, #10b981, #14b8a6)"
+                : "linear-gradient(90deg, #10b981, #6ee7b7)",
+            }}
+          />
+        </div>
+
+        {/* Step dots */}
+        <div className="mt-2 flex justify-between px-1">
+          {stepTitles.map((t, i) => (
+            <div
+              key={i}
+              className={cn(
+                "flex items-center gap-1 text-[9px] font-bold transition-colors",
+                i + 1 === step ? "text-emerald-600" : i + 1 < step ? "text-emerald-400" : "text-slate-300"
+              )}
+            >
+              <div className={cn(
+                "w-1.5 h-1.5 rounded-full transition-colors",
+                i + 1 === step ? "bg-emerald-500" : i + 1 < step ? "bg-emerald-300" : "bg-slate-200"
+              )} />
+              {t}
+            </div>
+          ))}
         </div>
       </div>
 
       {step === 1 ? (
-        <Card>
-          <div className="space-y-4">
-            <div className="text-2xl font-black text-slate-900">What verse is speaking to you today?</div>
-            <button type="button" onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false })} className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">Verse of the Day</div>
-              <div className="text-sm font-bold text-emerald-700 mt-1">{VERSE_OF_DAY.verseRef}</div>
-              <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
-            </button>
+        /* ── VERSE ARRIVAL: two-state screen ──
+           State A (no verse): search UI visible, spacious, focused
+           State B (verse loaded): search fades up, verse DOMINATES the screen,
+           everything else steps back, CTA button rises in from below           */
+        <div className="space-y-3">
+          {/* ── State A: Search UI — fades to background once verse is loaded ── */}
+          <div className={cn(
+            "transition-all duration-500",
+            verseText ? "opacity-40 pointer-events-none select-none" : "opacity-100"
+          )}>
+            <Card className="border-0 shadow-none bg-transparent p-0">
+              <div className="space-y-3">
+                <div className={cn(
+                  "text-2xl font-black text-slate-900 transition-all duration-300",
+                  verseText ? "text-base text-slate-400" : ""
+                )}>
+                  {verseText ? "Verse loaded" : "What verse is speaking to you today?"}
+                </div>
 
-            <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
-            <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
+                {/* Verse of the Day shortcut */}
+                {!verseText ? (
+                  <button
+                    type="button"
+                    onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false })}
+                    className="w-full text-left rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 p-4 hover:border-emerald-300 transition-colors group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">✨ Verse of the Day</div>
+                      <div className="text-[10px] font-black text-emerald-500 group-hover:translate-x-0.5 transition-transform">Tap to use →</div>
+                    </div>
+                    <div className="text-sm font-bold text-emerald-700 mt-1.5">{VERSE_OF_DAY.verseRef}</div>
+                    <div className="text-xs mt-1 font-serif-scripture text-slate-600 leading-relaxed line-clamp-2">{VERSE_OF_DAY.verseText}</div>
+                  </button>
+                ) : null}
 
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
-              {["KJV", "NLT", "ESV", "NKJV"].map((v) => (
-                <button key={v} type="button" onClick={() => onUpdate({ bibleVersion: v, verseText: "" })} className={cn("rounded-full px-3 py-1.5 text-xs font-extrabold border", version === v ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600")}>{v}</button>
-              ))}
-            </div>
+                {/* Verse reference input */}
+                <div className="relative">
+                  <input
+                    list="bible-books-list"
+                    value={devotional.verseRef}
+                    onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "" })}
+                    placeholder="or type a reference — e.g. John 15:5"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-300 transition-all pr-10"
+                  />
+                  {fetching ? (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
+                    </div>
+                  ) : devotional.verseRef && !verseText ? (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">↵</div>
+                  ) : null}
+                </div>
+                <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
 
-            {fetching ? <div className="text-xs text-slate-500">Loading verse...</div> : null}
-            {verseText ? (
-              <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
-                <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{verseRef} ({version})</div>
-                <div className="mt-2 text-lg leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">{verseText}</div>
+                {/* Version pills */}
+                <div className="flex gap-2">
+                  {["KJV", "NLT", "ESV", "NKJV"].map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => onUpdate({ bibleVersion: v, verseText: "" })}
+                      className={cn(
+                        "rounded-full px-3 py-1.5 text-xs font-extrabold border transition-all",
+                        version === v
+                          ? "bg-slate-900 text-white border-slate-900"
+                          : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                      )}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={onGoSettings}
+                    className="ml-auto rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:bg-slate-50 flex items-center gap-1"
+                  >
+                    <ScanLine className="w-3 h-3" /> Scan
+                  </button>
+                </div>
               </div>
-            ) : null}
-
-            <SmallButton onClick={onGoSettings} tone="neutral">Scan a page instead</SmallButton>
-            <button type="button" disabled={!verseReady} onClick={() => setStep(2)} className="w-full rounded-2xl bg-emerald-600 disabled:opacity-40 text-white py-3 font-extrabold">Use this verse →</button>
+            </Card>
           </div>
-        </Card>
+
+          {/* ── State B: Verse arrival — the moment ── */}
+          {verseText ? (
+            <div key={verseText} className="verse-reveal">
+              {/* Ambient glow behind the card */}
+              <div className="relative">
+                <div className="absolute -inset-4 bg-gradient-to-b from-emerald-100/60 via-teal-50/40 to-transparent rounded-[3rem] blur-2xl pointer-events-none" />
+
+                {/* The verse card itself */}
+                <div className="relative rounded-[2rem] overflow-hidden border border-emerald-100/80 bg-white shadow-xl shadow-emerald-900/8 verse-card-glow">
+                  {/* Decorative top band */}
+                  <div className="h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-400" />
+
+                  <div className="p-7 pb-6">
+                    {/* Reference + version badge */}
+                    <div className="verse-fade flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Scripture</div>
+                        <div className="text-sm font-black text-slate-900 shimmer-text">{verseRef}</div>
+                      </div>
+                      <div className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-extrabold text-slate-500 border border-slate-200">
+                        {version}
+                      </div>
+                    </div>
+
+                    {/* The verse text — the centrepiece */}
+                    <div className="verse-fade mt-5">
+                      <div
+                        className="font-serif-scripture text-slate-800 leading-[1.85] whitespace-pre-wrap"
+                        style={{
+                          fontSize: verseText.length < 120 ? "1.35rem" : verseText.length < 250 ? "1.15rem" : "1rem",
+                          lineHeight: "1.85",
+                        }}
+                      >
+                        <span className="text-emerald-400 font-black text-2xl leading-none align-top mr-1">"</span>
+                        {verseText}
+                        <span className="text-emerald-400 font-black text-2xl leading-none align-bottom ml-1">"</span>
+                      </div>
+                    </div>
+
+                    {/* Edit override — neutral, not accusatory */}
+                    {devotional.verseTextEdited ? (
+                      <div className="verse-fade mt-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold text-slate-500">
+                        <Pencil className="w-3 h-3" /> Custom text
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {/* Subtle bottom — change verse link */}
+                  <div className="px-7 pb-5 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => onUpdate({ verseRef: "", verseText: "", verseTextEdited: false })}
+                      className="text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors underline underline-offset-2"
+                    >
+                      Change verse
+                    </button>
+                    <textarea
+                      value={verseText}
+                      onChange={(e) => onUpdate({ verseText: e.target.value, verseTextEdited: true })}
+                      rows={1}
+                      className="hidden"
+                      aria-hidden
+                    />
+                    <div className="text-[10px] text-slate-300 font-medium">
+                      {verseText.split(" ").length} words
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* CTA button rises in after verse settles */}
+              <div className="button-rise mt-5">
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-emerald-600 text-white py-4 font-extrabold text-base shadow-lg shadow-emerald-600/25 hover:bg-emerald-700 active:scale-[0.985] transition-all group relative overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+                  <BookOpen className="w-5 h-5 relative z-10 group-hover:scale-110 transition-transform" />
+                  <span className="relative z-10">Reflect on this verse →</span>
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Fetching state — gentle, not clinical */}
+          {fetching && !verseText ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3 animate-enter">
+              <div className="relative w-12 h-12">
+                <div className="absolute inset-0 rounded-full border-2 border-emerald-100" />
+                <div className="absolute inset-0 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+              </div>
+              <div className="text-xs font-bold text-slate-400">Finding your verse…</div>
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       {step === 2 ? (
