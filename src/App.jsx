@@ -93,6 +93,56 @@ const GlobalStyles = () => (
       animation: pulse-soft 3s ease-in-out infinite;
     }
 
+    /* Verse arrival animations */
+    @keyframes verseReveal {
+      from { opacity: 0; transform: translateY(24px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0)   scale(1);    }
+    }
+    @keyframes verseFadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes shimmerSweep {
+      0%   { background-position: -200% center; }
+      100% { background-position:  200% center; }
+    }
+    @keyframes buttonRise {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0);    }
+    }
+    @keyframes inputFadeOut {
+      from { opacity: 1; transform: translateY(0);    }
+      to   { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+    }
+    @keyframes glowPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+      50%       { box-shadow: 0 0 0 8px rgba(16,185,129,0.12); }
+    }
+    .verse-reveal {
+      animation: verseReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .verse-fade {
+      animation: verseFadeIn 0.4s ease forwards;
+      animation-delay: 0.2s;
+      opacity: 0;
+    }
+    .button-rise {
+      animation: buttonRise 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      animation-delay: 0.35s;
+      opacity: 0;
+    }
+    .shimmer-text {
+      background: linear-gradient(90deg, #1e293b 0%, #1e293b 40%, #10b981 50%, #1e293b 60%, #1e293b 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmerSweep 2.5s linear 1;
+    }
+    .verse-card-glow {
+      animation: glowPulse 2s ease-in-out 3;
+    }
+
     /* Serif class for scripture */
     .font-serif-scripture {
       font-family: 'Merriweather', serif;
@@ -1511,6 +1561,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
 }
 
 function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings }) {
+  const verseOfDay = React.useMemo(() => getVerseOfDay(), []);
   const { pushToast } = useToast();
   const [busy, setBusy] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -2643,6 +2694,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
         <div className="text-sm text-slate-500 mt-1 font-medium">Ready to publish. Pick a platform and go.</div>
       </div>
 
+      {/* FIX 5b: Platform colors on CompileView tabs */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
         {tabDefs.map((p) => (
           <button
@@ -2753,9 +2805,8 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
 function SocialPreview({ platform, devotional, settings, text }) {
   switch (platform) {
@@ -2772,6 +2823,7 @@ function SocialPreview({ platform, devotional, settings, text }) {
           <div className="p-4">
             <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
           </div>
+          <span className="ml-auto text-slate-400 text-lg">···</span>
         </div>
       );
 
@@ -3514,7 +3566,28 @@ function AppInner({ session, starterMood, onLogout }) {
 
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
-  const greetingName = (settings.username || session?.name || "Friend").replace(/^@/, "");
+
+  useEffect(() => {
+    const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
+    if (!allowed.has(view)) {
+      setView("home");
+      return;
+    }
+    if ((view === "write" || view === "polish" || view === "compile") && !active) {
+      setView(safeDevotionals.length ? "library" : "home");
+    }
+  }, [view, active, safeDevotionals.length]);
+
+  useEffect(() => {
+    const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
+    if (!allowed.has(view)) {
+      setView("home");
+      return;
+    }
+    if ((view === "write" || view === "polish" || view === "compile") && !active) {
+      setView(safeDevotionals.length ? "library" : "home");
+    }
+  }, [view, active, safeDevotionals.length]);
 
   useEffect(() => {
     const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
@@ -3587,10 +3660,11 @@ function AppInner({ session, starterMood, onLogout }) {
 
   const reflectVerseOfDay = () => {
     const d = createDevotional(settings);
-    d.verseRef = VERSE_OF_DAY.verseRef;
-    d.verseText = VERSE_OF_DAY.verseText;
-    d.title = VERSE_OF_DAY.suggestedTitle;
-    d.reflection = `Today I reflect on ${VERSE_OF_DAY.verseRef}. Lord, help me trust Your shepherding in every step.`;
+    const _votd = getVerseOfDay();
+    d.verseRef = _votd.verseRef;
+    d.verseText = _votd.verseText;
+    d.title = _votd.suggestedTitle;
+    d.reflection = `Today I reflect on ${_votd.verseRef}. Lord, help me trust Your shepherding in every step.`;
     setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
     setActiveId(d.id);
     setView("write");
@@ -3735,7 +3809,7 @@ const onSaved = () => {
       <div className="fixed bottom-0 left-0 right-0 z-40">
         <div className="max-w-md mx-auto px-3 pb-safe">
           <div className="bg-white/90 backdrop-blur-xl border-t border-slate-100 shadow-[0_-4px_24px_rgba(0,0,0,0.07)] px-2 pt-1 pb-2">
-            <div className="grid grid-cols-5 items-end">
+            <div className="grid grid-cols-4 items-end">
               <NavButton active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
               <NavButton active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
 
