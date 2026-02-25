@@ -316,7 +316,7 @@ const getVerseOfDay = (date = new Date()) => {
   return VERSE_OF_DAY_LIST[idx];
 };
 
-// VERSE_OF_DAY computed fresh at render time via getVerseOfDay()
+const VERSE_OF_DAY = getVerseOfDay();
 
 const MOOD_VERSES = Object.freeze({
   joy: { label: "Joy", verseRef: "Nehemiah 8:10", verseText: "The joy of the LORD is your strength." },
@@ -1078,7 +1078,6 @@ function bumpStreakOnSave() {
 /* ---------------- Views ---------------- */
 
 function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, onStartWithVerse, hasActive, streak, displayName, devotionals, onOpen, onOpenReadyToPost }) {
-  const verseOfDay = React.useMemo(() => getVerseOfDay(), []);
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
   const [homeVerseRef, setHomeVerseRef] = useState("");
@@ -1173,8 +1172,8 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
           <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
           <span className="text-[10px] font-black uppercase tracking-widest text-emerald-200">Verse of the Day</span>
         </div>
-        <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${verseOfDay.verseText}"`}</div>
-        <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{verseOfDay.verseRef.toUpperCase()}</div>
+        <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${VERSE_OF_DAY.verseText}"`}</div>
+        <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
         <button onClick={onReflectVerseOfDay} className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md active:scale-[0.985] transition-all flex items-center gap-2 border border-white/10 relative z-10" type="button">
           Reflect on this <ArrowRight className="w-3 h-3" />
         </button>
@@ -1209,8 +1208,8 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
               {preview ? `"${preview}${preview.length >= 120 ? "…" : ""}"` : "Tap to continue writing…"}
             </div>
             <div className="mt-3 flex gap-2">
-              <button type="button" onClick={() => onOpen(last.id)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">✏️ Continue Writing</button>
-              {statusReady ? <button type="button" onClick={() => onOpenReadyToPost(last.id)} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white">🚀 Compile &amp; Share</button> : null}
+              <button type="button" onClick={() => onOpen(last.id)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">Continue writing</button>
+              {statusReady ? <button type="button" onClick={() => onOpenReadyToPost(last.id)} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white">Preview & Post</button> : null}
             </div>
           </div>
         );
@@ -1860,20 +1859,15 @@ ${devotional.reflection}`);
         <Card>
           <div className="space-y-4">
             <div className="text-2xl font-black text-slate-900">What verse is speaking to you today?</div>
-            <button type="button" onClick={() => onUpdate({ verseRef: verseOfDay.verseRef, verseText: verseOfDay.verseText, verseTextEdited: false })} className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <button type="button" onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false })} className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
               <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">Verse of the Day</div>
-              <div className="text-sm font-bold text-emerald-700 mt-1">{verseOfDay.verseRef}</div>
-              <div className="text-sm mt-1 font-serif-scripture text-slate-700">{verseOfDay.verseText}</div>
+              <div className="text-sm font-bold text-emerald-700 mt-1">{VERSE_OF_DAY.verseRef}</div>
+              <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
             </button>
 
             <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
             <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
-            {fetching ? (
-              <div className="rounded-3xl border border-emerald-100 bg-emerald-50/30 p-4 flex items-center gap-3">
-                <Loader2 className="w-4 h-4 animate-spin text-emerald-600 shrink-0" />
-                <span className="text-sm font-semibold text-emerald-700">Fetching verse…</span>
-              </div>
-            ) : verseText ? (
+            {verseText ? (
               <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
                 <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{verseRef} ({version})</div>
                 <div className="mt-2 text-lg leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">{verseText}</div>
@@ -2175,12 +2169,6 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted 
   };
 
   const [collapsed, setCollapsed] = useState({ ready: false, in_progress: false, draft: true, posted: true });
-  const [expandedItems, setExpandedItems] = useState(new Set());
-  const toggleItem = (id) => setExpandedItems((prev) => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
   const grouped = useMemo(() => {
     const buckets = { ready: [], in_progress: [], draft: [], posted: [] };
     filtered.forEach((item) => {
@@ -2251,43 +2239,22 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted 
               {!collapsed[section.id] ? (
                 <div className="space-y-3 p-3 pt-0">
                   {items.map(({ d, st }) => (
-                    <div key={d.id} className="bg-white rounded-[1.25rem] border border-slate-100 shadow-sm overflow-hidden transition-all">
-                      {/* Collapsed header — always visible, tap to expand */}
-                      <button
-                        onClick={() => toggleItem(d.id)}
-                        className="w-full text-left px-4 pt-3.5 pb-3 active:scale-[0.99] transition-transform"
-                        type="button"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="font-extrabold text-slate-900 text-[15px] leading-snug truncate flex items-center gap-1.5">
-                              {d.title || "Untitled"}
-                              {d.reviewed ? <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /> : null}
-                            </div>
-                            <span className={cn("shrink-0 text-[10px] px-2 py-0.5 rounded-full border font-black", st.tone)}>{st.dot} {st.label}</span>
-                          </div>
-                          <ChevronDown className={cn("w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200", expandedItems.has(d.id) ? "rotate-180" : "")} />
+                    <div key={d.id} className="bg-white rounded-[1.25rem] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md hover:border-emerald-100">
+                      <button onClick={() => onOpen(d.id)} className="w-full text-left p-4 active:scale-[0.99] transition-transform" type="button">
+                        <div className="flex items-center gap-2">
+                          <div className="font-extrabold text-slate-900 text-[15px] leading-snug flex items-center gap-1.5">{d.title || "Untitled"}{d.reviewed ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : null}</div>
+                          <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-black", st.tone)}>{st.dot} {st.label}</span>
                         </div>
                         {d.verseRef ? <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wide">{d.verseRef}</div> : null}
-                        <div className="text-[11px] text-slate-300 mt-1 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
+                        {d.reflection ? <div className="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">{d.reflection}</div> : null}
+                        <div className="text-[11px] text-slate-300 mt-2 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
                       </button>
 
-                      {/* Expanded body — preview + actions */}
-                      {expandedItems.has(d.id) ? (
-                        <>
-                          {d.reflection ? (
-                            <div className="px-4 pb-3 border-t border-slate-50">
-                              <div className="text-xs text-slate-400 line-clamp-3 leading-relaxed pt-2">{d.reflection}</div>
-                            </div>
-                          ) : null}
-                          <div className="border-t border-slate-100 grid grid-cols-4">
-                            <button type="button" onClick={() => onOpen(d.id)} className="flex items-center justify-center py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50 transition-colors">Edit</button>
-                            <button type="button" onClick={() => onDuplicate(d.id)} className="flex items-center justify-center py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors">Copy</button>
-                            <button type="button" onClick={() => onMarkPosted(d.id)} className="flex items-center justify-center py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50 transition-colors">Posted ✓</button>
-                            <button type="button" onClick={() => onDelete(d.id)} className="flex items-center justify-center py-3 text-xs font-extrabold text-red-500 hover:bg-red-50 transition-colors">Delete</button>
-                          </div>
-                        </>
-                      ) : null}
+                      <div className="border-t border-slate-100 grid grid-cols-3">
+                        <button type="button" onClick={() => onDuplicate(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors">Duplicate</button>
+                        <button type="button" onClick={() => onMarkPosted(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50 transition-colors">Mark Posted</button>
+                        <button type="button" onClick={() => onDelete(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-red-500 hover:bg-red-50 transition-colors">Delete</button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -2521,22 +2488,6 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals }) {
         <button type="button" onClick={handleExport} className="mt-3 w-full flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98]">
           <Download className="w-4 h-4" /> Export all entries as JSON
         </button>
-      </Card>
-
-      <Card>
-        <SectionLabel>Appearance / Theme</SectionLabel>
-        <div className="grid grid-cols-3 gap-2">
-          {THEME_OPTIONS.map((t) => (
-            <button key={t.id} type="button" onClick={() => onUpdate({ theme: t.id })} className={cn("rounded-2xl py-2.5 text-xs font-bold border", settings.theme === t.id ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </Card>
-
-      <Card>
-        <SectionLabel>Data & Privacy</SectionLabel>
-        <div className="text-xs text-slate-500">All data stays on this device except AI calls you explicitly trigger.</div>
       </Card>
 
       <Card>
@@ -2860,12 +2811,20 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     );
   }
 
-  if (platform === "facebook") {
-    return (
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-100">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-black text-sm flex-shrink-0">
-            {(settings.username || "Y")[0].toUpperCase()}
+function SocialPreview({ platform, devotional, settings, text }) {
+  switch (platform) {
+    case "instagram":
+      return (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="p-4 flex items-center gap-3 border-b border-slate-200 bg-slate-50">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-sky-500" />
+            <div className="flex-1">
+              <div className="text-sm font-extrabold text-slate-900">{settings.username || "yourprofile"}</div>
+              <div className="text-xs text-slate-500">Instagram</div>
+            </div>
+          </div>
+          <div className="p-4">
+            <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
           </div>
           <div>
             <div className="text-sm font-extrabold text-slate-900">{settings.username || "Your Page"}</div>
@@ -2873,46 +2832,70 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
           </div>
           <span className="ml-auto text-slate-400 text-lg">···</span>
         </div>
-        <div className="px-4 py-4">
-          <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{text}</p>
-        </div>
-        <div className="px-4 pb-3 border-t border-slate-100 pt-3 flex items-center gap-1">
-          <span className="text-xs text-slate-500 flex items-center gap-1">👍 <span className="font-semibold">Like</span></span>
-          <span className="text-slate-300 mx-2">·</span>
-          <span className="text-xs text-slate-500 flex items-center gap-1">💬 <span className="font-semibold">Comment</span></span>
-          <span className="text-slate-300 mx-2">·</span>
-          <span className="text-xs text-slate-500 flex items-center gap-1">↗️ <span className="font-semibold">Share</span></span>
-        </div>
-      </div>
-    );
-  }
+      );
 
-  if (platform === "email") {
-    return (
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50">
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">EMAIL PREVIEW</div>
-          <div className="text-xs text-slate-500"><span className="font-extrabold text-slate-700">To:</span> {settings.username || "subscriber@email.com"}</div>
-          <div className="text-xs text-slate-500 mt-0.5"><span className="font-extrabold text-slate-700">Subject:</span> {devotional.title || devotional.verseRef || "Daily Devotional"}</div>
+    case "email":
+      return (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-slate-200 bg-slate-50">
+            <div className="text-xs font-extrabold text-slate-500 uppercase tracking-widest">EMAIL PREVIEW</div>
+            <div className="text-sm font-extrabold text-slate-900 mt-1">To: {settings.username || "you@example.com"}</div>
+          </div>
+          <div className="p-4">
+            <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
+          </div>
         </div>
-        <div className="p-4">
-          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
-        </div>
-      </div>
-    );
-  }
+      );
 
-  // Generic fallback
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-100">
-        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Post Copy</div>
-      </div>
-      <div className="p-4">
-        <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap font-serif-scripture">{text}</p>
-      </div>
-    </div>
-  );
+    case "facebook":
+      return (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-slate-200 bg-slate-50">
+            <div className="text-sm font-extrabold text-slate-900">Facebook Preview</div>
+            <div className="text-xs text-slate-500">Link post style preview</div>
+          </div>
+          <div className="p-4">
+            <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
+          </div>
+        </div>
+      );
+
+    case "twitter":
+      return (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-slate-200 bg-slate-50">
+            <div className="text-sm font-extrabold text-slate-900">Twitter / X Preview</div>
+            <div className="text-xs text-slate-500">Short-form feed post</div>
+          </div>
+          <div className="p-4">
+            <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
+          </div>
+        </div>
+      );
+
+    default:
+      return (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="p-4 flex items-center justify-between border-b border-slate-200 bg-slate-50">
+            <div>
+              <div className="text-sm font-extrabold text-slate-900">TikTok Preview</div>
+              <div className="text-xs text-slate-500">Hook + short lines + CTA</div>
+            </div>
+            <div className="text-xs font-extrabold text-emerald-700 uppercase tracking-wider">{devotional.mood ? `Mood: ${devotional.mood}` : "No mood"}</div>
+          </div>
+
+          <div className="p-4">
+            <div className="rounded-3xl bg-gradient-to-b from-black/5 to-black/0 p-5 border border-slate-200">
+              <div className="text-sm whitespace-pre-wrap text-slate-900 leading-relaxed">{text}</div>
+              <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+                <span>{settings.username || "@yourname"}</span>
+                <span>❤️  •  💬  •  🔖</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+  }
 }
 
 function TikTokScriptModal({ devotional, settings, onClose, onUpdate }) {
@@ -3603,6 +3586,17 @@ function AppInner({ session, starterMood, onLogout }) {
   }, [view, active, safeDevotionals.length]);
 
   useEffect(() => {
+    const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
+    if (!allowed.has(view)) {
+      setView("home");
+      return;
+    }
+    if ((view === "write" || view === "polish" || view === "compile") && !active) {
+      setView(safeDevotionals.length ? "library" : "home");
+    }
+  }, [view, active, safeDevotionals.length]);
+
+  useEffect(() => {
     if (!starterMood) return;
     if (safeDevotionals.length > 0) return;
     const d = createDevotional(settings);
@@ -3754,8 +3748,9 @@ const onSaved = () => {
               <MoreVertical className="w-5 h-5" />
             </button>
             {menuOpen ? (
-              <div className="absolute right-0 top-11 w-44 rounded-xl border border-slate-200 bg-white shadow-lg p-1 z-50">
+              <div className="absolute right-0 top-11 w-40 rounded-xl border border-slate-200 bg-white shadow-lg p-1 z-50">
                 <button type="button" onClick={openSettings} className="w-full text-left px-3 py-2 text-sm font-bold rounded-lg hover:bg-slate-50">⚙ Settings</button>
+                <button type="button" onClick={() => { setView("home"); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-sm font-bold rounded-lg hover:bg-slate-50">Home</button>
               </div>
             ) : null}
           </div>
@@ -3823,6 +3818,7 @@ const onSaved = () => {
               </div>
 
               <NavButton active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ICONS.nav.compile} label="Share" />
+              <NavButton active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
             </div>
           </div>
         </div>
