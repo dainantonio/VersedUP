@@ -93,6 +93,56 @@ const GlobalStyles = () => (
       animation: pulse-soft 3s ease-in-out infinite;
     }
 
+    /* Verse arrival animations */
+    @keyframes verseReveal {
+      from { opacity: 0; transform: translateY(24px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0)   scale(1);    }
+    }
+    @keyframes verseFadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes shimmerSweep {
+      0%   { background-position: -200% center; }
+      100% { background-position:  200% center; }
+    }
+    @keyframes buttonRise {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0);    }
+    }
+    @keyframes inputFadeOut {
+      from { opacity: 1; transform: translateY(0);    }
+      to   { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+    }
+    @keyframes glowPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+      50%       { box-shadow: 0 0 0 8px rgba(16,185,129,0.12); }
+    }
+    .verse-reveal {
+      animation: verseReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .verse-fade {
+      animation: verseFadeIn 0.4s ease forwards;
+      animation-delay: 0.2s;
+      opacity: 0;
+    }
+    .button-rise {
+      animation: buttonRise 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      animation-delay: 0.35s;
+      opacity: 0;
+    }
+    .shimmer-text {
+      background: linear-gradient(90deg, #1e293b 0%, #1e293b 40%, #10b981 50%, #1e293b 60%, #1e293b 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmerSweep 2.5s linear 1;
+    }
+    .verse-card-glow {
+      animation: glowPulse 2s ease-in-out 3;
+    }
+
     /* Serif class for scripture */
     .font-serif-scripture {
       font-family: 'Merriweather', serif;
@@ -1864,6 +1914,9 @@ ${devotional.reflection}`);
                 {toneMenuOpen ? <div className="absolute top-full right-0 mt-1 z-30 w-40 rounded-xl border bg-white shadow">{["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t)=><button key={t} onClick={() => void doTone(t)} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50">{t}</button>)}</div> : null}
               </div>
             </div>
+          </div>
+        </Card>
+      ) : null}
 
             <textarea value={contentTab==="reflection"?devotional.reflection:contentTab==="prayer"?devotional.prayer:devotional.questions} onChange={(e)=>onUpdate({ [contentTab]: e.target.value })} rows={10} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
             <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1">
@@ -2434,6 +2487,25 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals }) {
             </button>
           ))}
         </div>
+        <button type="button" onClick={handleExport} className="mt-3 w-full flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98]">
+          <Download className="w-4 h-4" /> Export all entries as JSON
+        </button>
+      </Card>
+
+      <Card>
+        <SectionLabel>Appearance / Theme</SectionLabel>
+        <div className="grid grid-cols-3 gap-2">
+          {THEME_OPTIONS.map((t) => (
+            <button key={t.id} type="button" onClick={() => onUpdate({ theme: t.id })} className={cn("rounded-2xl py-2.5 text-xs font-bold border", settings.theme === t.id ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <SectionLabel>Data & Privacy</SectionLabel>
+        <div className="text-xs text-slate-500">All data stays on this device except AI calls you explicitly trigger.</div>
       </Card>
 
       <Card>
@@ -2643,6 +2715,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
         <div className="text-sm text-slate-500 mt-1 font-medium">Ready to publish. Pick a platform and go.</div>
       </div>
 
+      {/* FIX 5b: Platform colors on CompileView tabs */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
         {tabDefs.map((p) => (
           <button
@@ -2753,23 +2826,31 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-function SocialPreview({ platform, devotional, settings, text }) {
-  if (platform === "instagram") {
+  if (platform === "facebook") {
     return (
       <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 flex items-center gap-3 border-b border-slate-200 bg-slate-50">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-sky-500" />
-          <div className="flex-1">
-            <div className="text-sm font-extrabold text-slate-900">{settings.username || "yourprofile"}</div>
-            <div className="text-xs text-slate-500">Instagram</div>
+        <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-100">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-black text-sm flex-shrink-0">
+            {(settings.username || "Y")[0].toUpperCase()}
           </div>
+          <div>
+            <div className="text-sm font-extrabold text-slate-900">{settings.username || "Your Page"}</div>
+            <div className="text-[11px] text-slate-400">Just now · 🌐</div>
+          </div>
+          <span className="ml-auto text-slate-400 text-lg">···</span>
         </div>
-        <div className="p-4">
-          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
+        <div className="px-4 py-4">
+          <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{text}</p>
+        </div>
+        <div className="px-4 pb-3 border-t border-slate-100 pt-3 flex items-center gap-1">
+          <span className="text-xs text-slate-500 flex items-center gap-1">👍 <span className="font-semibold">Like</span></span>
+          <span className="text-slate-300 mx-2">·</span>
+          <span className="text-xs text-slate-500 flex items-center gap-1">💬 <span className="font-semibold">Comment</span></span>
+          <span className="text-slate-300 mx-2">·</span>
+          <span className="text-xs text-slate-500 flex items-center gap-1">↗️ <span className="font-semibold">Share</span></span>
         </div>
       </div>
     );
@@ -2779,8 +2860,9 @@ function SocialPreview({ platform, devotional, settings, text }) {
     return (
       <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-200 bg-slate-50">
-          <div className="text-xs font-extrabold text-slate-500 uppercase tracking-widest">EMAIL PREVIEW</div>
-          <div className="text-sm font-extrabold text-slate-900 mt-1">To: {settings.username || "you@example.com"}</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">EMAIL PREVIEW</div>
+          <div className="text-xs text-slate-500"><span className="font-extrabold text-slate-700">To:</span> {settings.username || "subscriber@email.com"}</div>
+          <div className="text-xs text-slate-500 mt-0.5"><span className="font-extrabold text-slate-700">Subject:</span> {devotional.title || devotional.verseRef || "Daily Devotional"}</div>
         </div>
         <div className="p-4">
           <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
@@ -2789,24 +2871,14 @@ function SocialPreview({ platform, devotional, settings, text }) {
     );
   }
 
+  // Generic fallback
   return (
     <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="p-4 flex items-center justify-between border-b border-slate-200 bg-slate-50">
-        <div>
-          <div className="text-sm font-extrabold text-slate-900">TikTok Preview</div>
-          <div className="text-xs text-slate-500">Hook + short lines + CTA</div>
-        </div>
-        <div className="text-xs font-extrabold text-emerald-700 uppercase tracking-wider">{devotional.mood ? `Mood: ${devotional.mood}` : "No mood"}</div>
+      <div className="px-4 py-3 border-b border-slate-100">
+        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Post Copy</div>
       </div>
-
       <div className="p-4">
-        <div className="rounded-3xl bg-gradient-to-b from-black/5 to-black/0 p-5 border border-slate-200">
-          <div className="text-sm whitespace-pre-wrap text-slate-900 leading-relaxed">{text}</div>
-          <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-            <span>{settings.username || "@yourname"}</span>
-            <span>❤️  •  💬  •  🔖</span>
-          </div>
-        </div>
+        <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap font-serif-scripture">{text}</p>
       </div>
     </div>
   );
