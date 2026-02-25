@@ -2824,8 +2824,9 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
           </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
 function SocialPreview({ platform, devotional, settings, text }) {
   switch (platform) {
