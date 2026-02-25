@@ -33,7 +33,6 @@ import {
   Quote,
   ExternalLink,
   Sun,
-  Maximize2,
   Eye,
   Pencil,
   Download
@@ -153,6 +152,8 @@ const STORAGE_SETTINGS = `${APP_ID}_settings`;
 const STORAGE_DEVOTIONALS = `${APP_ID}_devotionals`;
 const STORAGE_STREAK = `${APP_ID}_streak`;
 const STORAGE_SESSION = `${APP_ID}_session`;
+const STORAGE_VIEW = `${APP_ID}_view`;
+const STORAGE_ACTIVE_ID = `${APP_ID}_active_id`;
 
 const PLATFORM_LIMITS = {
   tiktok: 2200,
@@ -221,12 +222,51 @@ const BIBLE_BOOKS = [
   "Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation",
 ];
 
-const VERSE_OF_DAY = {
-  verseRef: "Psalm 23:1-2",
-  verseText: "The Lord is my shepherd; I shall not want. He makes me lie down in green pastures.",
-  suggestedTitle: "The Shepherd Who Leads Me",
+const VERSE_OF_DAY_LIST = Object.freeze([
+  {
+    verseRef: "Psalm 23:1-2",
+    verseText: "The Lord is my shepherd; I shall not want. He makes me lie down in green pastures.",
+    suggestedTitle: "The Shepherd Who Leads Me",
+  },
+  {
+    verseRef: "Lamentations 3:22-23",
+    verseText: "His compassions fail not. They are new every morning: great is thy faithfulness.",
+    suggestedTitle: "New Mercies This Morning",
+  },
+  {
+    verseRef: "Isaiah 40:31",
+    verseText: "They that wait upon the Lord shall renew their strength; they shall mount up with wings as eagles.",
+    suggestedTitle: "Strength for Today",
+  },
+  {
+    verseRef: "Philippians 4:6-7",
+    verseText: "Be anxious for nothing... and the peace of God, which passeth all understanding, shall keep your hearts and minds through Christ Jesus.",
+    suggestedTitle: "Peace That Guards My Heart",
+  },
+  {
+    verseRef: "Matthew 11:28",
+    verseText: "Come unto me, all ye that labour and are heavy laden, and I will give you rest.",
+    suggestedTitle: "Come and Rest",
+  },
+  {
+    verseRef: "Proverbs 3:5-6",
+    verseText: "Trust in the Lord with all thine heart... and he shall direct thy paths.",
+    suggestedTitle: "Trusting His Direction",
+  },
+  {
+    verseRef: "Romans 8:28",
+    verseText: "And we know that all things work together for good to them that love God.",
+    suggestedTitle: "God Works Through It",
+  },
+]);
+
+const getVerseOfDay = (date = new Date()) => {
+  const key = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const idx = Math.abs(Math.floor(key / 86400000)) % VERSE_OF_DAY_LIST.length;
+  return VERSE_OF_DAY_LIST[idx];
 };
 
+const VERSE_OF_DAY = getVerseOfDay();
 
 const MOOD_VERSES = Object.freeze({
   joy: { label: "Joy", verseRef: "Nehemiah 8:10", verseText: "The joy of the LORD is your strength." },
@@ -254,6 +294,7 @@ const DEFAULT_SETTINGS = {
   autoFillEmptyOnTopicTap: true, // title/prayer/questions templates on topic click
   guidedAutoGenerateTikTok: true, // in Guided Fill modal: Apply also generates TikTok script
   onboardingComplete: false,
+  myPlatforms: ["tiktok", "instagram"],
 
   exportPrefs: {
     tiktokTemplate: "minimalLight",
@@ -386,7 +427,20 @@ function createDevotional(settings) {
     questions: "",
     tiktokScript: "",
     status: "draft",
+    reviewed: false,
   };
+}
+
+
+function getEntryQueueStatus(d) {
+  const hasVerse = Boolean(String(d?.verseRef || "").trim());
+  const hasReflection = Boolean(String(d?.reflection || "").trim());
+  const hasScript = Boolean(String(d?.tiktokScript || "").trim());
+  const hasAny = hasVerse || hasReflection || hasScript || Boolean(String(d?.title || "").trim()) || Boolean(String(d?.prayer || "").trim()) || Boolean(String(d?.questions || "").trim());
+  if (String(d?.status || "").toLowerCase() === "posted") return { id: "posted", label: "Posted", tone: "bg-slate-100 text-slate-700 border-slate-200", dot: "⚫" };
+  if (hasVerse && hasReflection && hasScript) return { id: "ready", label: "Ready", tone: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "🟢" };
+  if (hasAny) return { id: "in_progress", label: "In Progress", tone: "bg-amber-50 text-amber-700 border-amber-200", dot: "🟡" };
+  return { id: "draft", label: "Draft", tone: "bg-sky-50 text-sky-700 border-sky-200", dot: "🔵" };
 }
 
 function isKjv(version) {
@@ -973,9 +1027,10 @@ function bumpStreakOnSave() {
 
 /* ---------------- Views ---------------- */
 
-function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive, streak, displayName, devotionals, onOpen }) {
+function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, onStartWithVerse, hasActive, streak, displayName, devotionals, onOpen, onOpenReadyToPost }) {
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
+  const [homeVerseRef, setHomeVerseRef] = useState("");
   const moodVerse = MOOD_VERSES[moodVerseKey] || MOOD_VERSES.joy;
 
   const handleSelectMoodVerse = (key) => {
@@ -984,9 +1039,15 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
     pushToast(`${label} verse ready.`);
   };
 
+  const latest = devotionals[devotionals.length - 1] || null;
+  const todaysAction = hasActive
+    ? { tone: "bg-emerald-50 border-emerald-200 text-emerald-800", text: "🟢 You're ready to post — 1 entry draft waiting" }
+    : latest
+      ? { tone: "bg-amber-50 border-amber-200 text-amber-800", text: "🟡 You started something yesterday — finish it" }
+      : { tone: "bg-sky-50 border-sky-200 text-sky-800", text: "🔵 Fresh start — what's on your heart today?" };
+
   return (
     <div className="space-y-4 pb-20 animate-enter">
-      {/* ── Header ── */}
       <div className="pt-1">
         <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
@@ -994,10 +1055,13 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
         <div className="text-3xl font-black text-slate-900 mt-0.5 tracking-tight leading-tight">{getTimeGreeting(displayName)}</div>
       </div>
 
-      {/* ── Streak + CTA ── */}
+      <div className={`rounded-2xl border px-4 py-3 text-sm font-extrabold ${todaysAction.tone}`}>
+        {todaysAction.text}
+      </div>
+
       <div className="bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 overflow-hidden relative">
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/60 via-transparent to-sky-50/20 pointer-events-none" />
-        <div className="relative flex items-center justify-between gap-4">
+        <div className="relative flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-baseline gap-2">
             <div className="text-5xl font-black text-slate-900 tabular-nums">{streak.count}</div>
             <div className="relative w-7 h-7 flex-shrink-0">
@@ -1009,17 +1073,48 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
               <div className="text-[11px] text-slate-500 font-medium leading-tight">God meets you here.</div>
             </div>
           </div>
-          <button
-            onClick={hasActive ? onContinue : onNew}
-            className="flex-shrink-0 px-5 py-3 rounded-2xl bg-slate-900 text-white text-sm font-extrabold shadow-lg hover:bg-slate-800 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
-            type="button"
-          >
-            {hasActive ? "Continue" : "Start"} <ArrowRight className="w-4 h-4" />
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={hasActive ? onContinue : onNew}
+              className="flex-shrink-0 px-4 py-3 rounded-2xl bg-slate-900 text-white text-sm font-extrabold shadow-lg hover:bg-slate-800 active:scale-95 transition-all"
+              type="button"
+            >
+              {hasActive ? "Continue" : "Start"}
+            </button>
+            <button
+              onClick={onQuickPost}
+              className="flex-shrink-0 px-4 py-3 rounded-2xl bg-emerald-600 text-white text-sm font-extrabold shadow-lg hover:bg-emerald-700 active:scale-95 transition-all"
+              type="button"
+            >
+              60-Second Post
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ── Verse of the Day ── */}
+      <div className="rounded-[1.5rem] border border-emerald-100 bg-white p-4 shadow-sm space-y-3">
+        <div className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Mood verse carousel</div>
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          {Object.entries(MOOD_VERSES).map(([k, mv]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => handleSelectMoodVerse(k)}
+              className={cn(
+                "shrink-0 rounded-full border px-3 py-1.5 text-xs font-extrabold transition-colors",
+                moodVerseKey === k ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-600 border-slate-200"
+              )}
+            >
+              {mv.label}
+            </button>
+          ))}
+        </div>
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+          <div className="text-xs font-black text-emerald-700">{moodVerse.verseRef}</div>
+          <div className="mt-1 text-sm text-slate-700 font-serif-scripture">{moodVerse.verseText}</div>
+        </div>
+      </div>
+
       <div className="bg-gradient-to-br from-emerald-600 to-teal-800 rounded-[1.75rem] p-6 text-white shadow-lg relative overflow-hidden">
         <Quote className="absolute -bottom-4 -right-4 w-28 h-28 text-white/10 rotate-12" fill="currentColor" />
         <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
@@ -1029,16 +1124,11 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
         </div>
         <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${VERSE_OF_DAY.verseText}"`}</div>
         <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
-        <button
-          onClick={onReflectVerseOfDay}
-          className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md active:scale-[0.985] transition-all flex items-center gap-2 border border-white/10 relative z-10"
-          type="button"
-        >
+        <button onClick={onReflectVerseOfDay} className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md active:scale-[0.985] transition-all flex items-center gap-2 border border-white/10 relative z-10" type="button">
           Reflect on this <ArrowRight className="w-3 h-3" />
         </button>
       </div>
 
-      {/* ── Recent Draft ── */}
       {devotionals.length > 0 ? (() => {
         const last = devotionals[devotionals.length - 1];
         const preview = (last.reflection || last.aiDraft || "").slice(0, 120).trim();
@@ -1050,46 +1140,50 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, hasActive
           if (hrs < 24) return `${hrs}h ago`;
           return `${Math.floor(hrs / 24)}d ago`;
         })();
+        const statusReady = Boolean(last.reflection && (last.reflection || "").length > 120);
         return (
-          <button
-            type="button"
-            onClick={() => onOpen(last)}
-            className="w-full text-left bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-slate-200 active:scale-[0.99] transition-all group"
-          >
+          <div className="w-full text-left bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-slate-200 transition-all group">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Recent Draft</span>
+                <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-black", statusReady ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-amber-50 border-amber-200 text-amber-700")}>
+                  {statusReady ? "Ready to Post" : "In Progress"}
+                </span>
               </div>
               <span className="text-[10px] text-slate-400 font-medium">{ago}</span>
             </div>
-            {last.verseRef ? (
-              <div className="text-xs font-bold text-emerald-700 mb-1">{last.verseRef}</div>
-            ) : null}
+            {last.verseRef ? <div className="text-xs font-bold text-emerald-700 mb-1">{last.verseRef}</div> : null}
             <div className="text-sm text-slate-700 leading-relaxed line-clamp-2">
               {preview ? `"${preview}${preview.length >= 120 ? "…" : ""}"` : "Tap to continue writing…"}
             </div>
-            <div className="mt-3 flex items-center gap-1 text-xs font-extrabold text-slate-900 group-hover:gap-2 transition-all">
-              Continue writing <ArrowRight className="w-3.5 h-3.5" />
+            <div className="mt-3 flex gap-2">
+              <button type="button" onClick={() => onOpen(last.id)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">Continue writing</button>
+              {statusReady ? <button type="button" onClick={() => onOpenReadyToPost(last.id)} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white">Preview & Post</button> : null}
             </div>
-          </button>
+          </div>
         );
       })() : (
         <div className="bg-gradient-to-br from-sky-50 to-indigo-50 rounded-[1.75rem] border border-sky-100 p-5">
-          <div className="text-[10px] font-black uppercase tracking-widest text-sky-400 mb-2">Today's Prompt</div>
-          <div className="text-sm text-slate-700 leading-relaxed font-serif-scripture italic">
-            "What is one thing God has shown you recently that you haven't yet written down?"
+          <div className="text-[10px] font-black uppercase tracking-widest text-sky-400 mb-2">Fresh Start</div>
+          <div className="text-sm text-slate-700 leading-relaxed font-semibold mb-3">What verse is speaking to you today?</div>
+          <div className="flex gap-2">
+            <input
+              value={homeVerseRef}
+              onChange={(e) => setHomeVerseRef(e.target.value)}
+              placeholder="e.g. John 15:5"
+              className="flex-1 rounded-xl border border-sky-200 px-3 py-2.5 text-sm font-semibold outline-none focus:ring-4 focus:ring-sky-100"
+            />
+            <button
+              type="button"
+              onClick={() => onStartWithVerse(homeVerseRef)}
+              className="rounded-xl bg-sky-600 text-white px-3 py-2.5 text-xs font-extrabold"
+            >
+              Start
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onNew}
-            className="mt-3 flex items-center gap-1.5 text-xs font-extrabold text-sky-700 hover:text-sky-900 transition-colors"
-          >
-            Start writing <ArrowRight className="w-3 h-3" />
-          </button>
         </div>
       )}
-
     </div>
   );
 }
@@ -1419,91 +1513,86 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
 function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings }) {
   const { pushToast } = useToast();
   const [busy, setBusy] = useState(false);
-  const [structureOpen, setStructureOpen] = useState(false);
-  const [structureDraft, setStructureDraft] = useState({ title: "", reflection: "", prayer: "", questions: "" });
-  const [apply, setApply] = useState({ title: true, reflection: true, prayer: true, questions: true });
   const [fetching, setFetching] = useState(false);
-  const [scanOpen, setScanOpen] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-
-  const [guidedBusy, setGuidedBusy] = useState(false);
-  const [guidedOpen, setGuidedOpen] = useState(false);
-  const [selectedTopic, setSelectedTopic] = useState(TOPIC_CHIPS[0]?.id || "");
-
-  const [guidedDraft, setGuidedDraft] = useState({ title: "", reflection: "", prayer: "", questions: "" });
-  const [guidedApply, setGuidedApply] = useState({ title: true, reflection: true, prayer: true, questions: true });
-
-  const [guidedScriptBusy, setGuidedScriptBusy] = useState(false);
-  const [guidedGenerateScript, setGuidedGenerateScript] = useState(Boolean(settings.guidedAutoGenerateTikTok));
-  const [shareReadyBusy, setShareReadyBusy] = useState(false);
-  const [shareReadyStep, setShareReadyStep] = useState("");
-  const [unsaved, setUnsaved] = useState(false);
-  const [lastSaved, setLastSaved] = useState(null);
-  const [writeTab, setWriteTab] = useState("write");
-  const [pvPlatform, setPvPlatform] = useState("instagram");
   const [toneMenuOpen, setToneMenuOpen] = useState(false);
+  const [step, setStep] = useState(1);
+  const [contentTab, setContentTab] = useState("reflection");
+  const [platform, setPlatform] = useState(() => (settings.myPlatforms && settings.myPlatforms[0]) || "tiktok");
+  const [selectedTopic, setSelectedTopic] = useState(TOPIC_CHIPS[0]?.id || "");
+  const [postText, setPostText] = useState("");
+  const [igMode, setIgMode] = useState("caption");
+  const [igBg, setIgBg] = useState("minimal");
+  const [shareBusy, setShareBusy] = useState(false);
+  const [ttOverlay, setTtOverlay] = useState(false);
+  const [ttCountdown, setTtCountdown] = useState(2);
+  const [showTikTokScript, setShowTikTokScript] = useState(false);
+  const [scriptBusy, setScriptBusy] = useState(false);
 
-  const reflectionRef = useRef(null);
-  const verseRefInputRef = useRef(null);
+  const igCardRef = useRef(null);
+  const autoFetchTimer = useRef(null);
 
+  const verseRef = String(devotional.verseRef || "").trim();
+  const verseText = String(devotional.verseText || "").trim();
   const version = devotional.bibleVersion || settings.defaultBibleVersion || "KJV";
   const guidedMode = Boolean(settings.guidedMode);
-
   const aiNeedsKey =
     (settings.aiProvider === "openai" && !settings.openaiKey) ||
     (settings.aiProvider === "gemini" && !settings.geminiKey);
 
-  const handleSave = () => {
-      onSaved();
-      setSaveSuccess(true);
-      setUnsaved(false);
-      setLastSaved(new Date());
-      setTimeout(() => setSaveSuccess(false), 2000);
-  }
+  const stepStorageKey = `${APP_ID}_wizard_step_${devotional.id}`;
 
-  // Auto-save: mark unsaved on any devotional change
   useEffect(() => {
-    setUnsaved(true);
-    const t = setTimeout(() => {
-      handleSave();
-    }, 3000);
-    return () => clearTimeout(t);
+    const saved = Number(localStorage.getItem(stepStorageKey) || "1");
+    if ([1,2,3,4].includes(saved)) setStep(saved);
+  }, [stepStorageKey]);
+
+  useEffect(() => {
+    localStorage.setItem(stepStorageKey, String(step));
+  }, [step, stepStorageKey]);
+
+  useEffect(() => {
+    onSaved();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [devotional.verseRef, devotional.verseText, devotional.title, devotional.reflection, devotional.prayer, devotional.questions, devotional.mood]);
+  }, [devotional.verseRef, devotional.verseText, devotional.title, devotional.reflection, devotional.prayer, devotional.questions, devotional.tiktokScript, devotional.mood]);
 
-  const doChangeTone = async (tone) => {
-    setToneMenuOpen(false);
-    if (!devotional.reflection?.trim()) return;
-    setBusy(true);
-    try {
-      const tonePrompts = {
-        Reverent:       "Rewrite in a reverent, worshipful tone. Keep all meaning. Return ONLY text.",
-        Poetic:         "Rewrite in a poetic, lyrical tone with vivid imagery. Keep all meaning. Return ONLY text.",
-        Direct:         "Rewrite in a direct, punchy, bold tone. Keep all meaning. Return ONLY text.",
-        Encouraging:    "Rewrite in an encouraging, warm, uplifting tone. Keep all meaning. Return ONLY text.",
-        Conversational: "Rewrite in a casual, conversational tone like talking to a friend. Keep all meaning. Return ONLY text.",
-      };
-      const prompt = `${tonePrompts[tone] || "Rewrite. Return ONLY text."}
+  useEffect(() => {
+    setPostText(compileForPlatform(platform, devotional, settings));
+  }, [platform, devotional, settings]);
 
-${devotional.reflection}`;
-      const out = await ai(settings, prompt);
-      onUpdate({ reflection: out });
-    } catch (e) {
-      pushToast(e?.message || "Tone change failed.");
-    } finally {
-      setBusy(false);
+  useEffect(() => {
+    if (!ttOverlay) return;
+    if (ttCountdown <= 0) {
+      window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
+      setTtOverlay(false);
+      setTtCountdown(2);
+      return;
     }
-  };
+    const t = setTimeout(() => setTtCountdown((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [ttOverlay, ttCountdown]);
+
+  useEffect(() => {
+    if (step !== 1) return;
+    if (!verseRef) return;
+    const validLike = /\b\d{1,3}:\d{1,3}/.test(verseRef) || /\b\d{1,3}\b/.test(verseRef);
+    if (!validLike) return;
+    if (verseText) return;
+    if (autoFetchTimer.current) clearTimeout(autoFetchTimer.current);
+    autoFetchTimer.current = setTimeout(() => { void doFetch(); }, 500);
+    return () => autoFetchTimer.current && clearTimeout(autoFetchTimer.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, verseRef, version]);
 
   const doFetch = async () => {
+    if (!verseRef) return;
     setFetching(true);
     try {
       if (!isKjv(version)) {
-        window.open(bibleGatewayUrl(devotional.verseRef, version), "_blank", "noopener,noreferrer");
-        return;
+        window.open(bibleGatewayUrl(verseRef, version), "_blank", "noopener,noreferrer");
+      } else {
+        const text = await fetchKjvFromBibleApi(verseRef);
+        onUpdate({ verseText: text, verseTextEdited: false });
       }
-      const text = await fetchKjvFromBibleApi(devotional.verseRef);
-      onUpdate({ verseText: text, verseTextEdited: false });
     } catch (e) {
       pushToast(e?.message || "Fetch failed.");
     } finally {
@@ -1511,744 +1600,490 @@ ${devotional.reflection}`;
     }
   };
 
-  const doFixReflection = async () => {
+  const onTopicClick = (t) => {
+    setSelectedTopic(t.id);
+  };
+
+  const moodPrompt = {
+    grateful: "What gift from this verse can you thank God for right now?",
+    anxious: "What truth from this verse counters what you're afraid of?",
+    hopeful: "What promise here gives you hope for today?",
+    weary: "Where does this verse offer rest for your tired heart?",
+    peaceful: "How can you carry this peace into someone else's life today?",
+  };
+
+  const doDraftForMe = async () => {
     setBusy(true);
     try {
-      const fixed = await aiFixGrammar(settings, { text: devotional.reflection || "", mood: devotional.mood });
-      onUpdate({ reflection: fixed });
-    } catch (e) {
-      pushToast(e?.message || "AI failed.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const doStructure = async () => {
-    setBusy(true);
-    try {
-      const out = await aiStructure(settings, {
-        verseRef: devotional.verseRef,
-        verseText: devotional.verseText,
-        reflection: devotional.reflection,
-        mood: devotional.mood,
-      });
-      setStructureDraft(out);
-      setApply({ title: true, reflection: true, prayer: true, questions: true });
-      setStructureOpen(true);
-    } catch (e) {
-      pushToast(e?.message || "AI failed.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const applyStructure = () => {
-    const patch = {};
-    if (apply.title) patch.title = structureDraft.title;
-    if (apply.reflection) patch.reflection = structureDraft.reflection;
-    if (apply.prayer) patch.prayer = structureDraft.prayer;
-    if (apply.questions) patch.questions = structureDraft.questions;
-    onUpdate(patch);
-    setStructureOpen(false);
-  };
-
-  const doLength = async (direction) => {
-    setBusy(true);
-    try {
-      const out = await aiRewriteLength(settings, { text: devotional.reflection || "", mood: devotional.mood, direction });
-      onUpdate({ reflection: out });
-    } catch (e) {
-      pushToast(e?.message || "AI failed.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const doShareReady = async () => {
-    const hasSource = Boolean((devotional.reflection || "").trim() || (devotional.verseRef || "").trim());
-    if (!hasSource) {
-      pushToast("Add a verse reference or reflection first.");
-      return;
-    }
-
-    setShareReadyBusy(true);
-    try {
-      setShareReadyStep("Correcting grammar & spelling...");
-      const fixed = (devotional.reflection || "").trim()
-        ? await aiFixGrammar(settings, { text: devotional.reflection || "", mood: devotional.mood })
-        : devotional.reflection || "";
-
-      setShareReadyStep("Structuring your devotional...");
-      const structured = await aiStructure(settings, {
-        verseRef: devotional.verseRef,
-        verseText: devotional.verseText,
-        reflection: fixed,
-        mood: devotional.mood,
-      });
-
-      setShareReadyStep("Preparing share-ready draft...");
-      onUpdate({
-        reflection: structured.reflection || fixed,
-        title: structured.title || devotional.title,
-        prayer: structured.prayer || devotional.prayer,
-        questions: structured.questions || devotional.questions,
-      });
-
-      handleSave();
-      onGoCompile();
-    } catch (e) {
-      pushToast(e?.message || "We couldn’t complete the share-ready flow. Continue manually.");
-    } finally {
-      setShareReadyBusy(false);
-      setShareReadyStep("");
-    }
-  };
-
-  const topic = TOPIC_CHIPS.find((t) => t.id === selectedTopic) || TOPIC_CHIPS[0];
-
-  const applyGuidedDraft = () => {
-    const patch = {};
-    if (guidedApply.title) patch.title = guidedDraft.title;
-    if (guidedApply.reflection) patch.reflection = guidedDraft.reflection;
-    if (guidedApply.prayer) patch.prayer = guidedDraft.prayer;
-    if (guidedApply.questions) patch.questions = guidedDraft.questions;
-    onUpdate(patch);
-    setGuidedOpen(false);
-  };
-
-  const applyGuidedDraftAndScript = async () => {
-    const patch = {};
-    if (guidedApply.title) patch.title = guidedDraft.title;
-    if (guidedApply.reflection) patch.reflection = guidedDraft.reflection;
-    if (guidedApply.prayer) patch.prayer = guidedDraft.prayer;
-    if (guidedApply.questions) patch.questions = guidedDraft.questions;
-
-    onUpdate(patch);
-
-    if (!guidedGenerateScript) {
-      setGuidedOpen(false);
-      return;
-    }
-
-    setGuidedScriptBusy(true);
-    try {
-      const verseRef = String(devotional.verseRef || "").trim();
-      const verseText = String(devotional.verseText || "").trim();
-      const reflection = String(patch.reflection ?? devotional.reflection ?? "").trim();
-
-      const out = await aiTikTokScript(settings, {
-        verseRef,
-        verseText,
-        reflection,
-        mood: devotional.mood,
-        baseScript: "",
-        mode: "regenerate",
-      });
-
-      onUpdate({ tiktokScript: out });
-      setGuidedOpen(false);
-      pushToast("Applied + generated TikTok script ✅ (see Compile → TikTok Script)");
-    } catch (e) {
-      setGuidedOpen(false);
-      pushToast(e?.message || "Applied, but TikTok script generation failed.");
-    } finally {
-      setGuidedScriptBusy(false);
-    }
-  };
-
-  const openGuidedDraftFromTemplate = () => {
-    const draft = templateGuidedFill({
-      topicLabel: topic?.label || "",
-      verseRef: devotional.verseRef,
-      mood: devotional.mood,
-    });
-    setGuidedDraft(draft);
-    setGuidedApply({ title: true, reflection: true, prayer: true, questions: true });
-    setGuidedGenerateScript(Boolean(settings.guidedAutoGenerateTikTok));
-    setGuidedOpen(true);
-  };
-
-  const openGuidedDraftFromAI = async () => {
-    setGuidedBusy(true);
-    try {
+      const topic = TOPIC_CHIPS.find((t) => t.id === selectedTopic) || TOPIC_CHIPS[0];
       const out = await aiGuidedFill(settings, {
         topicLabel: topic?.label || "",
         verseRef: devotional.verseRef,
         verseText: devotional.verseText,
         mood: devotional.mood,
       });
-      setGuidedDraft(out);
-      setGuidedApply({ title: true, reflection: true, prayer: true, questions: true });
-      setGuidedGenerateScript(Boolean(settings.guidedAutoGenerateTikTok));
-      setGuidedOpen(true);
+      onUpdate({
+        title: out.title || devotional.title,
+        reflection: out.reflection || devotional.reflection,
+        prayer: out.prayer || devotional.prayer,
+        questions: out.questions || devotional.questions,
+      });
+    } catch (e) {
+      pushToast(e?.message || "Draft failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doFix = async () => {
+    const key = contentTab;
+    const txt = String(devotional[key] || "");
+    if (!txt.trim()) return;
+    setBusy(true);
+    try {
+      const out = await aiFixGrammar(settings, { text: txt, mood: devotional.mood });
+      onUpdate({ [key]: out });
     } catch (e) {
       pushToast(e?.message || "AI failed.");
-    } finally {
-      setGuidedBusy(false);
-    }
+    } finally { setBusy(false); }
   };
 
-  const onTopicClick = (t) => {
-    setSelectedTopic(t.id);
-
-    const next = insertAtCursor(reflectionRef.current, devotional.reflection || "", `${t.prompt}\n`);
-    const patch = { reflection: next };
-
-    const autoFillEmpty = Boolean(settings.autoFillEmptyOnTopicTap);
-
-    if (guidedMode && autoFillEmpty) {
-      const templ = templateGuidedFill({ topicLabel: t.label, verseRef: devotional.verseRef, mood: devotional.mood });
-      if (!String(devotional.prayer || "").trim()) patch.prayer = templ.prayer;
-      if (!String(devotional.questions || "").trim()) patch.questions = templ.questions;
-      if (!String(devotional.title || "").trim()) patch.title = templ.title;
-    }
-
-    onUpdate(patch);
+  const doLength = async (direction) => {
+    const key = contentTab;
+    const txt = String(devotional[key] || "");
+    if (!txt.trim()) return;
+    setBusy(true);
+    try {
+      const out = await aiRewriteLength(settings, { text: txt, mood: devotional.mood, direction });
+      onUpdate({ [key]: out });
+    } catch (e) {
+      pushToast(e?.message || "AI failed.");
+    } finally { setBusy(false); }
   };
 
-  const openScan = () => {
-    if (!settings.ocrEndpoint?.trim()) {
-      pushToast("To scan a page, add your OCR endpoint in Settings → AI & Tools.");
+  const doTone = async (tone) => {
+    setToneMenuOpen(false);
+    if (!devotional.reflection?.trim()) return;
+    setBusy(true);
+    try {
+      const out = await ai(settings, `Rewrite in a ${tone} tone. Keep meaning. Return ONLY text.
+
+${devotional.reflection}`);
+      onUpdate({ reflection: out });
+    } catch (e) { pushToast(e?.message || "Tone failed."); }
+    finally { setBusy(false); }
+  };
+
+  const generateTikTokScriptInline = async (mode = "regenerate") => {
+    setScriptBusy(true);
+    try {
+      const out = await aiTikTokScript(settings, {
+        verseRef: devotional.verseRef,
+        verseText: devotional.verseText,
+        reflection: devotional.reflection,
+        mood: devotional.mood,
+        baseScript: devotional.tiktokScript || "",
+        mode,
+      });
+      onUpdate({ tiktokScript: out });
+      setPostText(out);
+      setShowTikTokScript(true);
+    } catch (e) {
+      pushToast(e?.message || "Script failed.");
+    } finally { setScriptBusy(false); }
+  };
+
+  const limit = PLATFORM_LIMITS[platform] || 999999;
+  const count = String(contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions || "").length;
+  const over = count > limit;
+
+  const copyAndOpen = async () => {
+    try { await navigator.clipboard.writeText(postText); } catch {}
+    if (platform === "tiktok") {
+      setTtOverlay(true); setTtCountdown(2); return;
+    }
+    if (platform === "instagram") {
+      window.location.href = "instagram://camera";
+      setTimeout(() => window.open("https://www.instagram.com/create/select/", "_blank", "noopener,noreferrer"), 800);
       return;
     }
-    setScanOpen(true);
+    if (platform === "twitter") {
+      const shareUrl = encodeURIComponent(window.location.href);
+      const shareText = encodeURIComponent(postText);
+      window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (platform === "facebook") {
+      const u = encodeURIComponent(window.location.href);
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}`, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (platform === "email") {
+      const subject = encodeURIComponent(devotional.title || devotional.verseRef || "Encouragement");
+      window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(postText)}`;
+    }
   };
 
-  const hasVerseRef = Boolean(String(devotional.verseRef || "").trim());
-  const hasVerseText = Boolean(String(devotional.verseText || "").trim());
-  const hasReflection = Boolean(String(devotional.reflection || "").trim());
+  const exportInstagramCard = async () => {
+    try {
+      const dataUrl = await toPng(igCardRef.current, { cacheBust: true });
+      if (!dataUrl) return;
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `instagram-card-${(devotional.verseRef || "verse").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`;
+      a.click();
+    } catch (e) { pushToast(e?.message || "Export failed"); }
+  };
+
+  const stepTitles = ["Scripture", "Your Heart", "Shape It", "Post It"];
+  const progress = (step / 4) * 100;
+  const verseReady = Boolean(verseText);
+  const heartReady = Boolean(String(devotional.reflection || "").trim() || String(devotional.prayer || "").trim() || String(devotional.questions || "").trim());
+  const canAccessStep = (nextStep) => {
+    if (nextStep <= 1) return true;
+    if (nextStep === 2) return verseReady;
+    if (nextStep === 3) return verseReady;
+    if (nextStep === 4) return verseReady && heartReady;
+    return false;
+  };
+  const goToStep = (nextStep) => {
+    if (canAccessStep(nextStep)) setStep(nextStep);
+  };
 
   return (
-    <div className="space-y-5 pb-20 animate-enter">
-      {/* ── Draft Preview Modal — rendered at top level to avoid overflow-hidden trapping ── */}
-      {writeTab === "preview" && (
-        <DraftPreviewModal
-          devotional={devotional}
-          settings={settings}
-          compileForPlatform={compileForPlatform}
-          onClose={() => setWriteTab("write")}
-          onShare={() => { handleSave(); setWriteTab("write"); onGoCompile(); }}
-        />
-      )}
-
-      {/* ── Header: title + auto-save status ── */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-xl font-extrabold text-slate-900">New Entry</div>
-          <div className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">CAPTURE WHAT GOD IS SPEAKING</div>
+    <div className="space-y-4 pb-20 animate-enter relative">
+      {ttOverlay ? (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+            <CheckCircle className="w-14 h-14 text-emerald-600 mx-auto" />
+            <div className="mt-3 text-lg font-black text-slate-900">Caption copied to clipboard!</div>
+            <div className="mt-1 text-sm text-slate-600">Now opening TikTok in {ttCountdown}...</div>
+          </div>
         </div>
-        <div className="flex-shrink-0 mt-1">
-          {unsaved ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-[10px] font-extrabold text-amber-700 uppercase tracking-wide">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
-              Unsaved
-            </span>
-          ) : lastSaved ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-[10px] font-extrabold text-emerald-700 uppercase tracking-wide">
-              <Check className="w-3 h-3" />
-              Saved
-            </span>
-          ) : null}
-        </div>
-      </div>
+      ) : null}
 
-      {/* ── Write / Preview tab bar ── */}
-      <div className="flex items-center border-b border-slate-200">
-        <button
-          onClick={() => setWriteTab("write")}
-          className={cn(
-            "px-5 py-2.5 text-sm font-extrabold border-b-2 -mb-px transition-colors",
-            writeTab === "write"
-              ? "border-emerald-500 text-emerald-700"
-              : "border-transparent text-slate-400 hover:text-slate-700"
-          )}
-        >
-          Write
-        </button>
-        <button
-          onClick={() => setWriteTab("preview")}
-          className="ml-auto mb-1 flex items-center gap-1.5 px-3 py-1.5 mr-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-extrabold transition-colors"
-        >
-          <Maximize2 className="w-3.5 h-3.5" /> Preview
-        </button>
-      </div>
-
-      {/* ── PREVIEW TAB ── */}
-
-
-      {/* ── WRITE TAB ── */}
-      {writeTab === "write" ? (
-      <div className="space-y-5">
-
-      {/* ── Mood strip (compact, no card) ── */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mb-1">
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Heart:</span>
-        {MOODS.map((m) => (
-          <Chip
-            key={m.id}
-            active={devotional.mood === m.id}
-            onClick={() => onUpdate({ mood: devotional.mood === m.id ? "" : m.id })}
+      <div className="rounded-2xl bg-white border border-slate-200 p-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => (step === 1 ? onGoCompile() : setStep((s) => Math.max(1, s - 1)))}
+            className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold"
           >
-            {m.label}
-          </Chip>
-        ))}
+            {step === 1 ? "← Exit" : "← Back"}
+          </button>
+          <div className="text-xs font-black text-slate-500 uppercase">{step} of 4 · {stepTitles[step - 1]}</div>
+          <div className="ml-auto" />
+        </div>
+        <div className="mt-3 grid grid-cols-4 gap-2">
+          {stepTitles.map((title, idx) => {
+            const stepNum = idx + 1;
+            const enabled = canAccessStep(stepNum);
+            const active = stepNum === step;
+            return (
+              <button
+                key={title}
+                type="button"
+                disabled={!enabled}
+                onClick={() => goToStep(stepNum)}
+                className={cn(
+                  "rounded-xl border px-2 py-2 text-[11px] font-black transition",
+                  active
+                    ? "bg-emerald-600 border-emerald-600 text-white"
+                    : enabled
+                      ? "bg-white border-slate-200 text-slate-700"
+                      : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                )}
+              >
+                {stepNum}. {title}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
+          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
+        </div>
       </div>
 
-      <Card>
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 space-y-4 shadow-inner">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false })}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-extrabold hover:bg-amber-100 active:scale-[0.97] transition-all"
-                >
-                  <Sun className="w-3 h-3" /> Today's Verse
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { onUpdate({ verseRef: "", verseText: "", verseTextEdited: false }); setTimeout(() => verseRefInputRef.current?.focus(), 50); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[11px] font-extrabold hover:bg-slate-200 active:scale-[0.97] transition-all"
-                >
-                  <BookOpen className="w-3 h-3" /> My Own Verse
-                </button>
-                <SmallButton onClick={openScan} icon={ScanLine}>
-                  Scan
-                </SmallButton>
-              </div>
-            </div>
+      {step === 1 ? (
+        <Card>
+          <div className="space-y-4">
+            <div className="text-2xl font-black text-slate-900">What verse is speaking to you today?</div>
+            <button type="button" onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false })} className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">Verse of the Day</div>
+              <div className="text-sm font-bold text-emerald-700 mt-1">{VERSE_OF_DAY.verseRef}</div>
+              <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
+            </button>
 
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <datalist id="bible-books-list">
-                  {BIBLE_BOOKS.map(b => <option key={b} value={b} />)}
-                </datalist>
-                <input
-                  ref={verseRefInputRef}
-                  list="bible-books-list"
-                  value={devotional.verseRef}
-                  onChange={(e) => onUpdate({ verseRef: e.target.value })}
-                  placeholder="e.g. John 3:16 or Psalms 23"
-                  className="flex-1 rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 bg-white transition-all shadow-sm focus:border-emerald-300"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void doFetch();
-                  }}
-                />
-                <select
-                  value={version}
-                  onChange={(e) => onUpdate({ bibleVersion: e.target.value })}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-extrabold bg-white"
-                >
-                  {BIBLE_VERSIONS.map((v) => (
-                    <option key={v} value={v}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button
-                onClick={doFetch}
-                disabled={!hasVerseRef || fetching}
-                className="w-full flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-extrabold text-emerald-700 transition-all hover:bg-emerald-100 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {fetching ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-                )}
-                {fetching ? "Loading verse..." : "Load Verse"}
-              </button>
-            </div>
-
-            {guidedMode && !hasVerseRef ? (
-              <div className="text-xs font-medium text-slate-500">
-                Try: <span className="font-extrabold text-slate-700">John 3:16-18</span> or{" "}
-                <span className="font-extrabold text-slate-700">Psalm 23</span>
-              </div>
-            ) : null}
-            {hasVerseRef && !hasVerseText && !fetching ? (
-              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 animate-enter">
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-                Tap <span className="underline">Load Verse</span> above to fetch the text →
+            <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
+            <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
+            {verseText ? (
+              <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
+                <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{verseRef} ({version})</div>
+                <div className="mt-2 text-lg leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">{verseText}</div>
               </div>
             ) : null}
 
-            <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">VERSE TEXT</label>
-              <textarea
-                value={devotional.verseText}
-                onChange={(e) => onUpdate({ verseText: e.target.value, verseTextEdited: true })}
-                placeholder={
-                  isKjv(version)
-                    ? "Load Verse to auto-fill KJV, or type your own..."
-                    : "Type or paste your verse here..."
-                }
-                rows={4}
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 bg-white resize-none font-serif-scripture shadow-sm focus:border-emerald-300 transition-all"
-              />
-              {!isKjv(version) && hasVerseRef ? (
-                <div className="mt-1.5 text-[11px] text-slate-400">
-                  Need the text?{" "}
+            <SmallButton onClick={onGoSettings} tone="neutral">Scan a page instead</SmallButton>
+            <button type="button" disabled={!verseReady} onClick={() => goToStep(2)} className="w-full rounded-2xl bg-emerald-600 disabled:opacity-40 text-white py-3 font-extrabold">Use this verse →</button>
+          </div>
+        </Card>
+      ) : null}
+
+      {step === 2 ? (
+        <Card>
+          <div className="space-y-4">
+            <button type="button" onClick={() => setStep(1)} className="text-xs rounded-full border px-3 py-1 font-bold text-emerald-700 border-emerald-200 bg-emerald-50">{verseRef || "No verse"}</button>
+            <div className="text-2xl font-black text-slate-900">Where is your heart today?</div>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">{MOODS.map((m) => <Chip key={m.id} active={devotional.mood===m.id} onClick={() => onUpdate({ mood: m.id })}>{m.label}</Chip>)}</div>
+            {devotional.mood ? <div className="text-sm text-slate-500 italic">{moodPrompt[devotional.mood] || "What is God showing you in this verse?"}</div> : null}
+            <textarea value={devotional.reflection} onChange={(e) => onUpdate({ reflection: e.target.value })} placeholder="Write freely. No rules here." rows={10} spellCheck autoCorrect="on" autoCapitalize="sentences" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
+            <div className="text-right text-[11px] text-slate-400">{String(devotional.reflection || "").trim().split(/\s+/).filter(Boolean).length} words</div>
+
+            <div className="flex items-center gap-2">
+              <button type="button" className="text-xs font-bold text-slate-500 underline" onClick={() => { void doDraftForMe(); goToStep(3); }}>Skip, just use AI →</button>
+              <div className="flex-1" />
+              <button type="button" onClick={() => goToStep(3)} className="rounded-2xl bg-emerald-600 text-white px-4 py-3 font-extrabold">Shape my writing →</button>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      {step === 3 ? (
+        <Card>
+          <div className="space-y-4">
+            <button type="button" onClick={() => setStep(1)} className="text-xs rounded-full border px-3 py-1 font-bold text-emerald-700 border-emerald-200 bg-emerald-50">{verseRef || "No verse"}</button>
+            <input value={devotional.title} onChange={(e) => onUpdate({ title: e.target.value })} placeholder="Give it a title (optional)" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
+
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey} className="rounded-full bg-emerald-600 text-white px-3 py-2 text-xs font-extrabold disabled:opacity-40">✨ Draft for Me</button>
+              <button onClick={() => void doFix()} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Fix Grammar</button>
+              <button onClick={() => void doLength("shorten")} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Shorten</button>
+              <button onClick={() => void doLength("lengthen")} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Expand</button>
+              <div className="relative">
+                <button onClick={() => setToneMenuOpen((o) => !o)} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Tone ▾</button>
+                {toneMenuOpen ? <div className="absolute top-full right-0 mt-1 z-30 w-40 rounded-xl border bg-white shadow">{["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t)=><button key={t} onClick={() => void doTone(t)} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50">{t}</button>)}</div> : null}
+              </div>
+            </div>
+
+            <textarea value={contentTab==="reflection"?devotional.reflection:contentTab==="prayer"?devotional.prayer:devotional.questions} onChange={(e)=>onUpdate({ [contentTab]: e.target.value })} rows={10} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
+            <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1">
+              {["reflection","prayer","questions"].map((k)=><button key={k} type="button" onClick={()=>setContentTab(k)} className={cn("rounded-xl py-2 text-xs font-extrabold", contentTab===k?"bg-white text-slate-900 shadow-sm":"text-slate-500")}>{k[0].toUpperCase()+k.slice(1)}</button>)}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500">For:</span>
+              <select value={platform} onChange={(e)=>setPlatform(e.target.value)} className="rounded-full border border-slate-200 px-3 py-1 text-xs font-extrabold">
+                {(settings.myPlatforms && settings.myPlatforms.length ? settings.myPlatforms : ["tiktok","instagram","twitter","facebook","email"]).map((p)=> <option key={p} value={p}>{p}</option>)}
+              </select>
+              <span className={cn("ml-auto text-xs font-extrabold", over ? "text-red-600" : count > limit*0.8 ? "text-amber-600" : "text-emerald-600")}>{count}/{limit}</span>
+              {over ? <button onClick={() => void doLength("shorten")} className="text-xs font-bold underline text-red-600">Auto-Shorten</button> : null}
+            </div>
+
+            {platform === "tiktok" ? (
+              <div className="rounded-2xl border border-slate-200 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-extrabold">TikTok Script</div>
                   <button
                     type="button"
-                    onClick={() => window.open(bibleGatewayUrl(devotional.verseRef, version), "_blank", "noopener,noreferrer")}
-                    className="underline text-slate-500 hover:text-emerald-700 font-semibold transition-colors"
+                    className="text-xs underline"
+                    onClick={() => setShowTikTokScript((v) => !v)}
                   >
-                    Look it up ↗
+                    {showTikTokScript ? "Hide" : "Show"}
                   </button>
-                  {" "}then paste above.
                 </div>
-              ) : null}
-              {devotional.verseTextEdited ? (
-                <div className="mt-2 text-[11px] font-bold text-amber-700">Edited override</div>
-              ) : null}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TITLE (OPTIONAL)</label>
-            <input
-              value={devotional.title}
-              onChange={(e) => onUpdate({ title: e.target.value })}
-              placeholder="Give it a holy title..."
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow focus:border-emerald-300"
-            />
-          </div>
-
-          <div>
-            <div className="flex items-end justify-between gap-3">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">REFLECTION / BODY</label>
-              {guidedMode ? <div className="text-[11px] font-bold text-emerald-600">Type your verse, then tap ✨ Draft for Me in the toolbar below</div> : null}
-            </div>
-
-            {guidedMode && aiNeedsKey ? (
-              <div className="mt-2 text-xs font-bold text-amber-700">
-                AI selected but no key. Go to <b>Settings</b> to add a key (or switch to Built-in).
-              </div>
-            ) : null}
-
-            <textarea
-              ref={reflectionRef}
-              value={devotional.reflection}
-              onChange={(e) => onUpdate({ reflection: e.target.value })}
-              placeholder="Start writing your reflection..."
-              rows={8}
-              spellCheck
-              autoCorrect="on"
-              autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm transition-shadow focus:border-emerald-300"
-            />
-
-            {guidedMode && !hasReflection ? (
-              <div className="mt-2 text-xs font-bold text-slate-500">Starter: “What is God showing me about this verse today?”</div>
-            ) : null}
-
-            {/* ── Per-platform character count pills ── */}
-            {hasReflection ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {[
-                  { id: "twitter", label: "Twitter", limit: 280 },
-                  { id: "tiktok", label: "TikTok", limit: 150 },
-                  { id: "instagram", label: "Instagram", limit: 2200 },
-                ].map(({ id, label, limit }) => {
-                  const count = (devotional.reflection || "").length;
-                  const over = count > limit;
-                  return (
-                    <span
-                      key={id}
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border transition-colors",
-                        over
-                          ? "bg-red-50 border-red-200 text-red-700"
-                          : "bg-slate-50 border-slate-200 text-slate-500"
-                      )}
-                    >
-                      {label} {count}/{limit}{!over ? " ✓" : " ✗"}
-                    </span>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {/* ── Inline AI toolbar (HubSpot-inspired) ── */}
-            <div className="mt-3 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-visible">
-              {/* Row 1: quick AI actions */}
-              <div className="flex items-center gap-px p-1.5 flex-wrap">
-                <button
-                  onClick={() => void (aiNeedsKey ? openGuidedDraftFromTemplate() : openGuidedDraftFromAI())}
-                  disabled={guidedBusy || busy}
-                  className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-extrabold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {guidedBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  {guidedBusy ? "Drafting..." : "Draft for Me"}
-                </button>
-                <div className="w-px h-5 bg-slate-200 mx-1" />
-                <button
-                  onClick={doFixReflection}
-                  disabled={busy || !hasReflection}
-                  className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >Fix</button>
-                <button
-                  onClick={() => void doLength("shorten")}
-                  disabled={busy || !hasReflection}
-                  className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >Shorten</button>
-                <button
-                  onClick={() => void doLength("lengthen")}
-                  disabled={busy || !hasReflection}
-                  className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >Expand</button>
-                <button
-                  onClick={doStructure}
-                  disabled={busy || (!hasReflection && !hasVerseRef)}
-                  className="rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >Structure</button>
-                <div className="relative ml-auto">
-                  <button
-                    onClick={() => setToneMenuOpen((o) => !o)}
-                    disabled={busy || !hasReflection}
-                    className="flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Tone <ChevronDown className="w-3 h-3" />
-                  </button>
-                  {toneMenuOpen ? (
-                    <div className="absolute right-0 top-full mt-1 z-50 w-44 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
-                      {["Reverent", "Poetic", "Direct", "Encouraging", "Conversational"].map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => void doChangeTone(t)}
-                          className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                        >
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+                <div className="mt-2 flex gap-2">
+                  <SmallButton onClick={() => void generateTikTokScriptInline("regenerate")} disabled={scriptBusy}>
+                    {scriptBusy ? "Generating..." : "Generate"}
+                  </SmallButton>
+                  <SmallButton onClick={() => void generateTikTokScriptInline("improve")} disabled={scriptBusy}>
+                    Improve
+                  </SmallButton>
+                  <SmallButton onClick={() => void doLength("shorten")} disabled={scriptBusy}>
+                    Shorten
+                  </SmallButton>
                 </div>
-              </div>
-              {shareReadyStep ? <div className="px-3 pb-2 text-[11px] font-bold text-emerald-700">{shareReadyStep}</div> : null}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">PRAYER</label>
-            <textarea
-              value={devotional.prayer}
-              onChange={(e) => onUpdate({ prayer: e.target.value })}
-              placeholder="Lord, help me..."
-              rows={4}
-              spellCheck
-              autoCorrect="on"
-              autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm focus:border-emerald-300"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">REFLECTION QUESTIONS</label>
-            <textarea
-              value={devotional.questions}
-              onChange={(e) => onUpdate({ questions: e.target.value })}
-              placeholder={"1) ...\n2) ..."}
-              rows={3}
-              spellCheck
-              autoCorrect="on"
-              autoCapitalize="sentences"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm focus:border-emerald-300"
-            />
-          </div>
-        </div>
-      </Card>
-
-      {/* ── Bottom actions ── */}
-      <div className="rounded-2xl border border-slate-100 bg-white/60 p-3 flex items-center gap-2 shadow-sm">
-        <SmallButton
-          onClick={handleSave}
-          icon={saveSuccess ? Check : null}
-          disabled={saveSuccess}
-        >
-          {saveSuccess ? "Saved ✓" : "Save"}
-        </SmallButton>
-        <div className="flex-1" />
-        <SmallButton
-          onClick={() => { handleSave(); onGoPolish(); }}
-          icon={BookOpen}
-        >
-          Review
-        </SmallButton>
-        <SmallButton
-          onClick={() => { handleSave(); onGoCompile(); }}
-          icon={Share2}
-          tone="primary"
-        >
-          Share →
-        </SmallButton>
-      </div>
-      </div>
-      ) : null}{/* end writeTab === "write" */}
-
-      {structureOpen ? (
-        <Modal
-          title="Structure Preview"
-          onClose={() => setStructureOpen(false)}
-          footer={
-            <div className="flex gap-2">
-              <SmallButton onClick={() => setApply({ title: true, reflection: true, prayer: true, questions: true })} tone="neutral">
-                Replace all
-              </SmallButton>
-              <div className="flex-1" />
-              <SmallButton onClick={() => setStructureOpen(false)} tone="neutral">
-                Cancel
-              </SmallButton>
-              <SmallButton onClick={applyStructure} tone="primary">
-                Apply
-              </SmallButton>
-            </div>
-          }
-        >
-          <div className="space-y-4">
-            {["title", "reflection", "prayer", "questions"].map((k) => (
-              <div key={k} className="rounded-2xl border border-slate-200 p-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-extrabold text-slate-500 uppercase">{k}</div>
-                  <label className="text-xs font-extrabold text-slate-600 flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={apply[k]} onChange={(e) => setApply((s) => ({ ...s, [k]: e.target.checked }))} className="rounded text-emerald-600 focus:ring-emerald-500" />
-                    Replace
-                  </label>
-                </div>
-                <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800">{structureDraft[k] || "—"}</div>
-              </div>
-            ))}
-          </div>
-        </Modal>
-      ) : null}
-
-      {guidedOpen ? (
-        <Modal
-          title={`Draft Preview — ${topic?.label || "Topic"}`}
-          onClose={() => setGuidedOpen(false)}
-          footer={
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={guidedGenerateScript}
-                    onChange={(e) => setGuidedGenerateScript(e.target.checked)}
-                    className="rounded text-emerald-600 focus:ring-emerald-500"
+                {showTikTokScript ? (
+                  <textarea
+                    rows={6}
+                    className="mt-2 w-full rounded-xl border px-3 py-2"
+                    value={devotional.tiktokScript || ""}
+                    onChange={(e) => onUpdate({ tiktokScript: e.target.value })}
                   />
-                  Also generate TikTok script
-                </label>
-                <div className="text-xs text-slate-500">
-                  {guidedScriptBusy ? "Generating..." : guidedGenerateScript ? "One-click: Apply + Script" : "Apply only"}
-                </div>
+                ) : null}
               </div>
+            ) : null}
 
-              <div className="flex gap-2">
-                <SmallButton onClick={() => setGuidedApply({ title: true, reflection: true, prayer: true, questions: true })}>
-                  Apply all
-                </SmallButton>
-                <div className="flex-1" />
-                <SmallButton onClick={() => setGuidedOpen(false)}>Cancel</SmallButton>
-                <SmallButton
-                  onClick={() => void applyGuidedDraftAndScript()}
-                  tone="primary"
-                  disabled={guidedScriptBusy || (guidedGenerateScript && aiNeedsKey)}
-                >
-                  {guidedGenerateScript ? "Apply + Script" : "Apply"}
-                </SmallButton>
-              </div>
-
-              {guidedGenerateScript && aiNeedsKey ? (
-                <div className="text-xs font-bold text-amber-700">
-                  Add an AI key in <b>Settings</b> (or toggle off script generation).
-                </div>
-              ) : null}
-            </div>
-          }
-        >
-          <div className="space-y-3">
-            {[
-              { k: "title", label: "Title" },
-              { k: "reflection", label: "Reflection" },
-              { k: "prayer", label: "Prayer" },
-              { k: "questions", label: "Questions" },
-            ].map(({ k, label }) => (
-              <ApplySectionCard
-                key={k}
-                k={k}
-                label={label}
-                value={guidedDraft[k]}
-                checked={guidedApply[k]}
-                onToggle={(v) => setGuidedApply((s) => ({ ...s, [k]: v }))}
-                onChange={(v) => setGuidedDraft((s) => ({ ...s, [k]: v }))}
-              />
-            ))}
+            <button type="button" onClick={() => goToStep(4)} disabled={!heartReady} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold disabled:opacity-40">Preview & Post →</button>
+            {!heartReady ? <div className="text-xs text-slate-500">Add a reflection, prayer, or question before posting.</div> : null}
           </div>
-        </Modal>
+        </Card>
       ) : null}
 
-      {scanOpen ? (
-        <OcrScanModal
-          settings={settings}
-          mood={devotional.mood}
-          onClose={() => setScanOpen(false)}
-          onApplyToDevotional={(patch) => onUpdate(patch)}
-        />
+      {step === 4 ? (
+        <Card>
+          <div className="space-y-4">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              {[
+                { id: "tiktok", label: "🎵 TikTok", tone: "bg-black text-white" },
+                { id: "instagram", label: "📸 Instagram", tone: "bg-gradient-to-r from-purple-500 to-pink-500 text-white" },
+                { id: "twitter", label: "🐦 Twitter/X", tone: "bg-sky-500 text-white" },
+                { id: "facebook", label: "👥 Facebook", tone: "bg-blue-600 text-white" },
+                { id: "email", label: "✉️ Email", tone: "bg-slate-700 text-white" },
+              ].map((p) => (
+                <button key={p.id} type="button" onClick={() => setPlatform(p.id)} className={cn("shrink-0 rounded-full px-3 py-2 text-xs font-extrabold border", platform===p.id ? p.tone+" border-transparent" : "bg-white border-slate-200 text-slate-600")}>{p.label}</button>
+              ))}
+            </div>
+
+            {platform === "tiktok" ? <div className="text-xs font-bold text-emerald-700 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">Caption will be in your clipboard when TikTok opens.</div> : null}
+
+            <SocialPreview platform={platform} devotional={devotional} settings={settings} text={postText} />
+
+            <div>
+              <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden"><div className={cn("h-full", postText.length>limit?"bg-red-500":postText.length>limit*0.8?"bg-amber-500":"bg-emerald-500")} style={{ width: `${Math.min(100, (postText.length/limit)*100)}%` }} /></div>
+              <div className="text-xs mt-1 text-slate-500">{postText.length} / {limit}</div>
+            </div>
+
+            {platform === "instagram" ? (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setIgMode("caption")} className={cn("rounded-full px-3 py-1 text-xs font-bold border", igMode==="caption"?"bg-slate-900 text-white border-slate-900":"border-slate-200 text-slate-600")}>Text caption</button>
+                  <button type="button" onClick={() => setIgMode("card")} className={cn("rounded-full px-3 py-1 text-xs font-bold border", igMode==="card"?"bg-slate-900 text-white border-slate-900":"border-slate-200 text-slate-600")}>Visual card</button>
+                </div>
+                {igMode === "card" ? (
+                  <>
+                    <div className="flex gap-1">{[["minimal","Minimal Light"],["dark","Dark Gradient"],["emerald","Emerald Brand"]].map(([k,l])=> <button key={k} onClick={()=>setIgBg(k)} className={cn("text-[10px] px-2 py-1 rounded border font-bold", igBg===k?"border-slate-900":"border-slate-200 text-slate-500")}>{l}</button>)}</div>
+                    <div ref={igCardRef} className={cn("aspect-square rounded-3xl border p-6 flex flex-col justify-between", igBg==="minimal"?"bg-white":"", igBg==="dark"?"bg-gradient-to-br from-slate-900 to-slate-700 text-white":"", igBg==="emerald"?"bg-gradient-to-br from-emerald-600 to-teal-700 text-white":"")}> 
+                      <div className="text-2xl font-serif-scripture leading-relaxed whitespace-pre-wrap">{devotional.verseText || postText.slice(0,220)}</div>
+                      <div className="flex justify-between text-xs font-bold"><span>{devotional.verseRef || "Scripture"}</span><span>{settings.username || "@yourname"}</span></div>
+                    </div>
+                    <SmallButton onClick={() => void exportInstagramCard()}>Export PNG</SmallButton>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="sticky bottom-20 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-3 shadow">
+              <button type="button" onClick={() => void copyAndOpen()} className="w-full rounded-2xl bg-slate-900 text-white py-3 font-extrabold">Copy & Open in {platform[0].toUpperCase()+platform.slice(1)}</button>
+              <div className="grid grid-cols-2 gap-2 mt-2"><SmallButton onClick={() => { const s=encodeURIComponent(devotional.title||devotional.verseRef||"Encouragement"); window.location.href=`mailto:?subject=${s}&body=${encodeURIComponent(postText)}`; }}>Email Draft</SmallButton><SmallButton onClick={() => { window.location.href=`sms:?&body=${encodeURIComponent(postText)}`; }}>Text Draft</SmallButton></div>
+              <SmallButton onClick={() => { onUpdate({ status: "posted", reviewed: true }); pushToast("Another seed planted 🌱"); }} className="w-full mt-2">Mark as Posted</SmallButton>
+            </div>
+          </div>
+        </Card>
       ) : null}
     </div>
   );
 }
 
-function PolishView({ devotional, onBackToWrite, onGoShare }) {
+function PolishView({ devotional, settings, onUpdate, onBackToWrite, onLooksGood, onGoShare }) {
+  const { pushToast } = useToast();
+  const [draft, setDraft] = useState({
+    verseRef: devotional.verseRef || "",
+    verseText: devotional.verseText || "",
+    reflection: devotional.reflection || "",
+    prayer: devotional.prayer || "",
+    questions: devotional.questions || "",
+  });
+
+  useEffect(() => {
+    setDraft({
+      verseRef: devotional.verseRef || "",
+      verseText: devotional.verseText || "",
+      reflection: devotional.reflection || "",
+      prayer: devotional.prayer || "",
+      questions: devotional.questions || "",
+    });
+  }, [devotional.id, devotional.verseRef, devotional.verseText, devotional.reflection, devotional.prayer, devotional.questions]);
+
+  const patch = (next) => {
+    setDraft((d) => ({ ...d, ...next }));
+    onUpdate(next);
+  };
+
+  const merged = { ...devotional, ...draft };
+  const caption = compileForPlatform("tiktok", merged, settings);
+  const words = String(draft.reflection || "").trim().split(/\s+/).filter(Boolean).length;
+  const needsShort = words > 150;
+  const hasTags = /#\w+/.test(caption);
+  const hasHook = /^(pov|today|if you|when|stop|you|god)/i.test(String(caption || "").trim());
+
+  const doShorten = async () => {
+    try {
+      const out = await aiRewriteLength(settings, { text: draft.reflection || "", mood: devotional.mood, direction: "shorten" });
+      patch({ reflection: out });
+    } catch {
+      patch({ reflection: String(draft.reflection || "").split(/\s+/).slice(0, 120).join(" ") });
+      pushToast("Shortened with fallback.");
+    }
+  };
+
   return (
-    <div className="space-y-6 pb-20 animate-enter">
+    <div className="space-y-4 pb-20 animate-enter">
       <Card>
-        <div className="text-2xl font-black text-slate-900">Polish</div>
-        <div className="text-sm text-slate-500 mt-1 font-medium">Review and refine. Then export.</div>
+        <div className="text-2xl font-black text-slate-900">Quick Review</div>
+        <div className="text-sm text-slate-500 mt-1 font-medium">Kill it or fix it before posting.</div>
       </Card>
 
-      <Card>
-        <div className="space-y-3">
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Scripture</div>
-          <div className="text-sm font-bold text-emerald-800">{devotional.verseRef || "—"}</div>
-          <div className="text-lg whitespace-pre-wrap text-slate-800 font-serif-scripture leading-relaxed">{devotional.verseText || "—"}</div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <div className="space-y-3">
+            {[{k:"verseRef",l:"Scripture Ref",rows:1},{k:"verseText",l:"Scripture Text",rows:4},{k:"reflection",l:"Reflection",rows:8},{k:"prayer",l:"Prayer",rows:4},{k:"questions",l:"Questions",rows:4}].map(({k,l,rows}) => (
+              <div key={k}>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{l}</div>
+                <textarea
+                  value={draft[k] || ""}
+                  onChange={(e) => patch({ [k]: e.target.value })}
+                  rows={rows}
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none"
+                />
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <div className="space-y-4">
+          <Card>
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Live Preview (TikTok)</div>
+            <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{caption || "—"}</div>
+          </Card>
+
+          <Card>
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">AI Suggestions</div>
+            <div className="space-y-2">
+              <div className="rounded-xl border border-slate-200 p-3 flex items-center gap-2">
+                <div className="text-xs text-slate-700 flex-1">Your reflection is {words} words — TikTok captions perform best under 150. Shorten?</div>
+                <SmallButton onClick={() => void doShorten()} disabled={!needsShort}>Shorten</SmallButton>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 flex items-center gap-2">
+                <div className="text-xs text-slate-700 flex-1">No hashtags detected — add some?</div>
+                <SmallButton onClick={() => patch({ reflection: `${draft.reflection || ""}
+
+#Faith #Jesus #Devotional` })} disabled={hasTags}>Add</SmallButton>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-3 flex items-center gap-2">
+                <div className="text-xs text-slate-700 flex-1">Strong hook missing — draft one?</div>
+                <SmallButton onClick={() => patch({ reflection: `POV: God met me right here today.
+
+${draft.reflection || ""}` })} disabled={hasHook}>Draft Hook</SmallButton>
+              </div>
+            </div>
+          </Card>
         </div>
-      </Card>
-
-      <Card>
-        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reflection</div>
-        <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-medium">{devotional.reflection || "—"}</div>
-      </Card>
-
-      {!!devotional.prayer && (
-        <Card>
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Prayer</div>
-          <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800 italic">{devotional.prayer}</div>
-        </Card>
-      )}
-
-      {!!devotional.questions && (
-        <Card>
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Questions</div>
-          <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800">{devotional.questions}</div>
-        </Card>
-      )}
+      </div>
 
       <div className="flex gap-2 pb-4">
-        <SmallButton onClick={onBackToWrite} icon={ChevronLeft}>Edit</SmallButton>
+        <SmallButton onClick={onBackToWrite} icon={ChevronLeft}>← Edit</SmallButton>
+        <SmallButton onClick={onLooksGood} icon={Check}>Looks Good ✓</SmallButton>
         <div className="flex-1" />
-        <SmallButton onClick={onGoShare} tone="primary" icon={Share2}>Share →</SmallButton>
+        <SmallButton onClick={onGoShare} tone="primary" icon={Share2}>Share Now →</SmallButton>
       </div>
     </div>
   );
 }
 
-function LibraryView({ devotionals, onOpen, onDelete }) {
+function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted }) {
   const [q, setQ] = useState("");
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [sortOrder, setSortOrder] = useState("newest");
+  const [filter, setFilter] = useState("all");
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -2259,12 +2094,46 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
         return hay.includes(query);
       });
     }
-    return [...results].sort((a, b) => {
-      const da = new Date(a.updatedAt).getTime();
-      const db = new Date(b.updatedAt).getTime();
+
+    if (filter !== "all") {
+      results = results.filter((d) => getEntryQueueStatus(d).id === filter);
+    }
+
+    const withStatus = results.map((d) => ({ d, st: getEntryQueueStatus(d) }));
+    withStatus.sort((a, b) => {
+      if (sortOrder === "readiness") {
+        const rank = { ready: 0, in_progress: 1, draft: 2, posted: 3 };
+        return (rank[a.st.id] ?? 9) - (rank[b.st.id] ?? 9);
+      }
+      const da = new Date(a.d.updatedAt).getTime();
+      const db = new Date(b.d.updatedAt).getTime();
       return sortOrder === "newest" ? db - da : da - db;
     });
-  }, [q, devotionals, sortOrder]);
+
+    return withStatus;
+  }, [q, devotionals, sortOrder, filter]);
+
+  const nextSort = () => {
+    setSortOrder((s) => (s === "newest" ? "oldest" : s === "oldest" ? "readiness" : "newest"));
+  };
+
+  const [collapsed, setCollapsed] = useState({ ready: false, in_progress: false, draft: true, posted: true });
+  const grouped = useMemo(() => {
+    const buckets = { ready: [], in_progress: [], draft: [], posted: [] };
+    filtered.forEach((item) => {
+      const key = item.st.id;
+      if (!buckets[key]) buckets[key] = [];
+      buckets[key].push(item);
+    });
+    return buckets;
+  }, [filtered]);
+
+  const sections = [
+    { id: "ready", label: "Ready to Post" },
+    { id: "in_progress", label: "In Progress" },
+    { id: "draft", label: "Draft" },
+    { id: "posted", label: "Posted" },
+  ];
 
   return (
     <div className="space-y-5 pb-20 animate-enter">
@@ -2274,13 +2143,9 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
             <div className="text-2xl font-black text-slate-900">Library</div>
             <div className="text-sm text-slate-500 mt-0.5 font-medium">{devotionals.length} {devotionals.length === 1 ? "entry" : "entries"}</div>
           </div>
-          <button
-            type="button"
-            onClick={() => setSortOrder(s => s === "newest" ? "oldest" : "newest")}
-            className="flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors"
-          >
+          <button type="button" onClick={nextSort} className="flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors">
             <ArrowUpDown className="w-3.5 h-3.5" />
-            {sortOrder === "newest" ? "Newest" : "Oldest"}
+            {sortOrder === "newest" ? "Newest" : sortOrder === "oldest" ? "Oldest" : "Readiness"}
           </button>
         </div>
         <div className="mt-4 relative">
@@ -2292,80 +2157,66 @@ function LibraryView({ devotionals, onOpen, onDelete }) {
             className="w-full rounded-2xl border border-slate-200 pl-10 pr-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow bg-slate-50 focus:bg-white focus:border-emerald-300"
           />
         </div>
-      </Card>
-
-      <div className="space-y-3">
-        {filtered.map((d) => (
-          <div key={d.id} className="bg-white rounded-[1.75rem] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md hover:border-emerald-100">
-            {/* Main row */}
-            <button
-              onClick={() => onOpen(d.id)}
-              className="w-full text-left p-5 active:scale-[0.99] transition-transform"
-              type="button"
-            >
-              <div className="font-extrabold text-slate-900 text-[15px] leading-snug">{d.title || "Untitled"}</div>
-              {d.verseRef ? (
-                <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wide">{d.verseRef}</div>
-              ) : null}
-              {d.reflection ? (
-                <div className="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">{d.reflection}</div>
-              ) : null}
-              <div className="text-[11px] text-slate-300 mt-2 font-medium">
-                {new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
-              </div>
+        <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar">
+          {[
+            { id: "all", label: "All" },
+            { id: "ready", label: "Ready" },
+            { id: "in_progress", label: "In Progress" },
+            { id: "posted", label: "Posted" },
+          ].map((f) => (
+            <button key={f.id} type="button" onClick={() => setFilter(f.id)} className={cn("shrink-0 rounded-full border px-3 py-1.5 text-xs font-extrabold", filter === f.id ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
+              {f.label}
             </button>
-
-            {/* Action bar */}
-            <div className="border-t border-slate-100 flex">
+          ))}
+        </div>
+      </Card>
+      <div className="space-y-3">
+        {sections.map((section) => {
+          const items = grouped[section.id] || [];
+          if (filter !== "all" && filter !== section.id) return null;
+          if (items.length === 0 && q.trim()) return null;
+          return (
+            <div key={section.id} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
               <button
                 type="button"
-                onClick={() => onOpen(d.id)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors"
+                onClick={() => setCollapsed((prev) => ({ ...prev, [section.id]: !prev[section.id] }))}
+                className="w-full px-4 py-3 flex items-center justify-between text-left"
               >
-                <Pencil className="w-3.5 h-3.5" />
-                Edit
+                <div className="text-xs font-black uppercase tracking-widest text-slate-500">{section.label} ({items.length})</div>
+                <ChevronDown className={cn("w-4 h-4 text-slate-500 transition-transform", collapsed[section.id] ? "rotate-180" : "")} />
               </button>
-              <div className="w-px bg-slate-100" />
-              {confirmDeleteId === d.id ? (
-                <div className="flex-1 flex items-center justify-center gap-2 py-3">
-                  <span className="text-xs font-bold text-slate-500">Delete?</span>
-                  <button
-                    type="button"
-                    onClick={() => { onDelete(d.id); setConfirmDeleteId(null); }}
-                    className="text-xs font-extrabold text-red-600 hover:text-red-800 transition-colors"
-                  >
-                    Yes
-                  </button>
-                  <span className="text-slate-300">·</span>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDeleteId(null)}
-                    className="text-xs font-extrabold text-slate-500 hover:text-slate-800 transition-colors"
-                  >
-                    Cancel
-                  </button>
+              {!collapsed[section.id] ? (
+                <div className="space-y-3 p-3 pt-0">
+                  {items.map(({ d, st }) => (
+                    <div key={d.id} className="bg-white rounded-[1.25rem] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md hover:border-emerald-100">
+                      <button onClick={() => onOpen(d.id)} className="w-full text-left p-4 active:scale-[0.99] transition-transform" type="button">
+                        <div className="flex items-center gap-2">
+                          <div className="font-extrabold text-slate-900 text-[15px] leading-snug flex items-center gap-1.5">{d.title || "Untitled"}{d.reviewed ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : null}</div>
+                          <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-black", st.tone)}>{st.dot} {st.label}</span>
+                        </div>
+                        {d.verseRef ? <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wide">{d.verseRef}</div> : null}
+                        {d.reflection ? <div className="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">{d.reflection}</div> : null}
+                        <div className="text-[11px] text-slate-300 mt-2 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
+                      </button>
+
+                      <div className="border-t border-slate-100 grid grid-cols-3">
+                        <button type="button" onClick={() => onDuplicate(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors">Duplicate</button>
+                        <button type="button" onClick={() => onMarkPosted(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50 transition-colors">Mark Posted</button>
+                        <button type="button" onClick={() => onDelete(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-red-500 hover:bg-red-50 transition-colors">Delete</button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setConfirmDeleteId(d.id)}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete
-                </button>
-              )}
+              ) : null}
             </div>
-          </div>
-        ))}
+          );
+        })}
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-center">
             <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-3">
               <BookOpen className="w-8 h-8 text-slate-300" />
             </div>
-            <div className="text-sm font-bold text-slate-400">
-              {q ? "No matches found." : "No entries yet. Start one!"}
-            </div>
+            <div className="text-sm font-bold text-slate-400">{q ? "No matches found." : "No entries yet. Start one!"}</div>
           </div>
         ) : null}
       </div>
@@ -2416,6 +2267,8 @@ function AiKeyTestButton({ provider, apiKey }) {
 
 function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals }) {
   const { pushToast } = useToast();
+  const [aiOpen, setAiOpen] = useState(false);
+
   const aiNeedsKey =
     (settings.aiProvider === "openai" && !settings.openaiKey) ||
     (settings.aiProvider === "gemini" && !settings.geminiKey);
@@ -2439,237 +2292,169 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals }) {
     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">{children}</div>
   );
 
-  const FieldLabel = ({ children }) => (
-    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{children}</label>
-  );
-
-  const Toggle = ({ checked, onChange, label }) => (
-    <label className="flex items-center gap-2 cursor-pointer select-none group">
-      <div className={cn(
-        "relative w-10 h-5.5 rounded-full transition-colors",
-        checked ? "bg-emerald-500" : "bg-slate-200"
-      )}>
-        <div className={cn(
-          "absolute top-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform",
-          checked ? "translate-x-5" : "translate-x-0.5"
-        )} />
+  const CompactToggleRow = ({ title, desc, checked, onChange }) => (
+    <label className="flex items-center justify-between gap-3 py-2.5 cursor-pointer">
+      <div>
+        <div className="text-sm font-extrabold text-slate-800 leading-tight">{title}</div>
+        <div className="text-[11px] text-slate-500 leading-tight mt-0.5">{desc}</div>
       </div>
-      <span className="text-xs font-semibold text-slate-700">{label}</span>
+      <input type="checkbox" checked={checked} onChange={onChange} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
     </label>
   );
 
-  return (
-    <div className="space-y-5 pb-20 animate-enter">
+  const aiSummary = settings.aiProvider === "mock"
+    ? "AI: Built-in (no key)"
+    : settings.aiProvider === "openai"
+      ? `AI: OpenAI (${settings.openaiKey ? "key set" : "missing key"})`
+      : `AI: Gemini (${settings.geminiKey ? "key set" : "missing key"})`;
 
-      {/* ── Header ── */}
+  const platforms = [
+    { id: "tiktok", label: "TikTok" },
+    { id: "instagram", label: "Instagram" },
+    { id: "twitter", label: "Twitter" },
+    { id: "facebook", label: "Facebook" },
+    { id: "email", label: "Email" },
+  ];
+
+  const selectedPlatforms = Array.isArray(settings.myPlatforms) && settings.myPlatforms.length ? settings.myPlatforms : ["tiktok"];
+
+  const togglePlatform = (id) => {
+    const set = new Set(selectedPlatforms);
+    if (set.has(id)) set.delete(id); else set.add(id);
+    const next = Array.from(set);
+    onUpdate({ myPlatforms: next.length ? next : ["tiktok"] });
+  };
+
+  return (
+    <div className="space-y-4 pb-20 animate-enter">
       <div>
         <div className="text-2xl font-black text-slate-900">Settings</div>
-        <div className="text-sm text-slate-500 mt-0.5 font-medium">Customize your experience.</div>
+        <div className="text-sm text-slate-500 mt-0.5 font-medium">Short, scannable, and creator-first.</div>
       </div>
 
-      {/* ── PROFILE ── */}
       <Card>
         <SectionLabel>Profile</SectionLabel>
-        <FieldLabel>Display Name</FieldLabel>
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Name / Username</label>
         <input
           value={settings.username || ""}
           onChange={(e) => onUpdate({ username: e.target.value })}
-          placeholder="How should we greet you?"
-          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-shadow focus:border-emerald-300"
+          placeholder="@yourname"
+          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
         />
-        <div className="text-[11px] text-slate-400 mt-1.5">Used in the greeting and email exports. Not synced anywhere.</div>
       </Card>
 
-      {/* ── APPEARANCE ── */}
       <Card>
-        <SectionLabel>Appearance</SectionLabel>
-        <FieldLabel>Theme</FieldLabel>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          {THEME_OPTIONS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onUpdate({ theme: t.id })}
-              className={cn(
-                "rounded-2xl py-2.5 text-xs font-bold border transition-all",
-                settings.theme === t.id
-                  ? "bg-slate-900 text-white border-slate-900 shadow-md"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-              )}
+        <SectionLabel>AI Provider + Keys</SectionLabel>
+        <button type="button" onClick={() => setAiOpen((v) => !v)} className="w-full flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700">
+          <span>{aiSummary}</span>
+          <ChevronDown className={cn("w-4 h-4 transition-transform", aiOpen ? "rotate-180" : "")} />
+        </button>
+
+        {aiOpen ? (
+          <div className="mt-3 space-y-3">
+            {aiNeedsKey && settings.aiProvider !== "mock" ? (
+              <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                <div className="text-xs font-semibold text-amber-800">AI selected but missing key.</div>
+              </div>
+            ) : null}
+
+            <select
+              value={settings.aiProvider}
+              onChange={(e) => onUpdate({ aiProvider: e.target.value })}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
             >
+              <option value="mock">Built-in (no key needed)</option>
+              <option value="openai">OpenAI (GPT-4)</option>
+              <option value="gemini">Google Gemini</option>
+            </select>
+
+            {settings.aiProvider === "openai" ? (
+              <div>
+                <input value={settings.openaiKey} onChange={(e) => onUpdate({ openaiKey: e.target.value })} placeholder="OpenAI key" type="password" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
+                <AiKeyTestButton provider="openai" apiKey={settings.openaiKey} />
+              </div>
+            ) : null}
+
+            {settings.aiProvider === "gemini" ? (
+              <div>
+                <input value={settings.geminiKey} onChange={(e) => onUpdate({ geminiKey: e.target.value })} placeholder="Gemini key" type="password" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
+                <AiKeyTestButton provider="gemini" apiKey={settings.geminiKey} />
+              </div>
+            ) : null}
+
+            <input
+              value={settings.ocrEndpoint || ""}
+              onChange={(e) => onUpdate({ ocrEndpoint: e.target.value })}
+              placeholder="OCR endpoint (optional)"
+              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-200 bg-white"
+            />
+          </div>
+        ) : null}
+      </Card>
+
+      <Card>
+        <SectionLabel>Writing Preferences</SectionLabel>
+        <select
+          value={settings.defaultBibleVersion}
+          onChange={(e) => onUpdate({ defaultBibleVersion: e.target.value })}
+          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
+        >
+          {BIBLE_VERSIONS.map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+        <div className="mt-2 divide-y divide-slate-100">
+          <CompactToggleRow title="Guided mode" desc="Hints and suggested flows while writing." checked={Boolean(settings.guidedMode)} onChange={(e) => onUpdate({ guidedMode: e.target.checked })} />
+          <CompactToggleRow title="Auto-fill on topic tap" desc="Fill Title / Prayer / Questions when empty." checked={Boolean(settings.autoFillEmptyOnTopicTap)} onChange={(e) => onUpdate({ autoFillEmptyOnTopicTap: e.target.checked })} />
+          <CompactToggleRow title="Auto-generate TikTok script" desc="Default for Draft for Me flow." checked={Boolean(settings.guidedAutoGenerateTikTok)} onChange={(e) => onUpdate({ guidedAutoGenerateTikTok: e.target.checked })} />
+          <CompactToggleRow title="Include watermark" desc="Adds VersedUP on shares." checked={Boolean(settings.includeWatermark !== false)} onChange={(e) => onUpdate({ includeWatermark: e.target.checked })} />
+        </div>
+      </Card>
+
+      <Card>
+        <SectionLabel>Export & Share</SectionLabel>
+        <div className="text-xs text-slate-500">Pick your primary platforms (used as Compile default).</div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {platforms.map((p) => (
+            <button key={p.id} type="button" onClick={() => togglePlatform(p.id)} className={cn("rounded-full border px-3 py-1.5 text-xs font-extrabold", selectedPlatforms.includes(p.id) ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <button type="button" onClick={handleExport} className="mt-3 w-full flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98]">
+          <Download className="w-4 h-4" /> Export all entries as JSON
+        </button>
+      </Card>
+
+      <Card>
+        <SectionLabel>Appearance / Theme</SectionLabel>
+        <div className="grid grid-cols-3 gap-2">
+          {THEME_OPTIONS.map((t) => (
+            <button key={t.id} type="button" onClick={() => onUpdate({ theme: t.id })} className={cn("rounded-2xl py-2.5 text-xs font-bold border", settings.theme === t.id ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
               {t.label}
             </button>
           ))}
         </div>
       </Card>
 
-      {/* ── WRITING ── */}
       <Card>
-        <SectionLabel>Writing</SectionLabel>
-        <div className="space-y-4">
-          <div>
-            <FieldLabel>Default Bible Version</FieldLabel>
-            <select
-              value={settings.defaultBibleVersion}
-              onChange={(e) => onUpdate({ defaultBibleVersion: e.target.value })}
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
-            >
-              {BIBLE_VERSIONS.map((v) => (
-                <option key={v} value={v}>{v}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-3 pt-1">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold text-slate-900">Guided Mode</div>
-                <div className="text-xs text-slate-500 mt-0.5">Show hints and suggested flows.</div>
-              </div>
-              <input type="checkbox" checked={Boolean(settings.guidedMode)} onChange={(e) => onUpdate({ guidedMode: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold text-slate-900">Auto-fill on Topic tap</div>
-                <div className="text-xs text-slate-500 mt-0.5">Fill Title / Prayer / Questions when empty.</div>
-              </div>
-              <input type="checkbox" checked={Boolean(settings.autoFillEmptyOnTopicTap)} onChange={(e) => onUpdate({ autoFillEmptyOnTopicTap: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold text-slate-900">Auto-generate TikTok script</div>
-                <div className="text-xs text-slate-500 mt-0.5">Default for "Draft for Me" checkbox.</div>
-              </div>
-              <input type="checkbox" checked={Boolean(settings.guidedAutoGenerateTikTok)} onChange={(e) => onUpdate({ guidedAutoGenerateTikTok: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold text-slate-900">Include watermark on shares</div>
-                <div className="text-xs text-slate-500 mt-0.5">Adds "VersedUP" to shared posts.</div>
-              </div>
-              <input type="checkbox" checked={Boolean(settings.includeWatermark !== false)} onChange={(e) => onUpdate({ includeWatermark: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
-            </div>
-          </div>
-        </div>
+        <SectionLabel>Data & Privacy</SectionLabel>
+        <div className="text-xs text-slate-500">All data stays on this device except AI calls you explicitly trigger.</div>
       </Card>
 
-      {/* ── AI & TOOLS ── */}
-      <Card>
-        <SectionLabel>AI &amp; Tools</SectionLabel>
-        <div className="space-y-4">
-          {aiNeedsKey && settings.aiProvider !== "mock" ? (
-            <div className="flex items-start gap-3 rounded-2xl bg-amber-50 border border-amber-200 p-3">
-              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-              <div className="text-xs font-semibold text-amber-800">AI selected but missing key — add one below or switch to Built-in.</div>
-            </div>
-          ) : null}
-
-          <div>
-            <FieldLabel>AI Provider</FieldLabel>
-            <select
-              value={settings.aiProvider}
-              onChange={(e) => onUpdate({ aiProvider: e.target.value })}
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
-            >
-              <option value="mock">Built-in (no key needed)</option>
-              <option value="openai">OpenAI (GPT-4)</option>
-              <option value="gemini">Google Gemini</option>
-            </select>
-            <div className="text-[11px] text-slate-400 mt-1.5">Keys are stored locally and never sent anywhere except the AI provider.</div>
-          </div>
-
-          {settings.aiProvider === "openai" ? (
-            <div>
-              <FieldLabel>OpenAI API Key</FieldLabel>
-              <input
-                value={settings.openaiKey}
-                onChange={(e) => onUpdate({ openaiKey: e.target.value })}
-                placeholder="sk-..."
-                type="password"
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
-              />
-              <AiKeyTestButton provider="openai" apiKey={settings.openaiKey} />
-            </div>
-          ) : null}
-
-          {settings.aiProvider === "gemini" ? (
-            <div>
-              <FieldLabel>Gemini API Key</FieldLabel>
-              <input
-                value={settings.geminiKey}
-                onChange={(e) => onUpdate({ geminiKey: e.target.value })}
-                placeholder="AIza..."
-                type="password"
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
-              />
-              <AiKeyTestButton provider="gemini" apiKey={settings.geminiKey} />
-            </div>
-          ) : null}
-
-          <div className="border-t border-slate-100 pt-4">
-            <FieldLabel>Scan / OCR Endpoint</FieldLabel>
-            <input
-              value={settings.ocrEndpoint || ""}
-              onChange={(e) => onUpdate({ ocrEndpoint: e.target.value })}
-              placeholder="https://your-vercel-app.vercel.app/api/ocr"
-              className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-200 bg-white"
-            />
-            <div className="text-[11px] text-slate-400 mt-1.5">Optional — best quality OCR uses Google Vision behind this endpoint.</div>
-            <div className="mt-3 flex items-center justify-between">
-              <div className="text-xs font-extrabold text-slate-700">Auto-structure after scan</div>
-              <input type="checkbox" checked={Boolean(settings.ocrAutoStructure)} onChange={(e) => onUpdate({ ocrAutoStructure: e.target.checked })} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* ── DATA ── */}
-      <Card>
-        <SectionLabel>Data &amp; Privacy</SectionLabel>
-        <div className="space-y-3">
-          <div className="text-xs text-slate-500">All data lives on this device only. Nothing is sent to external servers except AI calls when you choose to use them.</div>
-          <button
-            type="button"
-            onClick={handleExport}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-[0.98]"
-          >
-            <Download className="w-4 h-4" />
-            Export all entries as JSON
-          </button>
-          <div className="text-[11px] text-slate-400">Downloads a .json backup of all your devotionals.</div>
-        </div>
-      </Card>
-
-      {/* ── DANGER ZONE ── */}
       <Card className="border-red-100">
         <SectionLabel>Danger Zone</SectionLabel>
-        <div className="space-y-3">
-          <button
-            type="button"
-            onClick={onReset}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 py-3 text-sm font-extrabold text-red-700 hover:bg-red-100 transition-all active:scale-[0.98]"
-          >
-            <Trash2 className="w-4 h-4" />
-            Reset all local data
-          </button>
-          <div className="text-[11px] text-slate-400">This deletes all entries, settings, and streaks. Irreversible.</div>
-        </div>
+        <button type="button" onClick={onReset} className="w-full flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 py-3 text-sm font-extrabold text-red-700 hover:bg-red-100 transition-all active:scale-[0.98]">
+          <Trash2 className="w-4 h-4" /> Reset all local data
+        </button>
       </Card>
 
-      {/* ── SESSION ── */}
-      <Card className="border-slate-200">
-        <div className="text-sm font-extrabold text-slate-900 mb-2">Session</div>
-        <div className="text-xs text-slate-500 mb-3">Sign out is placed here to avoid accidental taps while writing.</div>
+      <Card>
+        <SectionLabel>Session</SectionLabel>
         <SmallButton onClick={onLogout} tone="danger" icon={LogOut}>Sign out</SmallButton>
       </Card>
-
     </div>
   );
 }
-
 
 /* ---------------- Compile + previews ---------------- */
 
@@ -2697,19 +2482,36 @@ function compileForPlatform(platform, d, settings) {
 
 function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   const { pushToast } = useToast();
-  const [platform, setPlatform] = useState("tiktok");
-  const [mode, setMode] = useState("preview");
+  const [platform, setPlatform] = useState(() => (settings.myPlatforms && settings.myPlatforms[0]) || "tiktok");
   const [text, setText] = useState("");
-  const [scriptOpen, setScriptOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
+  const [tiktokOverlay, setTiktokOverlay] = useState(false);
+  const [ttCountdown, setTtCountdown] = useState(2);
+  const [showTikTokScript, setShowTikTokScript] = useState(false);
+  const [inlineScriptBusy, setInlineScriptBusy] = useState(false);
+  const [igBg, setIgBg] = useState("white");
+  const igCardRef = useRef(null);
 
   useEffect(() => {
     setText(compileForPlatform(platform, devotional, settings));
   }, [platform, devotional, settings]);
 
+  useEffect(() => {
+    if (!tiktokOverlay) return;
+    if (ttCountdown <= 0) {
+      window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
+      setTiktokOverlay(false);
+      setTtCountdown(2);
+      return;
+    }
+    const t = setTimeout(() => setTtCountdown((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [tiktokOverlay, ttCountdown]);
+
   const limit = PLATFORM_LIMITS[platform] || 999999;
-  const over = text.length > limit;
+  const charCount = text.length;
+  const pct = Math.min(1, charCount / limit);
+  const over = charCount > limit;
 
   const copy = async () => {
     try {
@@ -2724,19 +2526,12 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     setShareBusy(true);
     try {
       if (navigator.share) {
-        await navigator.share({
-          title: devotional.title || devotional.verseRef || "Devotional",
-          text,
-          url: window.location.href,
-        });
+        await navigator.share({ title: devotional.title || devotional.verseRef || "Devotional", text, url: window.location.href });
       } else {
         await copy();
       }
-    } catch {
-      // no-op when user cancels native share
-    } finally {
-      setShareBusy(false);
-    }
+    } catch {}
+    finally { setShareBusy(false); }
   };
 
   const openEmailDraft = () => {
@@ -2751,47 +2546,31 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   };
 
   const shareToFacebook = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      pushToast("Caption copied. Facebook opened.");
-    } catch {
-      pushToast("Facebook opened.");
-    }
+    await copy();
     const u = encodeURIComponent(window.location.href);
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}`, "_blank", "noopener,noreferrer");
   };
 
-  const shareToX = () => {
+  const shareToX = async () => {
     const shareUrl = encodeURIComponent(window.location.href);
     const shareText = encodeURIComponent(text);
     window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`, "_blank", "noopener,noreferrer");
   };
 
   const shareToTikTok = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      pushToast("Caption copied. TikTok upload opened.");
-    } catch {
-      pushToast("TikTok upload opened.");
-    }
-    window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
+    await copy();
+    setTiktokOverlay(true);
+    setTtCountdown(2);
   };
 
   const shareToInstagram = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      pushToast("Caption copied! Opening Instagram Create...");
-    } catch {
-      pushToast("Opening Instagram...");
-    }
-    // Try deep link on mobile, fall back to web create page
+    await copy();
     const deepLink = "instagram://camera";
     window.location.href = deepLink;
     setTimeout(() => {
       window.open("https://www.instagram.com/create/select/", "_blank", "noopener,noreferrer");
     }, 800);
   };
-
 
   const autoShorten = async () => {
     try {
@@ -2802,286 +2581,176 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
     }
   };
 
+  const generateInlineScript = async (mode = "regenerate") => {
+    setInlineScriptBusy(true);
+    try {
+      const out = await aiTikTokScript(settings, {
+        verseRef: devotional.verseRef,
+        verseText: devotional.verseText,
+        reflection: devotional.reflection,
+        mood: devotional.mood,
+        baseScript: devotional.tiktokScript || "",
+        mode,
+      });
+      onUpdate({ tiktokScript: out });
+      setText(out);
+      setShowTikTokScript(true);
+    } catch (e) {
+      pushToast(e?.message || "AI failed.");
+    } finally {
+      setInlineScriptBusy(false);
+    }
+  };
 
+  const exportInstagramCard = async () => {
+    try {
+      const dataUrl = await toPng(igCardRef.current, { cacheBust: true });
+      if (!dataUrl) return;
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `instagram-card-${(devotional.verseRef || "verse").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`;
+      a.click();
+      pushToast("Instagram card exported");
+    } catch (e) {
+      pushToast(e?.message || "Export failed");
+    }
+  };
+
+  const tabDefs = [
+    { id: "tiktok", label: "🎵 TikTok" },
+    { id: "instagram", label: "📸 Instagram" },
+    { id: "twitter", label: "🐦 Twitter" },
+    { id: "facebook", label: "👥 Facebook" },
+    { id: "email", label: "✉️ Email" },
+  ];
+
+  const igBgClass = igBg === "white" ? "bg-white" : igBg === "dark" ? "bg-gradient-to-br from-slate-900 to-slate-700 text-white" : "bg-gradient-to-br from-emerald-600 to-teal-700 text-white";
 
   return (
-    <div className="space-y-6 pb-56 animate-enter">
+    <div className="space-y-5 pb-24 animate-enter relative">
+      {tiktokOverlay ? (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+            <CheckCircle className="w-14 h-14 text-emerald-600 mx-auto" />
+            <div className="mt-3 text-lg font-black text-slate-900">Caption copied to clipboard!</div>
+            <div className="mt-1 text-sm text-slate-600">Now opening TikTok in {ttCountdown}...</div>
+          </div>
+        </div>
+      ) : null}
+
       <div>
-        <div className="text-2xl font-black text-slate-900">Share</div>
-        <div className="text-sm text-slate-500 mt-1 font-medium">Choose platform, copy your content, post.</div>
+        <div className="text-2xl font-black text-slate-900">Launch Pad</div>
+        <div className="text-sm text-slate-500 mt-1 font-medium">Ready to publish. Pick a platform and go.</div>
       </div>
 
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-        {[
-          { id: "tiktok", label: "TikTok" },
-          { id: "instagram", label: "Instagram" },
-          { id: "facebook", label: "Facebook" },
-          { id: "twitter", label: "Twitter / X" },
-          { id: "email", label: "Email" },
-          { id: "generic", label: "Generic" },
-        ].map((p) => (
-          <Chip key={p.id} active={platform === p.id} onClick={() => setPlatform(p.id)}>
+        {tabDefs.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => setPlatform(p.id)}
+            className={cn("shrink-0 rounded-full px-3 py-2 text-xs font-extrabold border", platform === p.id ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600")}
+          >
             {p.label}
-          </Chip>
+          </button>
         ))}
-      </div>
-
-      <div className="flex gap-2">
-        <Chip active={mode === "preview"} onClick={() => setMode("preview")}>
-          Preview
-        </Chip>
-        <Chip active={mode === "text"} onClick={() => setMode("text")}>
-          Text
-        </Chip>
-        <div className="flex-1" />
-        {platform === "tiktok" ? (
-          <SmallButton onClick={() => setScriptOpen(true)} icon={Wand2}>
-            TikTok Script
-          </SmallButton>
-        ) : null}
       </div>
 
       {over ? (
         <Card>
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
-            <div className="flex-1">
-              <div className="font-extrabold text-slate-900">Over limit for {platform}</div>
-              <div className="text-sm text-slate-500">
-                {text.length} / {limit}
-              </div>
-            </div>
-            <SmallButton onClick={() => void autoShorten()}>Auto-Shorten</SmallButton>
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+            <div className="text-sm font-extrabold text-red-700">{charCount - limit} characters over limit.</div>
+            <SmallButton onClick={() => void autoShorten()} className="mt-2">Auto-Shorten</SmallButton>
           </div>
         </Card>
       ) : null}
 
-      {mode === "text" ? (
-        <Card>
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">OUTPUT</div>
-          <div className="flex items-start gap-2 mt-2 mb-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-            <span className="text-xs text-amber-800 font-semibold">Edits here are for formatting only — they won't change your saved entry. <button type="button" onClick={onBackToWrite} className="underline font-bold hover:text-amber-900 transition-colors">Edit entry instead →</button></span>
-          </div>
-          <div className="text-sm text-slate-500 mb-1">Tap <b>Copy</b> then open your app — or tap <b>Open in {platform}</b> below. Limit: {limit} chars.</div>
+      <Card>
+        <SocialPreview platform={platform} devotional={devotional} settings={settings} text={text} />
+        <div className="mt-3">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            rows={16}
-            className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-inner bg-slate-50"
+            rows={10}
+            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none bg-slate-50"
           />
-          <div className={cn("mt-2 text-xs font-bold", over ? "text-red-600" : "text-slate-500")}>
-            {text.length} / {limit}
-          </div>
-        </Card>
-      ) : (
-        <SocialPreview platform={platform} devotional={devotional} settings={settings} text={text} />
-      )}
-
-      <div className="fixed left-0 right-0 bottom-24 z-30 pointer-events-none">
-        <div className="max-w-md mx-auto px-4 pointer-events-auto">
-          <div className="rounded-3xl border border-slate-200 bg-white/95 backdrop-blur-xl p-3 shadow-2xl">
-            {/* Row 1: primary actions */}
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <SmallButton onClick={copy} icon={Copy} tone="neutral">Copy</SmallButton>
-              <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy} tone="primary">
-                {shareBusy ? "Sharing..." : "Share Now"}
-              </SmallButton>
-            </div>
-            {/* Row 2: context-aware open — matches the platform chip selected above */}
-            {(platform === "tiktok" || platform === "instagram" || platform === "facebook" || platform === "twitter") ? (
-              <div className="mt-2">
-                <SmallButton
-                  onClick={() => {
-                    if (platform === "tiktok") void shareToTikTok();
-                    else if (platform === "instagram") void shareToInstagram();
-                    else if (platform === "facebook") void shareToFacebook();
-                    else if (platform === "twitter") shareToX();
-                    else copy();
-                  }}
-                  className="w-full justify-center"
-                  tone="neutral"
-                >
-                  Open in {platform === "tiktok" ? "TikTok" : platform === "instagram" ? "Instagram" : platform === "facebook" ? "Facebook" : platform === "twitter" ? "Twitter / X" : "App"} →
-                </SmallButton>
-              </div>
-            ) : null}
-            {/* Row 3: other channels */}
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
-              <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {scriptOpen ? <TikTokScriptModal devotional={devotional} settings={settings} onClose={() => setScriptOpen(false)} onUpdate={onUpdate} /> : null}
-
-      {exportOpen ? <TikTokExportModal devotional={devotional} settings={settings} onClose={() => setExportOpen(false)} /> : null}
-    </div>
-  );
-}
-
-const PREVIEW_PLATFORMS = [
-  { id: "instagram", label: "Instagram", color: "from-purple-500 to-pink-500" },
-  { id: "tiktok", label: "TikTok", color: "from-black to-slate-800" },
-  { id: "twitter", label: "Twitter / X", color: "from-sky-500 to-blue-600" },
-  { id: "facebook", label: "Facebook", color: "from-blue-600 to-blue-700" },
-  { id: "email", label: "Email", color: "from-slate-500 to-slate-700" },
-  { id: "generic", label: "Generic", color: "from-emerald-500 to-teal-600" },
-];
-
-function DraftPreviewModal({ devotional, settings, onClose, onShare, compileForPlatform }) {
-  const [platform, setPlatform] = useState("instagram");
-  const text = compileForPlatform(platform, devotional, settings);
-  const charCount = text.length;
-  const limit = PLATFORM_LIMITS[platform] || PLATFORM_LIMITS.generic;
-  const over = charCount > limit;
-  const pct = Math.min(charCount / limit, 1);
-  const platformInfo = PREVIEW_PLATFORMS.find(p => p.id === platform);
-
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/80 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="flex flex-col flex-1 mx-auto w-full max-w-lg mt-6 mb-0 rounded-t-3xl bg-slate-50 overflow-hidden shadow-2xl"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-200 bg-white">
-          <div className="font-extrabold text-slate-900 text-base">Draft Preview</div>
-          <div className="flex items-center gap-3">
-            <div className={`text-xs font-extrabold px-2.5 py-1 rounded-full ${over ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
+          <div className="mt-2">
+            <span className={cn(
+              "inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold",
+              pct < 0.8 ? "bg-emerald-50 border-emerald-200 text-emerald-700" : pct <= 1 ? "bg-amber-50 border-amber-200 text-amber-700 text-sm" : "bg-red-50 border-red-200 text-red-700"
+            )}>
               {charCount} / {limit}
-            </div>
-            <button type="button" onClick={onClose} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
-              <X className="w-4 h-4 text-slate-600" />
-            </button>
+            </span>
           </div>
         </div>
+      </Card>
 
-        {/* Platform tabs */}
-        <div className="flex gap-2 px-4 py-3 overflow-x-auto no-scrollbar bg-white border-b border-slate-100">
-          {PREVIEW_PLATFORMS.map(p => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setPlatform(p.id)}
-              className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-extrabold transition-all ${
-                platform === p.id
-                  ? `bg-gradient-to-r ${p.color} text-white shadow-sm`
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
+      {platform === "tiktok" ? (
+        <Card>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-black text-slate-800">TikTok Script</div>
+            <SmallButton onClick={() => setShowTikTokScript((v) => !v)}>{showTikTokScript ? "Hide" : "Show"}</SmallButton>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <SmallButton onClick={() => void generateInlineScript("regenerate")} disabled={inlineScriptBusy}>{inlineScriptBusy ? "Generating..." : "Generate Script"}</SmallButton>
+            <SmallButton onClick={() => onUpdate({ tiktokScript: "" })} tone="neutral">Clear</SmallButton>
+          </div>
+          {showTikTokScript ? (
+            <textarea
+              className="mt-3 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-emerald-100 resize-none"
+              rows={8}
+              value={devotional.tiktokScript || ""}
+              onChange={(e) => { onUpdate({ tiktokScript: e.target.value }); setText(e.target.value); }}
+            />
+          ) : null}
+        </Card>
+      ) : null}
+
+      {platform === "instagram" ? (
+        <Card>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-black text-slate-800">Instagram Visual Card Export</div>
+            <div className="flex gap-1">
+              {["white","dark","emerald"].map((bg) => (
+                <button key={bg} onClick={() => setIgBg(bg)} className={cn("px-2 py-1 rounded-lg text-[10px] font-bold border", igBg===bg?"border-slate-900 text-slate-900":"border-slate-200 text-slate-500")}>{bg}</button>
+              ))}
+            </div>
+          </div>
+          <div ref={igCardRef} className={cn("mt-3 aspect-square rounded-3xl border p-6 flex flex-col justify-between", igBgClass)}>
+            <div className="text-2xl leading-relaxed font-serif-scripture whitespace-pre-wrap">{devotional.verseText || text.slice(0, 220)}</div>
+            <div className="flex items-end justify-between text-xs font-bold">
+              <span>{devotional.verseRef || "Scripture"} {devotional.bibleVersion ? `(${devotional.bibleVersion})` : ""}</span>
+              <span>{settings.username || "@yourname"}</span>
+            </div>
+          </div>
+          <SmallButton onClick={() => void exportInstagramCard()} className="mt-3">Export PNG</SmallButton>
+        </Card>
+      ) : null}
+
+      <div className="sticky bottom-20 z-20">
+        <div className="rounded-3xl border border-slate-200 bg-white/95 backdrop-blur-xl p-3 shadow-2xl">
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <SmallButton onClick={copy} icon={Copy} tone="neutral">Copy</SmallButton>
+            <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy} tone="primary">{shareBusy ? "Sharing..." : "Share"}</SmallButton>
+          </div>
+          {(platform === "tiktok" || platform === "instagram" || platform === "facebook" || platform === "twitter") ? (
+            <SmallButton
+              onClick={() => {
+                if (platform === "tiktok") void shareToTikTok();
+                else if (platform === "instagram") void shareToInstagram();
+                else if (platform === "facebook") void shareToFacebook();
+                else if (platform === "twitter") void shareToX();
+              }}
+              className="w-full justify-center"
+              tone="neutral"
             >
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Preview area — scrollable */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {/* Platform header accent */}
-          <div className={`h-1.5 w-16 rounded-full bg-gradient-to-r ${platformInfo?.color}`} />
-
-          {platform === "instagram" && (
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-100">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-400 to-pink-500 shadow-sm" />
-                <div>
-                  <div className="text-sm font-extrabold text-slate-900">{settings.username || "yourprofile"}</div>
-                  <div className="text-[11px] text-slate-400 font-semibold">Instagram</div>
-                </div>
-              </div>
-              <div className="px-4 py-4">
-                <p className="text-sm text-slate-800 leading-relaxed font-serif-scripture whitespace-pre-wrap">{text}</p>
-              </div>
-              <div className="px-4 pb-4 flex gap-4 text-slate-400 text-lg">❤️ 💬 📤 🔖</div>
-            </div>
-          )}
-
-          {platform === "tiktok" && (
-            <div className="rounded-3xl overflow-hidden shadow-lg">
-              <div className="bg-gradient-to-b from-black to-slate-900 p-5 min-h-[260px] flex flex-col justify-end relative">
-                <div className="absolute top-4 right-4 flex flex-col gap-4 items-center text-white text-xl">❤️<br/>💬<br/>🔖<br/>▶️</div>
-                <p className="text-white text-sm leading-relaxed whitespace-pre-wrap font-semibold drop-shadow">{text}</p>
-                <div className="mt-3 text-xs text-white/70 font-bold">{settings.username || "@yourname"}</div>
-              </div>
-            </div>
-          )}
-
-          {platform === "twitter" && (
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="px-4 py-3 flex gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 shrink-0 shadow-sm" />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-sm text-slate-900">{settings.username || "You"}</span>
-                    <span className="text-xs text-slate-400">· now</span>
-                  </div>
-                  <p className="mt-1 text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{text}</p>
-                  <div className="mt-3 flex gap-5 text-slate-400 text-xs">💬 Repost ❤️ Share</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {platform === "facebook" && (
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-100">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 shadow-sm" />
-                <div>
-                  <div className="text-sm font-extrabold text-slate-900">{settings.username || "Your Page"}</div>
-                  <div className="text-[11px] text-slate-400 font-semibold">Just now · 🌐</div>
-                </div>
-              </div>
-              <div className="px-4 py-4">
-                <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{text}</p>
-              </div>
-              <div className="px-4 pb-3 flex gap-4 text-slate-500 text-sm border-t border-slate-100 pt-3">👍 Like · 💬 Comment · ↗️ Share</div>
-            </div>
-          )}
-
-          {platform === "email" && (
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
-                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">EMAIL</div>
-                <div className="text-xs font-extrabold text-slate-700">To: {settings.username || "subscriber@email.com"}</div>
-                <div className="text-xs text-slate-500 mt-0.5">Subject: {devotional.title || "Daily Devotional"}</div>
-              </div>
-              <div className="px-4 py-4">
-                <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap font-serif-scripture">{text}</p>
-              </div>
-            </div>
-          )}
-
-          {platform === "generic" && (
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="px-5 py-4">
-                <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-3">Post Copy</div>
-                <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap font-serif-scripture">{text}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Char bar */}
-          <div className="space-y-1.5">
-            <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${over ? "bg-red-500" : pct > 0.85 ? "bg-amber-500" : "bg-emerald-500"}`}
-                style={{ width: `${pct * 100}%` }}
-              />
-            </div>
-            {over && <div className="text-xs font-bold text-red-600">{charCount - limit} characters over limit — consider shortening.</div>}
+              Open in {platform === "tiktok" ? "TikTok" : platform === "instagram" ? "Instagram" : platform === "facebook" ? "Facebook" : "Twitter / X"}
+            </SmallButton>
+          ) : null}
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
+            <SmallButton onClick={openTextDraft}>Text Draft</SmallButton>
           </div>
-        </div>
-
-        {/* Footer CTA */}
-        <div className="px-5 py-4 border-t border-slate-200 bg-white flex items-center gap-3">
-          <button type="button" onClick={onClose} className="flex-1 py-3 rounded-2xl bg-slate-100 text-slate-700 font-extrabold text-sm hover:bg-slate-200 transition-colors">
-            ← Back to Edit
-          </button>
-          <button type="button" onClick={onShare} className="flex-1 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm transition-colors flex items-center justify-center gap-2 shadow-sm">
-            <Share2 className="w-4 h-4" /> Share →
-          </button>
         </div>
       </div>
     </div>
@@ -3089,58 +2758,85 @@ function DraftPreviewModal({ devotional, settings, onClose, onShare, compileForP
 }
 
 function SocialPreview({ platform, devotional, settings, text }) {
-  if (platform === "instagram") {
-    return (
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 flex items-center gap-3 border-b border-slate-200 bg-slate-50">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-sky-500" />
-          <div className="flex-1">
-            <div className="text-sm font-extrabold text-slate-900">{settings.username || "yourprofile"}</div>
-            <div className="text-xs text-slate-500">Instagram</div>
+  switch (platform) {
+    case "instagram":
+      return (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="p-4 flex items-center gap-3 border-b border-slate-200 bg-slate-50">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-sky-500" />
+            <div className="flex-1">
+              <div className="text-sm font-extrabold text-slate-900">{settings.username || "yourprofile"}</div>
+              <div className="text-xs text-slate-500">Instagram</div>
+            </div>
+          </div>
+          <div className="p-4">
+            <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
           </div>
         </div>
-        <div className="p-4">
-          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
-        </div>
-      </div>
-    );
-  }
+      );
 
-  if (platform === "email") {
-    return (
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50">
-          <div className="text-xs font-extrabold text-slate-500 uppercase tracking-widest">EMAIL PREVIEW</div>
-          <div className="text-sm font-extrabold text-slate-900 mt-1">To: {settings.username || "you@example.com"}</div>
-        </div>
-        <div className="p-4">
-          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="p-4 flex items-center justify-between border-b border-slate-200 bg-slate-50">
-        <div>
-          <div className="text-sm font-extrabold text-slate-900">TikTok Preview</div>
-          <div className="text-xs text-slate-500">Hook + short lines + CTA</div>
-        </div>
-        <div className="text-xs font-extrabold text-emerald-700 uppercase tracking-wider">{devotional.mood ? `Mood: ${devotional.mood}` : "No mood"}</div>
-      </div>
-
-      <div className="p-4">
-        <div className="rounded-3xl bg-gradient-to-b from-black/5 to-black/0 p-5 border border-slate-200">
-          <div className="text-sm whitespace-pre-wrap text-slate-900 leading-relaxed">{text}</div>
-          <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-            <span>{settings.username || "@yourname"}</span>
-            <span>❤️  •  💬  •  🔖</span>
+    case "email":
+      return (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-slate-200 bg-slate-50">
+            <div className="text-xs font-extrabold text-slate-500 uppercase tracking-widest">EMAIL PREVIEW</div>
+            <div className="text-sm font-extrabold text-slate-900 mt-1">To: {settings.username || "you@example.com"}</div>
+          </div>
+          <div className="p-4">
+            <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
           </div>
         </div>
-      </div>
-    </div>
-  );
+      );
+
+    case "facebook":
+      return (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-slate-200 bg-slate-50">
+            <div className="text-sm font-extrabold text-slate-900">Facebook Preview</div>
+            <div className="text-xs text-slate-500">Link post style preview</div>
+          </div>
+          <div className="p-4">
+            <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
+          </div>
+        </div>
+      );
+
+    case "twitter":
+      return (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-slate-200 bg-slate-50">
+            <div className="text-sm font-extrabold text-slate-900">Twitter / X Preview</div>
+            <div className="text-xs text-slate-500">Short-form feed post</div>
+          </div>
+          <div className="p-4">
+            <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
+          </div>
+        </div>
+      );
+
+    default:
+      return (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="p-4 flex items-center justify-between border-b border-slate-200 bg-slate-50">
+            <div>
+              <div className="text-sm font-extrabold text-slate-900">TikTok Preview</div>
+              <div className="text-xs text-slate-500">Hook + short lines + CTA</div>
+            </div>
+            <div className="text-xs font-extrabold text-emerald-700 uppercase tracking-wider">{devotional.mood ? `Mood: ${devotional.mood}` : "No mood"}</div>
+          </div>
+
+          <div className="p-4">
+            <div className="rounded-3xl bg-gradient-to-b from-black/5 to-black/0 p-5 border border-slate-200">
+              <div className="text-sm whitespace-pre-wrap text-slate-900 leading-relaxed">{text}</div>
+              <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+                <span>{settings.username || "@yourname"}</span>
+                <span>❤️  •  💬  •  🔖</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+  }
 }
 
 function TikTokScriptModal({ devotional, settings, onClose, onUpdate }) {
@@ -3342,7 +3038,7 @@ function LandingView({ onGetStarted, onViewDemo }) {
           <img
             src={assetUrl("logo.png")}
             alt="VersedUP"
-            className="h-28 w-auto mx-auto drop-shadow-md mb-6"
+            className="h-36 sm:h-40 w-auto mx-auto drop-shadow-md mb-6"
             draggable="false"
             onError={(e) => {
               e.currentTarget.onerror = null;
@@ -3734,7 +3430,7 @@ function NavButton({ active, onClick, icon: Icon, label }) {
     <button
       onClick={onClick}
       className={cn(
-        "flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl transition-all duration-200 relative",
+        "flex w-full min-h-12 flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl transition-all duration-200 relative touch-manipulation",
         active ? "text-emerald-700" : "text-slate-400 hover:text-slate-600"
       )}
       type="button"
@@ -3763,17 +3459,46 @@ function AppInner({ session, starterMood, onLogout }) {
   });
 
   const [streak, setStreak] = useState(() => loadStreak());
-  const [activeId, setActiveId] = useState(() => (Array.isArray(devotionals) && devotionals[0] ? devotionals[0].id : ""));
-  const [view, setView] = useState("home");
-  const [lastNonSettingsView, setLastNonSettingsView] = useState("home");
+  const [activeId, setActiveId] = useState(() => {
+    const saved = String(localStorage.getItem(STORAGE_ACTIVE_ID) || "");
+    if (saved) return saved;
+    return Array.isArray(devotionals) && devotionals[0] ? devotionals[0].id : "";
+  });
+  const [view, setView] = useState(() => String(localStorage.getItem(STORAGE_VIEW) || "home"));
+  const [lastNonSettingsView, setLastNonSettingsView] = useState(() => String(localStorage.getItem(`${STORAGE_VIEW}_last`) || "home"));
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
  // home | write | polish | compile | library | settings
 
   useEffect(() => {
     if (view !== "settings") setLastNonSettingsView(view);
   }, [view]);
 
-  const toggleSettings = () => {
-    setView((v) => (v === "settings" ? (lastNonSettingsView || "home") : "settings"));
+  useEffect(() => {
+    localStorage.setItem(STORAGE_VIEW, view);
+  }, [view]);
+
+  useEffect(() => {
+    localStorage.setItem(`${STORAGE_VIEW}_last`, lastNonSettingsView || "home");
+  }, [lastNonSettingsView]);
+
+  useEffect(() => {
+    if (activeId) localStorage.setItem(STORAGE_ACTIVE_ID, activeId);
+    else localStorage.removeItem(STORAGE_ACTIVE_ID);
+  }, [activeId]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDocClick = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [menuOpen]);
+
+  const openSettings = () => {
+    setView("settings");
+    setMenuOpen(false);
   };
 
   const [toast, setToast] = useState(null);
@@ -3790,6 +3515,17 @@ function AppInner({ session, starterMood, onLogout }) {
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
   const greetingName = (settings.username || session?.name || "Friend").replace(/^@/, "");
+
+  useEffect(() => {
+    const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
+    if (!allowed.has(view)) {
+      setView("home");
+      return;
+    }
+    if ((view === "write" || view === "polish" || view === "compile") && !active) {
+      setView(safeDevotionals.length ? "library" : "home");
+    }
+  }, [view, active, safeDevotionals.length]);
 
   useEffect(() => {
     if (!starterMood) return;
@@ -3826,6 +3562,29 @@ function AppInner({ session, starterMood, onLogout }) {
     setView("write");
   };
 
+  const quickPost = () => {
+    const d = createDevotional(settings);
+    d.title = "60-Second Faith Post";
+    d.reflection = "Jesus, give me one clear truth to share today.";
+    setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
+    setActiveId(d.id);
+    setView("write");
+  };
+
+  const startWithVerse = (verseRef) => {
+    const cleaned = String(verseRef || "").trim();
+    if (!cleaned) {
+      pushToast("Add a verse reference to start.");
+      return;
+    }
+    const d = createDevotional(settings);
+    d.verseRef = cleaned;
+    d.reflection = `Today I’m reflecting on ${cleaned}.`;
+    setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
+    setActiveId(d.id);
+    setView("write");
+  };
+
   const reflectVerseOfDay = () => {
     const d = createDevotional(settings);
     d.verseRef = VERSE_OF_DAY.verseRef;
@@ -3837,9 +3596,9 @@ function AppInner({ session, starterMood, onLogout }) {
     setView("write");
   };
 
-  const openEntry = (id) => {
+  const openEntry = (id, targetView = "write") => {
     setActiveId(id);
-    setView("write");
+    setView(targetView);
   };
 
   const deleteEntry = (id) => {
@@ -3848,6 +3607,21 @@ function AppInner({ session, starterMood, onLogout }) {
       setActiveId("");
       setView("home");
     }
+  };
+
+  const markPosted = (id) => {
+    setDevotionals((list) => (Array.isArray(list) ? list : []).map((d) => (d.id === id ? { ...d, status: "posted", updatedAt: nowIso() } : d)));
+    pushToast("Marked as posted.");
+  };
+
+  const duplicateEntry = (id) => {
+    const source = safeDevotionals.find((d) => d.id === id);
+    if (!source) return;
+    const copy = { ...source, id: crypto.randomUUID(), createdAt: nowIso(), updatedAt: nowIso(), status: "draft", reviewed: false };
+    setDevotionals((list) => [copy, ...(Array.isArray(list) ? list : [])]);
+    setActiveId(copy.id);
+    setView("write");
+    pushToast("Entry duplicated.");
   };
 
   const reset = () => {
@@ -3892,21 +3666,33 @@ const onSaved = () => {
           />
           <div className="min-w-0 leading-tight flex-1">
             <div className="text-[15px] font-extrabold text-slate-900 tracking-tight">Rooted in Christ</div>
-            <div className="text-[12px] font-bold text-slate-500 truncate mt-0.5">{getTimeGreeting(getDisplayName(session, settings))}</div>
           </div>
-<button
-            type="button"
-            onClick={toggleSettings}
-            className="text-slate-400 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-slate-100"
-            aria-label="Settings"
-            title="Settings"
-          >
-            <MoreVertical className="w-5 h-5" />
-          </button>
+<div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              className="text-slate-400 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-slate-100"
+              aria-label="More"
+              title="More"
+            >
+              <MoreVertical className="w-5 h-5" />
+            </button>
+            {menuOpen ? (
+              <div className="absolute right-0 top-11 w-40 rounded-xl border border-slate-200 bg-white shadow-lg p-1 z-50">
+                <button
+                  type="button"
+                  onClick={openSettings}
+                  className="w-full text-left px-3 py-2 text-sm font-bold rounded-lg hover:bg-slate-50"
+                >
+                  ⚙ Settings
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      <main className="max-w-md mx-auto px-4 pt-8 relative z-10">
+      <main className="max-w-md mx-auto w-full px-3 pt-5 sm:px-4 sm:pt-8 relative z-10">
         <PageTransition key={view}>
         {view === "home" ? (
           <HomeView
@@ -3914,11 +3700,14 @@ const onSaved = () => {
             onLibrary={() => setView("library")}
             onContinue={() => setView(active ? "write" : "home")}
             onReflectVerseOfDay={reflectVerseOfDay}
+            onQuickPost={quickPost}
+            onStartWithVerse={startWithVerse}
             hasActive={Boolean(active)}
             streak={streak}
             displayName={getDisplayName(session, settings)}
             devotionals={safeDevotionals}
             onOpen={openEntry}
+            onOpenReadyToPost={(id) => openEntry(id, "compile")}
           />
         ) : null}
 
@@ -3934,11 +3723,9 @@ const onSaved = () => {
           />
         ) : null}
 
-        {view === "polish" && active ? <PolishView devotional={active} onBackToWrite={() => setView("write")} onGoShare={() => setView("compile")} /> : null}
+                {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} /> : null}
 
-        {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} /> : null}
-
-        {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} /> : null}
+        {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} onDuplicate={duplicateEntry} onMarkPosted={markPosted} /> : null}
 
         {view === "settings" ? <SettingsView settings={settings} onUpdate={updateSettings} onReset={reset} onLogout={onLogout} devotionals={safeDevotionals} /> : null}
         </PageTransition>
@@ -3950,7 +3737,7 @@ const onSaved = () => {
           <div className="bg-white/90 backdrop-blur-xl border-t border-slate-100 shadow-[0_-4px_24px_rgba(0,0,0,0.07)] px-2 pt-1 pb-2">
             <div className="grid grid-cols-5 items-end">
               <NavButton active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
-              <NavButton active={view === "polish"} onClick={() => { if (active) setView("polish"); else setView("library"); }} icon={ICONS.nav.review} label="Polish" />
+              <NavButton active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
 
               {/* Centre New-Entry button */}
               <div className="flex flex-col items-center justify-center pb-0.5">
@@ -3966,7 +3753,7 @@ const onSaved = () => {
               </div>
 
               <NavButton active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ICONS.nav.compile} label="Share" />
-              <NavButton active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
+              <NavButton active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
             </div>
           </div>
         </div>
@@ -4027,4 +3814,3 @@ export default function App() {
     </ErrorBoundary>
   );
 }
-
