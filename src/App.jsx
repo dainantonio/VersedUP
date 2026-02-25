@@ -316,7 +316,7 @@ const getVerseOfDay = (date = new Date()) => {
   return VERSE_OF_DAY_LIST[idx];
 };
 
-const VERSE_OF_DAY = getVerseOfDay();
+// VERSE_OF_DAY computed fresh at render time via getVerseOfDay()
 
 const MOOD_VERSES = Object.freeze({
   joy: { label: "Joy", verseRef: "Nehemiah 8:10", verseText: "The joy of the LORD is your strength." },
@@ -1078,6 +1078,7 @@ function bumpStreakOnSave() {
 /* ---------------- Views ---------------- */
 
 function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, onStartWithVerse, hasActive, streak, displayName, devotionals, onOpen, onOpenReadyToPost }) {
+  const verseOfDay = React.useMemo(() => getVerseOfDay(), []);
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
   const [homeVerseRef, setHomeVerseRef] = useState("");
@@ -1172,8 +1173,8 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
           <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
           <span className="text-[10px] font-black uppercase tracking-widest text-emerald-200">Verse of the Day</span>
         </div>
-        <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${VERSE_OF_DAY.verseText}"`}</div>
-        <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
+        <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${verseOfDay.verseText}"`}</div>
+        <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{verseOfDay.verseRef.toUpperCase()}</div>
         <button onClick={onReflectVerseOfDay} className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md active:scale-[0.985] transition-all flex items-center gap-2 border border-white/10 relative z-10" type="button">
           Reflect on this <ArrowRight className="w-3 h-3" />
         </button>
@@ -1208,8 +1209,8 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
               {preview ? `"${preview}${preview.length >= 120 ? "…" : ""}"` : "Tap to continue writing…"}
             </div>
             <div className="mt-3 flex gap-2">
-              <button type="button" onClick={() => onOpen(last.id)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">Continue writing</button>
-              {statusReady ? <button type="button" onClick={() => onOpenReadyToPost(last.id)} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white">Preview & Post</button> : null}
+              <button type="button" onClick={() => onOpen(last.id)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">✏️ Continue Writing</button>
+              {statusReady ? <button type="button" onClick={() => onOpenReadyToPost(last.id)} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white">🚀 Compile &amp; Share</button> : null}
             </div>
           </div>
         );
@@ -1561,6 +1562,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
 }
 
 function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings }) {
+  const verseOfDay = React.useMemo(() => getVerseOfDay(), []);
   const { pushToast } = useToast();
   const [busy, setBusy] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -1858,15 +1860,20 @@ ${devotional.reflection}`);
         <Card>
           <div className="space-y-4">
             <div className="text-2xl font-black text-slate-900">What verse is speaking to you today?</div>
-            <button type="button" onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false })} className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <button type="button" onClick={() => onUpdate({ verseRef: verseOfDay.verseRef, verseText: verseOfDay.verseText, verseTextEdited: false })} className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
               <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">Verse of the Day</div>
-              <div className="text-sm font-bold text-emerald-700 mt-1">{VERSE_OF_DAY.verseRef}</div>
-              <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
+              <div className="text-sm font-bold text-emerald-700 mt-1">{verseOfDay.verseRef}</div>
+              <div className="text-sm mt-1 font-serif-scripture text-slate-700">{verseOfDay.verseText}</div>
             </button>
 
             <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
             <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
-            {verseText ? (
+            {fetching ? (
+              <div className="rounded-3xl border border-emerald-100 bg-emerald-50/30 p-4 flex items-center gap-3">
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-600 shrink-0" />
+                <span className="text-sm font-semibold text-emerald-700">Fetching verse…</span>
+              </div>
+            ) : verseText ? (
               <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
                 <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{verseRef} ({version})</div>
                 <div className="mt-2 text-lg leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">{verseText}</div>
@@ -2171,6 +2178,12 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted 
   };
 
   const [collapsed, setCollapsed] = useState({ ready: false, in_progress: false, draft: true, posted: true });
+  const [expandedItems, setExpandedItems] = useState(new Set());
+  const toggleItem = (id) => setExpandedItems((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
   const grouped = useMemo(() => {
     const buckets = { ready: [], in_progress: [], draft: [], posted: [] };
     filtered.forEach((item) => {
@@ -2241,22 +2254,43 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted 
               {!collapsed[section.id] ? (
                 <div className="space-y-3 p-3 pt-0">
                   {items.map(({ d, st }) => (
-                    <div key={d.id} className="bg-white rounded-[1.25rem] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md hover:border-emerald-100">
-                      <button onClick={() => onOpen(d.id)} className="w-full text-left p-4 active:scale-[0.99] transition-transform" type="button">
-                        <div className="flex items-center gap-2">
-                          <div className="font-extrabold text-slate-900 text-[15px] leading-snug flex items-center gap-1.5">{d.title || "Untitled"}{d.reviewed ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : null}</div>
-                          <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-black", st.tone)}>{st.dot} {st.label}</span>
+                    <div key={d.id} className="bg-white rounded-[1.25rem] border border-slate-100 shadow-sm overflow-hidden transition-all">
+                      {/* Collapsed header — always visible, tap to expand */}
+                      <button
+                        onClick={() => toggleItem(d.id)}
+                        className="w-full text-left px-4 pt-3.5 pb-3 active:scale-[0.99] transition-transform"
+                        type="button"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="font-extrabold text-slate-900 text-[15px] leading-snug truncate flex items-center gap-1.5">
+                              {d.title || "Untitled"}
+                              {d.reviewed ? <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /> : null}
+                            </div>
+                            <span className={cn("shrink-0 text-[10px] px-2 py-0.5 rounded-full border font-black", st.tone)}>{st.dot} {st.label}</span>
+                          </div>
+                          <ChevronDown className={cn("w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200", expandedItems.has(d.id) ? "rotate-180" : "")} />
                         </div>
                         {d.verseRef ? <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wide">{d.verseRef}</div> : null}
-                        {d.reflection ? <div className="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">{d.reflection}</div> : null}
-                        <div className="text-[11px] text-slate-300 mt-2 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
+                        <div className="text-[11px] text-slate-300 mt-1 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
                       </button>
 
-                      <div className="border-t border-slate-100 grid grid-cols-3">
-                        <button type="button" onClick={() => onDuplicate(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors">Duplicate</button>
-                        <button type="button" onClick={() => onMarkPosted(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50 transition-colors">Mark Posted</button>
-                        <button type="button" onClick={() => onDelete(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-red-500 hover:bg-red-50 transition-colors">Delete</button>
-                      </div>
+                      {/* Expanded body — preview + actions */}
+                      {expandedItems.has(d.id) ? (
+                        <>
+                          {d.reflection ? (
+                            <div className="px-4 pb-3 border-t border-slate-50">
+                              <div className="text-xs text-slate-400 line-clamp-3 leading-relaxed pt-2">{d.reflection}</div>
+                            </div>
+                          ) : null}
+                          <div className="border-t border-slate-100 grid grid-cols-4">
+                            <button type="button" onClick={() => onOpen(d.id)} className="flex items-center justify-center py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50 transition-colors">Edit</button>
+                            <button type="button" onClick={() => onDuplicate(d.id)} className="flex items-center justify-center py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors">Copy</button>
+                            <button type="button" onClick={() => onMarkPosted(d.id)} className="flex items-center justify-center py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50 transition-colors">Posted ✓</button>
+                            <button type="button" onClick={() => onDelete(d.id)} className="flex items-center justify-center py-3 text-xs font-extrabold text-red-500 hover:bg-red-50 transition-colors">Delete</button>
+                          </div>
+                        </>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -3559,7 +3593,6 @@ function AppInner({ session, starterMood, onLogout }) {
 
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
-  const greetingName = (settings.username || session?.name || "Friend").replace(/^@/, "");
 
   useEffect(() => {
     const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
@@ -3632,10 +3665,11 @@ function AppInner({ session, starterMood, onLogout }) {
 
   const reflectVerseOfDay = () => {
     const d = createDevotional(settings);
-    d.verseRef = VERSE_OF_DAY.verseRef;
-    d.verseText = VERSE_OF_DAY.verseText;
-    d.title = VERSE_OF_DAY.suggestedTitle;
-    d.reflection = `Today I reflect on ${VERSE_OF_DAY.verseRef}. Lord, help me trust Your shepherding in every step.`;
+    const _votd = getVerseOfDay();
+    d.verseRef = _votd.verseRef;
+    d.verseText = _votd.verseText;
+    d.title = _votd.suggestedTitle;
+    d.reflection = `Today I reflect on ${_votd.verseRef}. Lord, help me trust Your shepherding in every step.`;
     setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
     setActiveId(d.id);
     setView("write");
@@ -3723,9 +3757,8 @@ const onSaved = () => {
               <MoreVertical className="w-5 h-5" />
             </button>
             {menuOpen ? (
-              <div className="absolute right-0 top-11 w-40 rounded-xl border border-slate-200 bg-white shadow-lg p-1 z-50">
+              <div className="absolute right-0 top-11 w-44 rounded-xl border border-slate-200 bg-white shadow-lg p-1 z-50">
                 <button type="button" onClick={openSettings} className="w-full text-left px-3 py-2 text-sm font-bold rounded-lg hover:bg-slate-50">⚙ Settings</button>
-                <button type="button" onClick={() => { setView("home"); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-sm font-bold rounded-lg hover:bg-slate-50">Home</button>
               </div>
             ) : null}
           </div>
@@ -3775,7 +3808,7 @@ const onSaved = () => {
       <div className="fixed bottom-0 left-0 right-0 z-40">
         <div className="max-w-md mx-auto px-3 pb-safe">
           <div className="bg-white/90 backdrop-blur-xl border-t border-slate-100 shadow-[0_-4px_24px_rgba(0,0,0,0.07)] px-2 pt-1 pb-2">
-            <div className="grid grid-cols-5 items-end">
+            <div className="grid grid-cols-4 items-end">
               <NavButton active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
               <NavButton active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
 
@@ -3793,7 +3826,6 @@ const onSaved = () => {
               </div>
 
               <NavButton active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ICONS.nav.compile} label="Share" />
-              <NavButton active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
             </div>
           </div>
         </div>
