@@ -14,7 +14,15 @@ if (!globalThis.crypto || typeof globalThis.crypto.getRandomValues !== "function
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // REPLACE 'repo-name' WITH YOUR ACTUAL GITHUB REPOSITORY NAME
-  // Example: if your repo is github.com/john/versed-up, this should be '/versed-up/'
+
+  // ⚠️  IMPORTANT: This MUST match your GitHub repository name exactly (case-sensitive).
+  // Example: if your repo URL is https://github.com/youruser/VersedUP  → use "/VersedUP/"
+  // Example: if your repo URL is https://github.com/youruser/versed-up → use "/versed-up/"
   base: "/VersedUP/",
+
+  optimizeDeps: {
+    // @google-cloud/vision is a server-side Node.js library used only in api/ocr.js.
+    // Excluding it prevents Vite from trying to bundle native/gRPC modules for the browser.
+    exclude: ["@google-cloud/vision"],
+  },
 });
