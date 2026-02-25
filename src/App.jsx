@@ -2142,7 +2142,7 @@ ${draft.reflection || ""}` })} disabled={hasHook}>Draft Hook</SmallButton>
   );
 }
 
-function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted }) {
+function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted, onBack }) {
   const [q, setQ] = useState("");
   const [sortOrder, setSortOrder] = useState("newest");
   const [filter, setFilter] = useState("all");
@@ -2203,9 +2203,14 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted 
     <div className="space-y-5 pb-20 animate-enter">
       <Card>
         <div className="flex items-center justify-between">
-          <div>
-            <div className="text-2xl font-black text-slate-900">Library</div>
-            <div className="text-sm text-slate-500 mt-0.5 font-medium">{devotionals.length} {devotionals.length === 1 ? "entry" : "entries"}</div>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors active:scale-95" title="Back">
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <div className="text-2xl font-black text-slate-900">Library</div>
+              <div className="text-sm text-slate-500 mt-0.5 font-medium">{devotionals.length} {devotionals.length === 1 ? "entry" : "entries"}</div>
+            </div>
           </div>
           <button type="button" onClick={nextSort} className="flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors">
             <ArrowUpDown className="w-3.5 h-3.5" />
@@ -2335,7 +2340,7 @@ function AiKeyTestButton({ provider, apiKey }) {
   );
 }
 
-function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals }) {
+function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBack }) {
   const { pushToast } = useToast();
   const [aiOpen, setAiOpen] = useState(false);
 
@@ -2397,9 +2402,14 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals }) {
 
   return (
     <div className="space-y-4 pb-20 animate-enter">
-      <div>
-        <div className="text-2xl font-black text-slate-900">Settings</div>
-        <div className="text-sm text-slate-500 mt-0.5 font-medium">Short, scannable, and creator-first.</div>
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors active:scale-95" title="Back">
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <div className="text-2xl font-black text-slate-900">Settings</div>
+          <div className="text-sm text-slate-500 mt-0.5 font-medium">Short, scannable, and creator-first.</div>
+        </div>
       </div>
 
       <Card>
@@ -3382,7 +3392,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
             <div>
               <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 2 of 3</div>
               <h2 className="text-2xl font-black text-slate-900 mt-1">Write with AI at your side</h2>
-              <p className="text-sm text-slate-500 mt-1.5 font-medium">Reflect freely, or let AI draft a caption in any tone. You can Fix, Shorten, or Expand instantly.</p>
+              <p className="text-sm text-slate-500 mt-1.5 font-medium">Reflect freely, or let AI draft a caption in your chosen tone. Refine it with one icon tap.</p>
             </div>
 
             {/* Mini write card demo */}
@@ -3394,20 +3404,27 @@ function OnboardingWizard({ authDraft, onFinish }) {
                   : <span className="text-slate-400 italic">Your reflection will appear here…</span>
                 }
               </div>
-              {/* AI toolbar strip */}
-              <div className="flex gap-1.5 flex-wrap">
+              {/* AI toolbar strip — icon-only, matches real app */}
+              <div className="flex gap-2 items-center">
                 <button
                   type="button"
                   onClick={() => setDemoDrafted(true)}
-                  className={`flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-extrabold transition-all ${
-                    demoDrafted ? "bg-emerald-100 text-emerald-700 border border-emerald-200" : "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:shadow-md"
+                  title="Draft for me"
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                    demoDrafted ? "bg-emerald-100 text-emerald-600 border border-emerald-200" : "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:shadow-md"
                   }`}
                 >
-                  <Sparkles className="w-3 h-3" />
-                  {demoDrafted ? "Drafted ✓" : "✨ Draft for Me"}
+                  <Sparkles className="w-4 h-4" />
                 </button>
-                {["Fix", "Shorten", "Expand"].map((t) => (
-                  <button key={t} type="button" className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-50 transition-colors">{t}</button>
+                {[
+                  { icon: Check, title: "Fix grammar" },
+                  { icon: ChevronUp, title: "Shorten" },
+                  { icon: ChevronDown, title: "Expand" },
+                  { icon: Wand2, title: "Tone" },
+                ].map(({ icon: Icon, title }) => (
+                  <button key={title} type="button" title={title} className="w-9 h-9 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors">
+                    <Icon className="w-4 h-4" />
+                  </button>
                 ))}
               </div>
               {demoDrafted ? (
@@ -3849,9 +3866,9 @@ const onSaved = () => {
 
                 {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} /> : null}
 
-        {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} onDuplicate={duplicateEntry} onMarkPosted={markPosted} /> : null}
+        {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} onDuplicate={duplicateEntry} onMarkPosted={markPosted} onBack={() => setView("home")} /> : null}
 
-        {view === "settings" ? <SettingsView settings={settings} onUpdate={updateSettings} onReset={reset} onLogout={onLogout} devotionals={safeDevotionals} /> : null}
+        {view === "settings" ? <SettingsView settings={settings} onUpdate={updateSettings} onReset={reset} onLogout={onLogout} devotionals={safeDevotionals} onBack={() => setView(lastNonSettingsView || "home")} /> : null}
         </PageTransition>
       </main>
 
@@ -3871,7 +3888,7 @@ const onSaved = () => {
           className="w-14 h-14 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.18)] active:scale-95 transition-transform"
           title="New Entry"
         >
-          <Plus className="w-7 h-7" />
+          <Pencil className="w-6 h-6" />
         </button>
         <button
           type="button"
