@@ -2485,9 +2485,6 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals }) {
             </button>
           ))}
         </div>
-        <button type="button" onClick={handleExport} className="mt-3 w-full flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98]">
-          <Download className="w-4 h-4" /> Export all entries as JSON
-        </button>
       </Card>
 
       <Card>
@@ -2825,10 +2822,6 @@ function SocialPreview({ platform, devotional, settings, text }) {
           </div>
           <div className="p-4">
             <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
-          </div>
-          <div>
-            <div className="text-sm font-extrabold text-slate-900">{settings.username || "Your Page"}</div>
-            <div className="text-[11px] text-slate-400">Just now · 🌐</div>
           </div>
           <span className="ml-auto text-slate-400 text-lg">···</span>
         </div>
@@ -3597,6 +3590,17 @@ function AppInner({ session, starterMood, onLogout }) {
   }, [view, active, safeDevotionals.length]);
 
   useEffect(() => {
+    const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
+    if (!allowed.has(view)) {
+      setView("home");
+      return;
+    }
+    if ((view === "write" || view === "polish" || view === "compile") && !active) {
+      setView(safeDevotionals.length ? "library" : "home");
+    }
+  }, [view, active, safeDevotionals.length]);
+
+  useEffect(() => {
     if (!starterMood) return;
     if (safeDevotionals.length > 0) return;
     const d = createDevotional(settings);
@@ -3749,8 +3753,13 @@ const onSaved = () => {
             </button>
             {menuOpen ? (
               <div className="absolute right-0 top-11 w-40 rounded-xl border border-slate-200 bg-white shadow-lg p-1 z-50">
-                <button type="button" onClick={openSettings} className="w-full text-left px-3 py-2 text-sm font-bold rounded-lg hover:bg-slate-50">⚙ Settings</button>
-                <button type="button" onClick={() => { setView("home"); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-sm font-bold rounded-lg hover:bg-slate-50">Home</button>
+                <button
+                  type="button"
+                  onClick={openSettings}
+                  className="w-full text-left px-3 py-2 text-sm font-bold rounded-lg hover:bg-slate-50"
+                >
+                  ⚙ Settings
+                </button>
               </div>
             ) : null}
           </div>
