@@ -1784,20 +1784,74 @@ ${devotional.reflection}`);
             <button type="button" onClick={() => setStep(1)} className="text-xs rounded-full border px-3 py-1 font-bold text-emerald-700 border-emerald-200 bg-emerald-50">{verseRef || "No verse"}</button>
             <input value={devotional.title} onChange={(e) => onUpdate({ title: e.target.value })} placeholder="Give it a title (optional)" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
 
+            {/* FIX 2: Draft for Me as hero, secondary tools below */}
+            <button
+              onClick={() => void doDraftForMe()}
+              disabled={busy || aiNeedsKey}
+              className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-emerald-600 text-white font-extrabold text-base shadow-md shadow-emerald-600/25 hover:bg-emerald-700 active:scale-[0.985] transition-all disabled:opacity-40 relative overflow-hidden group"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+              {busy ? <Loader2 className="w-5 h-5 animate-spin relative z-10" /> : <Sparkles className="w-5 h-5 relative z-10" />}
+              <span className="relative z-10">{busy ? "Drafting your content..." : "✨ Draft for Me"}</span>
+            </button>
+            {aiNeedsKey ? (
+              <div className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                Add an AI key in Settings to use AI drafting.
+              </div>
+            ) : null}
             <div className="flex gap-2 overflow-x-auto no-scrollbar">
-              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey} className="rounded-full bg-emerald-600 text-white px-3 py-2 text-xs font-extrabold disabled:opacity-40">✨ Draft for Me</button>
-              <button onClick={() => void doFix()} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Fix Grammar</button>
-              <button onClick={() => void doLength("shorten")} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Shorten</button>
-              <button onClick={() => void doLength("lengthen")} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Expand</button>
-              <div className="relative">
-                <button onClick={() => setToneMenuOpen((o) => !o)} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Tone ▾</button>
-                {toneMenuOpen ? <div className="absolute top-full right-0 mt-1 z-30 w-40 rounded-xl border bg-white shadow">{["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t)=><button key={t} onClick={() => void doTone(t)} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50">{t}</button>)}</div> : null}
+              <button onClick={() => void doFix()} disabled={busy} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50 disabled:opacity-40">Fix Grammar</button>
+              <button onClick={() => void doLength("shorten")} disabled={busy} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50 disabled:opacity-40">Shorten</button>
+              <button onClick={() => void doLength("lengthen")} disabled={busy} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50 disabled:opacity-40">Expand</button>
+              <div className="relative shrink-0">
+                <button onClick={() => setToneMenuOpen((o) => !o)} disabled={busy} className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50 disabled:opacity-40">Tone ▾</button>
+                {toneMenuOpen ? (
+                  <div className="absolute top-full left-0 mt-1 z-30 w-44 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+                    {["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t) => (
+                      <button key={t} onClick={() => void doTone(t)} className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">{t}</button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
 
-            <textarea value={contentTab==="reflection"?devotional.reflection:contentTab==="prayer"?devotional.prayer:devotional.questions} onChange={(e)=>onUpdate({ [contentTab]: e.target.value })} rows={10} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
-            <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1">
-              {["reflection","prayer","questions"].map((k)=><button key={k} type="button" onClick={()=>setContentTab(k)} className={cn("rounded-xl py-2 text-xs font-extrabold", contentTab===k?"bg-white text-slate-900 shadow-sm":"text-slate-500")}>{k[0].toUpperCase()+k.slice(1)}</button>)}
+            {/* FIX 1: Tabs ABOVE textarea */}
+            <div className="grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1">
+              {[
+                { k: "reflection", label: "✍️ Reflection" },
+                { k: "prayer", label: "🙏 Prayer" },
+                { k: "questions", label: "❓ Questions" },
+              ].map(({ k, label }) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setContentTab(k)}
+                  className={cn(
+                    "rounded-xl py-2.5 text-xs font-extrabold transition-all",
+                    contentTab === k
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-400 hover:text-slate-600"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="relative">
+              <textarea
+                value={contentTab === "reflection" ? (devotional.reflection || "") : contentTab === "prayer" ? (devotional.prayer || "") : (devotional.questions || "")}
+                onChange={(e) => onUpdate({ [contentTab]: e.target.value })}
+                rows={10}
+                placeholder={
+                  contentTab === "reflection" ? "Write your reflection here..." :
+                  contentTab === "prayer" ? "Lord Jesus,\n" :
+                  "1) What truth from this verse do I need to carry today?\n2) What is one action I can take in the next 24 hours?"
+                }
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none transition-all"
+              />
+              <div className="absolute bottom-3 right-3 text-[10px] font-bold text-slate-300">
+                {(contentTab === "reflection" ? String(devotional.reflection || "") : contentTab === "prayer" ? String(devotional.prayer || "") : String(devotional.questions || "")).trim().split(/\s+/).filter(Boolean).length} words
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1851,15 +1905,29 @@ ${devotional.reflection}`);
       {step === 4 ? (
         <Card>
           <div className="space-y-4">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+            {/* FIX 5: Platform colors as inline styles to bypass Tailwind dynamic class issues */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
               {[
-                { id: "tiktok", label: "🎵 TikTok", tone: "bg-black text-white" },
-                { id: "instagram", label: "📸 Instagram", tone: "bg-gradient-to-r from-purple-500 to-pink-500 text-white" },
-                { id: "twitter", label: "🐦 Twitter/X", tone: "bg-sky-500 text-white" },
-                { id: "facebook", label: "👥 Facebook", tone: "bg-blue-600 text-white" },
-                { id: "email", label: "✉️ Email", tone: "bg-slate-700 text-white" },
+                { id: "tiktok",    label: "🎵 TikTok",    active: { background: "#000", color: "#fff" },                             inactive: {} },
+                { id: "instagram", label: "📸 Instagram",  active: { background: "linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045)", color: "#fff" }, inactive: {} },
+                { id: "twitter",   label: "𝕏 Twitter/X",  active: { background: "#1DA1F2", color: "#fff" },                          inactive: {} },
+                { id: "facebook",  label: "👥 Facebook",   active: { background: "#1877F2", color: "#fff" },                          inactive: {} },
+                { id: "email",     label: "✉️ Email",      active: { background: "#475569", color: "#fff" },                          inactive: {} },
               ].map((p) => (
-                <button key={p.id} type="button" onClick={() => setPlatform(p.id)} className={cn("shrink-0 rounded-full px-3 py-2 text-xs font-extrabold border", platform===p.id ? p.tone+" border-transparent" : "bg-white border-slate-200 text-slate-600")}>{p.label}</button>
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPlatform(p.id)}
+                  style={platform === p.id ? p.active : {}}
+                  className={cn(
+                    "shrink-0 rounded-full px-4 py-2 text-xs font-extrabold border transition-all duration-200",
+                    platform === p.id
+                      ? "border-transparent shadow-md scale-105"
+                      : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                  )}
+                >
+                  {p.label}
+                </button>
               ))}
             </div>
 
@@ -1891,10 +1959,29 @@ ${devotional.reflection}`);
               </div>
             ) : null}
 
-            <div className="sticky bottom-20 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-3 shadow">
-              <button type="button" onClick={() => void copyAndOpen()} className="w-full rounded-2xl bg-slate-900 text-white py-3 font-extrabold">Copy & Open in {platform[0].toUpperCase()+platform.slice(1)}</button>
-              <div className="grid grid-cols-2 gap-2 mt-2"><SmallButton onClick={() => { const s=encodeURIComponent(devotional.title||devotional.verseRef||"Encouragement"); window.location.href=`mailto:?subject=${s}&body=${encodeURIComponent(postText)}`; }}>Email Draft</SmallButton><SmallButton onClick={() => { window.location.href=`sms:?&body=${encodeURIComponent(postText)}`; }}>Text Draft</SmallButton></div>
-              <SmallButton onClick={() => { onUpdate({ status: "posted", reviewed: true }); pushToast("Another seed planted 🌱"); }} className="w-full mt-2">Mark as Posted</SmallButton>
+            {/* FIX 4: fixed positioning to avoid nav bar collision */}
+            <div className="h-36" />{/* spacer so content isn't hidden behind fixed bar */}
+            <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-0 right-0 z-30 px-3">
+              <div className="max-w-md mx-auto rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-xl p-3 shadow-2xl shadow-slate-900/10">
+                <button
+                  type="button"
+                  onClick={() => void copyAndOpen()}
+                  className="w-full rounded-2xl bg-slate-900 text-white py-3.5 font-extrabold text-sm hover:bg-slate-800 active:scale-[0.985] transition-all"
+                >
+                  Copy & Open in {platform[0].toUpperCase()+platform.slice(1)} →
+                </button>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <SmallButton onClick={() => { const s=encodeURIComponent(devotional.title||devotional.verseRef||"Encouragement"); window.location.href=`mailto:?subject=${s}&body=${encodeURIComponent(postText)}`; }}>Email Draft</SmallButton>
+                  <SmallButton onClick={() => { window.location.href=`sms:?&body=${encodeURIComponent(postText)}`; }}>Text Draft</SmallButton>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { onUpdate({ status: "posted", reviewed: true }); pushToast("Another seed planted 🌱"); }}
+                  className="w-full mt-2 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-extrabold hover:bg-emerald-100 transition-colors"
+                >
+                  ✅ Mark as Posted
+                </button>
+              </div>
             </div>
           </div>
         </Card>
@@ -2534,13 +2621,26 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
         <div className="text-sm text-slate-500 mt-1 font-medium">Ready to publish. Pick a platform and go.</div>
       </div>
 
+      {/* FIX 5b: Platform colors on CompileView tabs */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-        {tabDefs.map((p) => (
+        {[
+          { id: "tiktok",    label: "🎵 TikTok",    activeStyle: { background: "#000", color: "#fff" } },
+          { id: "instagram", label: "📸 Instagram",  activeStyle: { background: "linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045)", color: "#fff" } },
+          { id: "twitter",   label: "𝕏 Twitter/X",  activeStyle: { background: "#1DA1F2", color: "#fff" } },
+          { id: "facebook",  label: "👥 Facebook",   activeStyle: { background: "#1877F2", color: "#fff" } },
+          { id: "email",     label: "✉️ Email",      activeStyle: { background: "#475569", color: "#fff" } },
+        ].map((p) => (
           <button
             key={p.id}
             type="button"
             onClick={() => setPlatform(p.id)}
-            className={cn("shrink-0 rounded-full px-3 py-2 text-xs font-extrabold border", platform === p.id ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600")}
+            style={platform === p.id ? p.activeStyle : {}}
+            className={cn(
+              "shrink-0 rounded-full px-4 py-2 text-xs font-extrabold border transition-all duration-200",
+              platform === p.id
+                ? "border-transparent shadow-md scale-105"
+                : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+            )}
           >
             {p.label}
           </button>
@@ -2618,25 +2718,26 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
         </Card>
       ) : null}
 
-      <div className="sticky bottom-20 z-20">
-        <div className="rounded-3xl border border-slate-200 bg-white/95 backdrop-blur-xl p-3 shadow-2xl">
+      <div className="h-36" />{/* spacer for fixed action bar */}
+      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-0 right-0 z-30 px-3">
+        <div className="max-w-md mx-auto rounded-3xl border border-slate-200 bg-white/95 backdrop-blur-xl p-3 shadow-2xl shadow-slate-900/10">
           <div className="grid grid-cols-2 gap-2 mb-2">
             <SmallButton onClick={copy} icon={Copy} tone="neutral">Copy</SmallButton>
             <SmallButton onClick={() => void shareNow()} icon={ICONS.actions.shareNow} disabled={shareBusy} tone="primary">{shareBusy ? "Sharing..." : "Share"}</SmallButton>
           </div>
           {(platform === "tiktok" || platform === "instagram" || platform === "facebook" || platform === "twitter") ? (
-            <SmallButton
+            <button
+              type="button"
               onClick={() => {
                 if (platform === "tiktok") void shareToTikTok();
                 else if (platform === "instagram") void shareToInstagram();
                 else if (platform === "facebook") void shareToFacebook();
                 else if (platform === "twitter") void shareToX();
               }}
-              className="w-full justify-center"
-              tone="neutral"
+              className="w-full py-3 rounded-2xl bg-slate-900 text-white text-sm font-extrabold hover:bg-slate-800 active:scale-[0.985] transition-all"
             >
-              Open in {platform === "tiktok" ? "TikTok" : platform === "instagram" ? "Instagram" : platform === "facebook" ? "Facebook" : "Twitter / X"}
-            </SmallButton>
+              Open in {platform === "tiktok" ? "TikTok" : platform === "instagram" ? "Instagram" : platform === "facebook" ? "Facebook" : "Twitter / X"} →
+            </button>
           ) : null}
           <div className="grid grid-cols-2 gap-2 mt-2">
             <SmallButton onClick={openEmailDraft}>Email Draft</SmallButton>
@@ -2649,18 +2750,107 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
 }
 
 function SocialPreview({ platform, devotional, settings, text }) {
+  /* FIX 3: Full platform-accurate previews for all 5 platforms */
+
+  if (platform === "tiktok") {
+    return (
+      <div className="rounded-3xl overflow-hidden shadow-sm border border-slate-200">
+        <div className="bg-black px-4 py-3 flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-white/40" />
+          <span className="text-white/60 text-[11px] font-bold uppercase tracking-widest">TikTok</span>
+          <div className="ml-auto text-white/40 text-[11px] font-bold">{devotional.mood ? `#${devotional.mood}` : ""}</div>
+        </div>
+        <div className="bg-gradient-to-b from-slate-900 to-black p-5 min-h-[180px] flex flex-col justify-between relative">
+          <div className="absolute right-4 top-4 flex flex-col gap-4 items-center">
+            <div className="flex flex-col items-center gap-0.5"><span className="text-white text-lg">❤️</span><span className="text-white/60 text-[10px]">24.1K</span></div>
+            <div className="flex flex-col items-center gap-0.5"><span className="text-white text-lg">💬</span><span className="text-white/60 text-[10px]">847</span></div>
+            <div className="flex flex-col items-center gap-0.5"><span className="text-white text-lg">🔖</span><span className="text-white/60 text-[10px]">5.2K</span></div>
+          </div>
+          <div className="pr-10">
+            <p className="text-white text-sm leading-relaxed font-semibold whitespace-pre-wrap drop-shadow-sm">{text}</p>
+          </div>
+          <div className="mt-4 pr-10">
+            <span className="text-white/70 text-xs font-bold">{settings.username ? `@${settings.username.replace(/^@/,"")}` : "@yourname"}</span>
+            <div className="text-white/40 text-[10px] mt-0.5">♫ Original sound</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (platform === "instagram") {
     return (
       <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 flex items-center gap-3 border-b border-slate-200 bg-slate-50">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-sky-500" />
+        <div className="p-4 flex items-center gap-3 border-b border-slate-200 bg-white">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600 p-0.5">
+            <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-400 to-pink-500" />
+            </div>
+          </div>
           <div className="flex-1">
             <div className="text-sm font-extrabold text-slate-900">{settings.username || "yourprofile"}</div>
-            <div className="text-xs text-slate-500">Instagram</div>
+            <div className="text-[11px] text-slate-400">Sponsored</div>
           </div>
+          <span className="text-slate-400 text-lg">···</span>
         </div>
         <div className="p-4">
-          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
+          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
+        </div>
+        <div className="px-4 pb-3 flex items-center gap-4 text-xl border-t border-slate-100 pt-3">
+          <span>🤍</span><span>💬</span><span>✈️</span>
+          <span className="ml-auto">🔖</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (platform === "twitter") {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="px-4 pt-4 pb-3 flex gap-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-400 to-blue-600 flex-shrink-0 flex items-center justify-center text-white font-black text-sm">
+            {(settings.username || "Y")[0].toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-extrabold text-sm text-slate-900">{settings.username || "You"}</span>
+              <span className="text-xs text-slate-400">· now</span>
+            </div>
+            <p className="mt-1.5 text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{text}</p>
+            <div className="mt-3 flex items-center gap-5 text-slate-400">
+              <span className="text-xs flex items-center gap-1">💬 <span>24</span></span>
+              <span className="text-xs flex items-center gap-1">🔁 <span>68</span></span>
+              <span className="text-xs flex items-center gap-1">❤️ <span>412</span></span>
+              <span className="text-xs flex items-center gap-1">📊 <span>5.8K</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (platform === "facebook") {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-100">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-black text-sm flex-shrink-0">
+            {(settings.username || "Y")[0].toUpperCase()}
+          </div>
+          <div>
+            <div className="text-sm font-extrabold text-slate-900">{settings.username || "Your Page"}</div>
+            <div className="text-[11px] text-slate-400">Just now · 🌐</div>
+          </div>
+          <span className="ml-auto text-slate-400 text-lg">···</span>
+        </div>
+        <div className="px-4 py-4">
+          <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{text}</p>
+        </div>
+        <div className="px-4 pb-3 border-t border-slate-100 pt-3 flex items-center gap-1">
+          <span className="text-xs text-slate-500 flex items-center gap-1">👍 <span className="font-semibold">Like</span></span>
+          <span className="text-slate-300 mx-2">·</span>
+          <span className="text-xs text-slate-500 flex items-center gap-1">💬 <span className="font-semibold">Comment</span></span>
+          <span className="text-slate-300 mx-2">·</span>
+          <span className="text-xs text-slate-500 flex items-center gap-1">↗️ <span className="font-semibold">Share</span></span>
         </div>
       </div>
     );
@@ -2670,8 +2860,9 @@ function SocialPreview({ platform, devotional, settings, text }) {
     return (
       <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-200 bg-slate-50">
-          <div className="text-xs font-extrabold text-slate-500 uppercase tracking-widest">EMAIL PREVIEW</div>
-          <div className="text-sm font-extrabold text-slate-900 mt-1">To: {settings.username || "you@example.com"}</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">EMAIL PREVIEW</div>
+          <div className="text-xs text-slate-500"><span className="font-extrabold text-slate-700">To:</span> {settings.username || "subscriber@email.com"}</div>
+          <div className="text-xs text-slate-500 mt-0.5"><span className="font-extrabold text-slate-700">Subject:</span> {devotional.title || devotional.verseRef || "Daily Devotional"}</div>
         </div>
         <div className="p-4">
           <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed font-serif-scripture">{text}</div>
@@ -2680,24 +2871,14 @@ function SocialPreview({ platform, devotional, settings, text }) {
     );
   }
 
+  // Generic fallback
   return (
     <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="p-4 flex items-center justify-between border-b border-slate-200 bg-slate-50">
-        <div>
-          <div className="text-sm font-extrabold text-slate-900">TikTok Preview</div>
-          <div className="text-xs text-slate-500">Hook + short lines + CTA</div>
-        </div>
-        <div className="text-xs font-extrabold text-emerald-700 uppercase tracking-wider">{devotional.mood ? `Mood: ${devotional.mood}` : "No mood"}</div>
+      <div className="px-4 py-3 border-b border-slate-100">
+        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Post Copy</div>
       </div>
-
       <div className="p-4">
-        <div className="rounded-3xl bg-gradient-to-b from-black/5 to-black/0 p-5 border border-slate-200">
-          <div className="text-sm whitespace-pre-wrap text-slate-900 leading-relaxed">{text}</div>
-          <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-            <span>{settings.username || "@yourname"}</span>
-            <span>❤️  •  💬  •  🔖</span>
-          </div>
-        </div>
+        <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap font-serif-scripture">{text}</p>
       </div>
     </div>
   );
