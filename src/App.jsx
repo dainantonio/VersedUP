@@ -3524,21 +3524,24 @@ function OnboardingWizard({ authDraft, onFinish }) {
 
 /* ---------------- App shell ---------------- */
 
-function NavButton({ active, onClick, icon: Icon, label }) {
+function FABOption({ icon: Icon, label, onClick, active }) {
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex w-full min-h-12 flex-col items-center justify-center gap-0.5 py-2.5 rounded-2xl transition-all duration-200 relative touch-manipulation",
-        active ? "text-emerald-700" : "text-slate-400 hover:text-slate-600"
-      )}
-      type="button"
-      title={label}
-    >
-      <Icon className="w-5 h-5 transition-all duration-200" strokeWidth={active ? 2.5 : 2} />
-      <span className={cn("text-[10px] font-bold leading-none transition-all", active ? "text-emerald-700" : "text-slate-400")}>{label}</span>
-      {active && <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-emerald-500 rounded-full" />}
-    </button>
+    <div className="flex items-center gap-3 justify-end">
+      <span className={cn(
+        "text-xs font-bold px-2.5 py-1 rounded-full shadow-sm backdrop-blur-sm transition-all",
+        active ? "bg-emerald-600 text-white" : "bg-white/90 text-slate-700"
+      )}>{label}</span>
+      <button
+        onClick={onClick}
+        type="button"
+        className={cn(
+          "w-11 h-11 rounded-full flex items-center justify-center shadow-md transition-all duration-200 active:scale-95",
+          active ? "bg-emerald-600 text-white" : "bg-white text-slate-700 hover:bg-slate-50"
+        )}
+      >
+        <Icon className="w-5 h-5" strokeWidth={2} />
+      </button>
+    </div>
   );
 }
 
@@ -3567,6 +3570,8 @@ function AppInner({ session, starterMood, onLogout }) {
   const [lastNonSettingsView, setLastNonSettingsView] = useState(() => String(localStorage.getItem(`${STORAGE_VIEW}_last`) || "home"));
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
+  const fabRef = useRef(null);
+  const [fabOpen, setFabOpen] = useState(false);
  // home | write | polish | compile | library | settings
 
   useEffect(() => {
@@ -3594,6 +3599,15 @@ function AppInner({ session, starterMood, onLogout }) {
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!fabOpen) return;
+    const onDocClick = (event) => {
+      if (fabRef.current && !fabRef.current.contains(event.target)) setFabOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [fabOpen]);
 
   const openSettings = () => {
     setView("settings");
@@ -3824,7 +3838,7 @@ const onSaved = () => {
         </div>
       </div>
 
-      <main className="max-w-md mx-auto w-full px-3 pt-5 sm:px-4 sm:pt-8 relative z-10">
+      <main className="max-w-md mx-auto w-full px-3 pt-5 pb-32 sm:px-4 sm:pt-8 relative z-10">
         <PageTransition key={view}>
         {view === "home" ? (
           <HomeView
@@ -3863,32 +3877,30 @@ const onSaved = () => {
         </PageTransition>
       </main>
 
-      {/* ── Bottom Nav Bar ── */}
-      <div className="fixed bottom-0 left-0 right-0 z-40">
-        <div className="max-w-md mx-auto px-3 pb-safe">
-          <div className="bg-white/90 backdrop-blur-xl border-t border-slate-100 shadow-[0_-4px_24px_rgba(0,0,0,0.07)] px-2 pt-1 pb-2">
-            <div className="grid grid-cols-4 items-end">
-              <NavButton active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
-              <NavButton active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
-
-              {/* Centre New-Entry button */}
-              <div className="flex flex-col items-center justify-center pb-0.5">
-                <button
-                  onClick={newEntry}
-                  type="button"
-                  className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-lg hover:bg-slate-700 active:scale-95 transition-all duration-200 group -mt-4 border-2 border-white"
-                  title="New Entry"
-                >
-                  <Plus className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
-                </button>
-
-              </div>
-
-              <NavButton active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ICONS.nav.compile} label="Share" />
-              <NavButton active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
-            </div>
+      {/* ── Solo FAB ── */}
+      <div ref={fabRef} className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex flex-col items-end gap-2.5">
+        {/* Speed dial options */}
+        {fabOpen && (
+          <div className="flex flex-col gap-2.5 items-end pb-1 animate-in fade-in slide-in-from-bottom-4 duration-200">
+            <FABOption icon={Settings} label="Settings" onClick={() => { setView("settings"); setFabOpen(false); }} active={view === "settings"} />
+            <FABOption icon={Library} label="Library" onClick={() => { setView("library"); setFabOpen(false); }} active={view === "library"} />
+            <FABOption icon={ICONS.nav.compile} label="Share" onClick={() => { if (active) setView("compile"); setFabOpen(false); }} active={view === "compile"} />
+            <FABOption icon={Plus} label="New Entry" onClick={() => { newEntry(); setFabOpen(false); }} active={false} />
+            <FABOption icon={ICONS.nav.home} label="Home" onClick={() => { setView("home"); setFabOpen(false); }} active={view === "home"} />
           </div>
-        </div>
+        )}
+        {/* Main FAB */}
+        <button
+          onClick={() => setFabOpen((v) => !v)}
+          type="button"
+          className={cn(
+            "w-16 h-16 rounded-full flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.2)] transition-all duration-300 active:scale-95",
+            fabOpen ? "bg-slate-800 text-white rotate-45" : "bg-slate-900 text-white"
+          )}
+          title="Menu"
+        >
+          <Plus className="w-7 h-7 transition-transform duration-300" />
+        </button>
       </div>
     </div>
     </ToastContext.Provider>
