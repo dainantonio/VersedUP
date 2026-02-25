@@ -1624,7 +1624,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   useEffect(() => {
     if (step !== 1) return;
     if (!verseRef) return;
-    const validLike = /\d{1,3}:\d{1,3}/.test(verseRef) || /\d{1,3}/.test(verseRef);
+    const validLike = /\b\d{1,3}:\d{1,3}/.test(verseRef) || /\b\d{1,3}\b/.test(verseRef);
     if (!validLike) return;
     if (verseText) return;
     if (autoFetchTimer.current) clearTimeout(autoFetchTimer.current);
@@ -1852,10 +1852,7 @@ ${devotional.reflection}`);
         <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
           <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
         </div>
-        <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
-          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
-        </div>
-      ) : null}
+      </div>
 
       {step === 1 ? (
         <Card>
@@ -2490,6 +2487,25 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals }) {
             </button>
           ))}
         </div>
+        <button type="button" onClick={handleExport} className="mt-3 w-full flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98]">
+          <Download className="w-4 h-4" /> Export all entries as JSON
+        </button>
+      </Card>
+
+      <Card>
+        <SectionLabel>Appearance / Theme</SectionLabel>
+        <div className="grid grid-cols-3 gap-2">
+          {THEME_OPTIONS.map((t) => (
+            <button key={t.id} type="button" onClick={() => onUpdate({ theme: t.id })} className={cn("rounded-2xl py-2.5 text-xs font-bold border", settings.theme === t.id ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <SectionLabel>Data & Privacy</SectionLabel>
+        <div className="text-xs text-slate-500">All data stays on this device except AI calls you explicitly trigger.</div>
       </Card>
 
       <Card>
