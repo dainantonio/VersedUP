@@ -1473,92 +1473,87 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
 function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings }) {
   const { pushToast } = useToast();
   const [busy, setBusy] = useState(false);
-  const [structureOpen, setStructureOpen] = useState(false);
-  const [structureDraft, setStructureDraft] = useState({ title: "", reflection: "", prayer: "", questions: "" });
-  const [apply, setApply] = useState({ title: true, reflection: true, prayer: true, questions: true });
   const [fetching, setFetching] = useState(false);
-  const [scanOpen, setScanOpen] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-
-  const [guidedBusy, setGuidedBusy] = useState(false);
-  const [guidedOpen, setGuidedOpen] = useState(false);
-  const [selectedTopic, setSelectedTopic] = useState(TOPIC_CHIPS[0]?.id || "");
-
-  const [guidedDraft, setGuidedDraft] = useState({ title: "", reflection: "", prayer: "", questions: "" });
-  const [guidedApply, setGuidedApply] = useState({ title: true, reflection: true, prayer: true, questions: true });
-
-  const [guidedScriptBusy, setGuidedScriptBusy] = useState(false);
-  const [guidedGenerateScript, setGuidedGenerateScript] = useState(Boolean(settings.guidedAutoGenerateTikTok));
-  const [shareReadyBusy, setShareReadyBusy] = useState(false);
-  const [shareReadyStep, setShareReadyStep] = useState("");
-  const [unsaved, setUnsaved] = useState(false);
-  const [lastSaved, setLastSaved] = useState(null);
-  const [writeTab, setWriteTab] = useState("write");
-  const [activeContentTab, setActiveContentTab] = useState("reflection");
-  const [pvPlatform, setPvPlatform] = useState("instagram");
   const [toneMenuOpen, setToneMenuOpen] = useState(false);
+  const [step, setStep] = useState(1);
+  const [contentTab, setContentTab] = useState("reflection");
+  const [platform, setPlatform] = useState(() => (settings.myPlatforms && settings.myPlatforms[0]) || "tiktok");
+  const [showPrompts, setShowPrompts] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState(TOPIC_CHIPS[0]?.id || "");
+  const [postText, setPostText] = useState("");
+  const [igMode, setIgMode] = useState("caption");
+  const [igBg, setIgBg] = useState("minimal");
+  const [shareBusy, setShareBusy] = useState(false);
+  const [ttOverlay, setTtOverlay] = useState(false);
+  const [ttCountdown, setTtCountdown] = useState(2);
+  const [showTikTokScript, setShowTikTokScript] = useState(false);
+  const [scriptBusy, setScriptBusy] = useState(false);
 
-  const reflectionRef = useRef(null);
-  const verseRefInputRef = useRef(null);
+  const igCardRef = useRef(null);
+  const autoFetchTimer = useRef(null);
 
+  const verseRef = String(devotional.verseRef || "").trim();
+  const verseText = String(devotional.verseText || "").trim();
   const version = devotional.bibleVersion || settings.defaultBibleVersion || "KJV";
   const guidedMode = Boolean(settings.guidedMode);
-
   const aiNeedsKey =
     (settings.aiProvider === "openai" && !settings.openaiKey) ||
     (settings.aiProvider === "gemini" && !settings.geminiKey);
 
-  const handleSave = () => {
-      onSaved();
-      setSaveSuccess(true);
-      setUnsaved(false);
-      setLastSaved(new Date());
-      setTimeout(() => setSaveSuccess(false), 2000);
-  }
+  const stepStorageKey = `${APP_ID}_wizard_step_${devotional.id}`;
 
-  // Auto-save: mark unsaved on any devotional change
   useEffect(() => {
-    setUnsaved(true);
-    const t = setTimeout(() => {
-      handleSave();
-    }, 3000);
-    return () => clearTimeout(t);
+    const saved = Number(localStorage.getItem(stepStorageKey) || "1");
+    if ([1,2,3,4].includes(saved)) setStep(saved);
+  }, [stepStorageKey]);
+
+  useEffect(() => {
+    localStorage.setItem(stepStorageKey, String(step));
+  }, [step, stepStorageKey]);
+
+  useEffect(() => {
+    onSaved();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [devotional.verseRef, devotional.verseText, devotional.title, devotional.reflection, devotional.prayer, devotional.questions, devotional.mood]);
+  }, [devotional.verseRef, devotional.verseText, devotional.title, devotional.reflection, devotional.prayer, devotional.questions, devotional.tiktokScript, devotional.mood]);
 
-  const doChangeTone = async (tone) => {
-    setToneMenuOpen(false);
-    if (!devotional.reflection?.trim()) return;
-    setBusy(true);
-    try {
-      const tonePrompts = {
-        Reverent:       "Rewrite in a reverent, worshipful tone. Keep all meaning. Return ONLY text.",
-        Poetic:         "Rewrite in a poetic, lyrical tone with vivid imagery. Keep all meaning. Return ONLY text.",
-        Direct:         "Rewrite in a direct, punchy, bold tone. Keep all meaning. Return ONLY text.",
-        Encouraging:    "Rewrite in an encouraging, warm, uplifting tone. Keep all meaning. Return ONLY text.",
-        Conversational: "Rewrite in a casual, conversational tone like talking to a friend. Keep all meaning. Return ONLY text.",
-      };
-      const prompt = `${tonePrompts[tone] || "Rewrite. Return ONLY text."}
+  useEffect(() => {
+    setPostText(compileForPlatform(platform, devotional, settings));
+  }, [platform, devotional, settings]);
 
-${devotional.reflection}`;
-      const out = await ai(settings, prompt);
-      onUpdate({ reflection: out });
-    } catch (e) {
-      pushToast(e?.message || "Tone change failed.");
-    } finally {
-      setBusy(false);
+  useEffect(() => {
+    if (!ttOverlay) return;
+    if (ttCountdown <= 0) {
+      window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
+      setTtOverlay(false);
+      setTtCountdown(2);
+      return;
     }
-  };
+    const t = setTimeout(() => setTtCountdown((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [ttOverlay, ttCountdown]);
+
+  useEffect(() => {
+    if (step !== 1) return;
+    if (!verseRef) return;
+    const validLike = /\d{1,3}:\d{1,3}/.test(verseRef) || /\d{1,3}/.test(verseRef);
+    if (!validLike) return;
+    if (verseText) return;
+    if (autoFetchTimer.current) clearTimeout(autoFetchTimer.current);
+    autoFetchTimer.current = setTimeout(() => { void doFetch(); }, 500);
+    return () => autoFetchTimer.current && clearTimeout(autoFetchTimer.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, verseRef, version]);
 
   const doFetch = async () => {
+    if (!verseRef) return;
     setFetching(true);
     try {
       if (!isKjv(version)) {
-        window.open(bibleGatewayUrl(devotional.verseRef, version), "_blank", "noopener,noreferrer");
-        return;
+        window.open(bibleGatewayUrl(verseRef, version), "_blank", "noopener,noreferrer");
+      } else {
+        const text = await fetchKjvFromBibleApi(verseRef);
+        onUpdate({ verseText: text, verseTextEdited: false });
       }
-      const text = await fetchKjvFromBibleApi(devotional.verseRef);
-      onUpdate({ verseText: text, verseTextEdited: false });
     } catch (e) {
       pushToast(e?.message || "Fetch failed.");
     } finally {
@@ -1566,210 +1561,144 @@ ${devotional.reflection}`;
     }
   };
 
-  const doFixReflection = async () => {
+  const onTopicClick = (t) => {
+    setSelectedTopic(t.id);
+  };
+
+  const moodPrompt = {
+    grateful: "What gift from this verse can you thank God for right now?",
+    anxious: "What truth from this verse counters what you're afraid of?",
+    hopeful: "What promise here gives you hope for today?",
+    weary: "Where does this verse offer rest for your tired heart?",
+    peaceful: "How can you carry this peace into someone else's life today?",
+  };
+
+  const doDraftForMe = async () => {
     setBusy(true);
     try {
-      const fixed = await aiFixGrammar(settings, { text: devotional.reflection || "", mood: devotional.mood });
-      onUpdate({ reflection: fixed });
-    } catch (e) {
-      pushToast(e?.message || "AI failed.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const doStructure = async () => {
-    setBusy(true);
-    try {
-      const out = await aiStructure(settings, {
-        verseRef: devotional.verseRef,
-        verseText: devotional.verseText,
-        reflection: devotional.reflection,
-        mood: devotional.mood,
-      });
-      setStructureDraft(out);
-      setApply({ title: true, reflection: true, prayer: true, questions: true });
-      setStructureOpen(true);
-    } catch (e) {
-      pushToast(e?.message || "AI failed.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const applyStructure = () => {
-    const patch = {};
-    if (apply.title) patch.title = structureDraft.title;
-    if (apply.reflection) patch.reflection = structureDraft.reflection;
-    if (apply.prayer) patch.prayer = structureDraft.prayer;
-    if (apply.questions) patch.questions = structureDraft.questions;
-    onUpdate(patch);
-    setStructureOpen(false);
-  };
-
-  const doLength = async (direction) => {
-    setBusy(true);
-    try {
-      const out = await aiRewriteLength(settings, { text: devotional.reflection || "", mood: devotional.mood, direction });
-      onUpdate({ reflection: out });
-    } catch (e) {
-      pushToast(e?.message || "AI failed.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const doShareReady = async () => {
-    const hasSource = Boolean((devotional.reflection || "").trim() || (devotional.verseRef || "").trim());
-    if (!hasSource) {
-      pushToast("Add a verse reference or reflection first.");
-      return;
-    }
-
-    setShareReadyBusy(true);
-    try {
-      setShareReadyStep("Correcting grammar & spelling...");
-      const fixed = (devotional.reflection || "").trim()
-        ? await aiFixGrammar(settings, { text: devotional.reflection || "", mood: devotional.mood })
-        : devotional.reflection || "";
-
-      setShareReadyStep("Structuring your devotional...");
-      const structured = await aiStructure(settings, {
-        verseRef: devotional.verseRef,
-        verseText: devotional.verseText,
-        reflection: fixed,
-        mood: devotional.mood,
-      });
-
-      setShareReadyStep("Preparing share-ready draft...");
-      onUpdate({
-        reflection: structured.reflection || fixed,
-        title: structured.title || devotional.title,
-        prayer: structured.prayer || devotional.prayer,
-        questions: structured.questions || devotional.questions,
-      });
-
-      handleSave();
-      onGoCompile();
-    } catch (e) {
-      pushToast(e?.message || "We couldn’t complete the share-ready flow. Continue manually.");
-    } finally {
-      setShareReadyBusy(false);
-      setShareReadyStep("");
-    }
-  };
-
-  const topic = TOPIC_CHIPS.find((t) => t.id === selectedTopic) || TOPIC_CHIPS[0];
-
-  const applyGuidedDraft = () => {
-    const patch = {};
-    if (guidedApply.title) patch.title = guidedDraft.title;
-    if (guidedApply.reflection) patch.reflection = guidedDraft.reflection;
-    if (guidedApply.prayer) patch.prayer = guidedDraft.prayer;
-    if (guidedApply.questions) patch.questions = guidedDraft.questions;
-    onUpdate(patch);
-    setGuidedOpen(false);
-  };
-
-  const applyGuidedDraftAndScript = async () => {
-    const patch = {};
-    if (guidedApply.title) patch.title = guidedDraft.title;
-    if (guidedApply.reflection) patch.reflection = guidedDraft.reflection;
-    if (guidedApply.prayer) patch.prayer = guidedDraft.prayer;
-    if (guidedApply.questions) patch.questions = guidedDraft.questions;
-
-    onUpdate(patch);
-
-    if (!guidedGenerateScript) {
-      setGuidedOpen(false);
-      return;
-    }
-
-    setGuidedScriptBusy(true);
-    try {
-      const verseRef = String(devotional.verseRef || "").trim();
-      const verseText = String(devotional.verseText || "").trim();
-      const reflection = String(patch.reflection ?? devotional.reflection ?? "").trim();
-
-      const out = await aiTikTokScript(settings, {
-        verseRef,
-        verseText,
-        reflection,
-        mood: devotional.mood,
-        baseScript: "",
-        mode: "regenerate",
-      });
-
-      onUpdate({ tiktokScript: out });
-      setGuidedOpen(false);
-      pushToast("Applied + generated TikTok script ✅ (see Compile → TikTok Script)");
-    } catch (e) {
-      setGuidedOpen(false);
-      pushToast(e?.message || "Applied, but TikTok script generation failed.");
-    } finally {
-      setGuidedScriptBusy(false);
-    }
-  };
-
-  const openGuidedDraftFromTemplate = () => {
-    const draft = templateGuidedFill({
-      topicLabel: topic?.label || "",
-      verseRef: devotional.verseRef,
-      mood: devotional.mood,
-    });
-    setGuidedDraft(draft);
-    setGuidedApply({ title: true, reflection: true, prayer: true, questions: true });
-    setGuidedGenerateScript(Boolean(settings.guidedAutoGenerateTikTok));
-    setGuidedOpen(true);
-  };
-
-  const openGuidedDraftFromAI = async () => {
-    setGuidedBusy(true);
-    try {
+      const topic = TOPIC_CHIPS.find((t) => t.id === selectedTopic) || TOPIC_CHIPS[0];
       const out = await aiGuidedFill(settings, {
         topicLabel: topic?.label || "",
         verseRef: devotional.verseRef,
         verseText: devotional.verseText,
         mood: devotional.mood,
       });
-      setGuidedDraft(out);
-      setGuidedApply({ title: true, reflection: true, prayer: true, questions: true });
-      setGuidedGenerateScript(Boolean(settings.guidedAutoGenerateTikTok));
-      setGuidedOpen(true);
+      onUpdate({
+        title: out.title || devotional.title,
+        reflection: out.reflection || devotional.reflection,
+        prayer: out.prayer || devotional.prayer,
+        questions: out.questions || devotional.questions,
+      });
+    } catch (e) {
+      pushToast(e?.message || "Draft failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doFix = async () => {
+    const key = contentTab;
+    const txt = String(devotional[key] || "");
+    if (!txt.trim()) return;
+    setBusy(true);
+    try {
+      const out = await aiFixGrammar(settings, { text: txt, mood: devotional.mood });
+      onUpdate({ [key]: out });
     } catch (e) {
       pushToast(e?.message || "AI failed.");
-    } finally {
-      setGuidedBusy(false);
-    }
+    } finally { setBusy(false); }
   };
 
-  const onTopicClick = (t) => {
-    setSelectedTopic(t.id);
-
-    const patch = {};
-    const autoFillEmpty = Boolean(settings.autoFillEmptyOnTopicTap);
-
-    if (guidedMode && autoFillEmpty) {
-      const templ = templateGuidedFill({ topicLabel: t.label, verseRef: devotional.verseRef, mood: devotional.mood });
-      if (!String(devotional.prayer || "").trim()) patch.prayer = templ.prayer;
-      if (!String(devotional.questions || "").trim()) patch.questions = templ.questions;
-      if (!String(devotional.title || "").trim()) patch.title = templ.title;
-    }
-
-    if (Object.keys(patch).length) onUpdate(patch);
+  const doLength = async (direction) => {
+    const key = contentTab;
+    const txt = String(devotional[key] || "");
+    if (!txt.trim()) return;
+    setBusy(true);
+    try {
+      const out = await aiRewriteLength(settings, { text: txt, mood: devotional.mood, direction });
+      onUpdate({ [key]: out });
+    } catch (e) {
+      pushToast(e?.message || "AI failed.");
+    } finally { setBusy(false); }
   };
 
-  const openScan = () => {
-    if (!settings.ocrEndpoint?.trim()) {
-      pushToast("To scan a page, add your OCR endpoint in Settings → AI & Tools.");
+  const doTone = async (tone) => {
+    setToneMenuOpen(false);
+    if (!devotional.reflection?.trim()) return;
+    setBusy(true);
+    try {
+      const out = await ai(settings, `Rewrite in a ${tone} tone. Keep meaning. Return ONLY text.
+
+${devotional.reflection}`);
+      onUpdate({ reflection: out });
+    } catch (e) { pushToast(e?.message || "Tone failed."); }
+    finally { setBusy(false); }
+  };
+
+  const generateTikTokScriptInline = async (mode = "regenerate") => {
+    setScriptBusy(true);
+    try {
+      const out = await aiTikTokScript(settings, {
+        verseRef: devotional.verseRef,
+        verseText: devotional.verseText,
+        reflection: devotional.reflection,
+        mood: devotional.mood,
+        baseScript: devotional.tiktokScript || "",
+        mode,
+      });
+      onUpdate({ tiktokScript: out });
+      setPostText(out);
+      setShowTikTokScript(true);
+    } catch (e) {
+      pushToast(e?.message || "Script failed.");
+    } finally { setScriptBusy(false); }
+  };
+
+  const limit = PLATFORM_LIMITS[platform] || 999999;
+  const count = String(contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions || "").length;
+  const over = count > limit;
+
+  const copyAndOpen = async () => {
+    try { await navigator.clipboard.writeText(postText); } catch {}
+    if (platform === "tiktok") {
+      setTtOverlay(true); setTtCountdown(2); return;
+    }
+    if (platform === "instagram") {
+      window.location.href = "instagram://camera";
+      setTimeout(() => window.open("https://www.instagram.com/create/select/", "_blank", "noopener,noreferrer"), 800);
       return;
     }
-    setScanOpen(true);
+    if (platform === "twitter") {
+      const shareUrl = encodeURIComponent(window.location.href);
+      const shareText = encodeURIComponent(postText);
+      window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (platform === "facebook") {
+      const u = encodeURIComponent(window.location.href);
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}`, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (platform === "email") {
+      const subject = encodeURIComponent(devotional.title || devotional.verseRef || "Encouragement");
+      window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(postText)}`;
+    }
   };
 
-  const hasVerseRef = Boolean(String(devotional.verseRef || "").trim());
-  const hasVerseText = Boolean(String(devotional.verseText || "").trim());
-  const hasReflection = Boolean(String(devotional.reflection || "").trim());
+  const exportInstagramCard = async () => {
+    try {
+      const dataUrl = await toPng(igCardRef.current, { cacheBust: true });
+      if (!dataUrl) return;
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `instagram-card-${(devotional.verseRef || "verse").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`;
+      a.click();
+    } catch (e) { pushToast(e?.message || "Export failed"); }
+  };
+
+  const stepTitles = ["Scripture", "Your Heart", "Shape It", "Post It"];
+  const progress = (step / 4) * 100;
+  const verseReady = Boolean(verseText);
 
   const contentTabs = [
     { key: "reflection", label: "Reflection", value: devotional.reflection || "", placeholder: "Start writing your reflection...", rows: 10 },
@@ -1780,397 +1709,177 @@ ${devotional.reflection}`;
   const hasActiveContent = Boolean(String(activeTab.value || "").trim());
 
   return (
-    <div className="space-y-5 pb-20 animate-enter">
-      {/* ── Draft Preview Modal — rendered at top level to avoid overflow-hidden trapping ── */}
-      {writeTab === "preview" && (
-        <DraftPreviewModal
-          devotional={devotional}
-          settings={settings}
-          compileForPlatform={compileForPlatform}
-          onClose={() => setWriteTab("write")}
-          onShare={() => { handleSave(); setWriteTab("write"); onGoCompile(); }}
-        />
-      )}
-
-      {/* ── Header ── */}
-      <div>
-        <div className="text-xl font-extrabold text-slate-900">New Entry</div>
-        <div className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">CAPTURE WHAT GOD IS SPEAKING</div>
-      </div>
-
-      {/* ── Write / Preview tab strip ── */}
-      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
-        <button
-          type="button"
-          onClick={() => setWriteTab("write")}
-          className={cn("rounded-xl py-2.5 text-sm font-extrabold transition-colors", writeTab === "write" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}
-        >
-          ✏️ Write
-        </button>
-        <button
-          type="button"
-          onClick={() => setWriteTab("preview")}
-          className={cn("rounded-xl py-2.5 text-sm font-extrabold transition-colors", writeTab === "preview" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}
-        >
-          👁 Preview
-        </button>
-      </div>
-
-      {/* ── PREVIEW TAB ── */}
-
-
-      {/* ── WRITE TAB ── */}
-      {writeTab === "write" ? (
-      <div className="space-y-5">
-
-      {/* ── Mood strip (compact, no card) ── */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mb-1">
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Heart:</span>
-        {MOODS.map((m) => (
-          <Chip
-            key={m.id}
-            active={devotional.mood === m.id}
-            onClick={() => onUpdate({ mood: devotional.mood === m.id ? "" : m.id })}
-          >
-            {m.label}
-          </Chip>
-        ))}
-      </div>
-
-      <Card>
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 space-y-4 shadow-inner">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false })}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-extrabold hover:bg-amber-100 active:scale-[0.97] transition-all"
-                >
-                  <Sun className="w-3 h-3" /> Today's Verse
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { onUpdate({ verseRef: "", verseText: "", verseTextEdited: false }); setTimeout(() => verseRefInputRef.current?.focus(), 50); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[11px] font-extrabold hover:bg-slate-200 active:scale-[0.97] transition-all"
-                >
-                  <BookOpen className="w-3 h-3" /> My Own Verse
-                </button>
-                <SmallButton onClick={openScan} icon={ScanLine}>
-                  Scan
-                </SmallButton>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <datalist id="bible-books-list">
-                  {BIBLE_BOOKS.map(b => <option key={b} value={b} />)}
-                </datalist>
-                <input
-                  ref={verseRefInputRef}
-                  list="bible-books-list"
-                  value={devotional.verseRef}
-                  onChange={(e) => onUpdate({ verseRef: e.target.value })}
-                  placeholder="e.g. John 3:16 or Psalms 23"
-                  className="flex-1 rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100 bg-white transition-all shadow-sm focus:border-emerald-300"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void doFetch();
-                  }}
-                />
-                <select
-                  value={version}
-                  onChange={(e) => onUpdate({ bibleVersion: e.target.value })}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-extrabold bg-white"
-                >
-                  {BIBLE_VERSIONS.map((v) => (
-                    <option key={v} value={v}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="px-1 text-[11px] font-semibold text-slate-500">
-                {isKjv(version) ? "Press Enter in the verse field to auto-load KJV text." : "Press Enter to open this verse in Bible Gateway."}
-              </div>
-            </div>
-
-            {guidedMode && !hasVerseRef ? (
-              <div className="text-xs font-medium text-slate-500">
-                Try: <span className="font-extrabold text-slate-700">John 3:16-18</span> or{" "}
-                <span className="font-extrabold text-slate-700">Psalm 23</span>
-              </div>
-            ) : null}
-            {hasVerseRef && !hasVerseText && !fetching ? (
-              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 animate-enter">
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-                Press <span className="underline">Enter</span> in the verse field to fetch the text →
-              </div>
-            ) : null}
-
-            <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">VERSE TEXT</label>
-              <textarea
-                value={devotional.verseText}
-                onChange={(e) => onUpdate({ verseText: e.target.value, verseTextEdited: true })}
-                placeholder={
-                  isKjv(version)
-                    ? "Press Enter to auto-fill KJV, or type your own..."
-                    : "Type or paste your verse here..."
-                }
-                rows={4}
-                className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 bg-white resize-none font-serif-scripture shadow-sm focus:border-emerald-300 transition-all"
-              />
-              {!isKjv(version) && hasVerseRef ? (
-                <div className="mt-1.5 text-[11px] text-slate-400">
-                  Need the text?{" "}
-                  <button
-                    type="button"
-                    onClick={() => window.open(bibleGatewayUrl(devotional.verseRef, version), "_blank", "noopener,noreferrer")}
-                    className="underline text-slate-500 hover:text-emerald-700 font-semibold transition-colors"
-                  >
-                    Look it up ↗
-                  </button>
-                  {" "}then paste above.
-                </div>
-              ) : null}
-              {devotional.verseTextEdited ? (
-                <div className="mt-2 text-[11px] font-semibold text-slate-500">Custom verse</div>
-              ) : null}
-            </div>
+    <div className="space-y-4 pb-20 animate-enter relative">
+      {ttOverlay ? (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+            <CheckCircle className="w-14 h-14 text-emerald-600 mx-auto" />
+            <div className="mt-3 text-lg font-black text-slate-900">Caption copied to clipboard!</div>
+            <div className="mt-1 text-sm text-slate-600">Now opening TikTok in {ttCountdown}...</div>
           </div>
+        </div>
+      ) : null}
 
+      <div className="rounded-2xl bg-white border border-slate-200 p-3">
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setStep((s) => Math.max(1, s - 1))} className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold">← Back</button>
+          <div className="text-xs font-black text-slate-500 uppercase">{step} of 4 · {stepTitles[step - 1]}</div>
+          <button type="button" onClick={onGoSettings} className="ml-auto rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold">✕</button>
+        </div>
+        <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
+          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+
+      {step === 1 ? (
+        <Card>
           <div className="space-y-4">
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <button
-                onClick={() => void (aiNeedsKey ? openGuidedDraftFromTemplate() : openGuidedDraftFromAI())}
-                disabled={guidedBusy || busy}
-                className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-4 text-sm font-black shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {guidedBusy ? "Drafting..." : "✨ Draft for Me"}
-              </button>
-              <div className="mt-1.5 text-center text-[11px] font-semibold text-emerald-800">AI writes your caption in 10 seconds</div>
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <div className="text-[11px] font-bold text-slate-600">AI lens: <span className="text-emerald-700">{topic?.label || "General"}</span></div>
-                <div className="flex gap-1 overflow-x-auto no-scrollbar">
-                  {TOPIC_CHIPS.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => onTopicClick(t)}
-                      className={cn(
-                        "shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-extrabold transition-colors",
-                        selectedTopic === t.id ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-600 border-slate-200"
-                      )}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <div className="text-2xl font-black text-slate-900">What verse is speaking to you today?</div>
+            <button type="button" onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false })} className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">Verse of the Day</div>
+              <div className="text-sm font-bold text-emerald-700 mt-1">{VERSE_OF_DAY.verseRef}</div>
+              <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
+            </button>
 
-            <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1">
-              {contentTabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveContentTab(tab.key)}
-                  className={cn(
-                    "rounded-xl py-2 text-xs font-extrabold transition-colors",
-                    activeContentTab === tab.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
-                  )}
-                >
-                  {tab.label}
-                </button>
+            <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
+            <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
+
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              {["KJV", "NLT", "ESV", "NKJV"].map((v) => (
+                <button key={v} type="button" onClick={() => onUpdate({ bibleVersion: v, verseText: "" })} className={cn("rounded-full px-3 py-1.5 text-xs font-extrabold border", version === v ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600")}>{v}</button>
               ))}
             </div>
 
-            {hasActiveContent ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-2 flex items-center gap-1.5 flex-wrap">
-                <button onClick={doFixReflection} disabled={busy || !hasReflection} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40">Fix</button>
-                <button onClick={() => void doLength("shorten")} disabled={busy || !hasReflection} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40">Shorten</button>
-                <button onClick={() => void doLength("lengthen")} disabled={busy || !hasReflection} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40">Expand</button>
-                <div className="relative ml-auto">
-                  <button onClick={() => setToneMenuOpen((o) => !o)} disabled={busy || !hasReflection} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40">Tone ▾</button>
-                  {toneMenuOpen ? (
-                    <div className="absolute right-0 top-full mt-1 z-50 w-44 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
-                      {["Reverent", "Poetic", "Direct", "Encouraging", "Conversational"].map((t) => (
-                        <button key={t} onClick={() => void doChangeTone(t)} className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">{t}</button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
+            {fetching ? <div className="text-xs text-slate-500">Loading verse...</div> : null}
+            {verseText ? (
+              <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
+                <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{verseRef} ({version})</div>
+                <div className="mt-2 text-lg leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">{verseText}</div>
               </div>
             ) : null}
 
-            <textarea
-              ref={activeContentTab === "reflection" ? reflectionRef : undefined}
-              value={activeTab.value}
-              onChange={(e) => onUpdate({ [activeContentTab]: e.target.value })}
-              placeholder={activeTab.placeholder}
-              rows={activeTab.rows}
-              spellCheck
-              autoCorrect="on"
-              autoCapitalize="sentences"
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none shadow-sm transition-shadow focus:border-emerald-300"
-            />
-
-            <div className="mt-1 flex flex-wrap gap-2">
-              {[
-                { id: "twitter", label: "Twitter", limit: 280 },
-                { id: "tiktok", label: "TikTok", limit: 150 },
-                { id: "instagram", label: "Instagram", limit: 2200 },
-              ].map(({ id, label, limit }) => {
-                const count = String(activeTab.value || "").length;
-                const over = count > limit;
-                return (
-                  <span key={id} className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border", over ? "bg-red-50 border-red-200 text-red-700" : "bg-slate-50 border-slate-200 text-slate-500")}>
-                    {label} {count}/{limit}{!over ? " ✓" : " ✗"}
-                  </span>
-                );
-              })}
-            </div>
+            <SmallButton onClick={onGoSettings} tone="neutral">Scan a page instead</SmallButton>
+            <button type="button" disabled={!verseReady} onClick={() => setStep(2)} className="w-full rounded-2xl bg-emerald-600 disabled:opacity-40 text-white py-3 font-extrabold">Use this verse →</button>
           </div>
-        </div>
-      </Card>
+        </Card>
+      ) : null}
 
-      {/* ── Bottom actions ── */}
-      <div className="rounded-2xl border border-slate-100 bg-white/60 p-3 flex items-center gap-2 shadow-sm">
-        <SmallButton
-          onClick={handleSave}
-          icon={saveSuccess ? Check : null}
-          disabled={saveSuccess}
-        >
-          {saveSuccess ? "Saved ✓" : "Save"}
-        </SmallButton>
-        <div className="flex-1" />
-        <SmallButton
-          onClick={() => { handleSave(); onGoPolish(); }}
-          icon={BookOpen}
-        >
-          Review
-        </SmallButton>
-        <SmallButton
-          onClick={() => { handleSave(); onGoCompile(); }}
-          icon={Share2}
-          tone="primary"
-        >
-          Share
-        </SmallButton>
-      </div>
-      <div className="text-center text-[11px] font-medium text-slate-400">{unsaved ? "Saving..." : lastSaved ? `Last saved ${Math.max(1, Math.floor((Date.now() - lastSaved.getTime()) / 60000))} minute(s) ago` : "Not saved yet"}</div>
-      </div>
-      ) : null}{/* end writeTab === "write" */}
-
-      {structureOpen ? (
-        <Modal
-          title="Structure Preview"
-          onClose={() => setStructureOpen(false)}
-          footer={
-            <div className="flex gap-2">
-              <SmallButton onClick={() => setApply({ title: true, reflection: true, prayer: true, questions: true })} tone="neutral">
-                Replace all
-              </SmallButton>
-              <div className="flex-1" />
-              <SmallButton onClick={() => setStructureOpen(false)} tone="neutral">
-                Cancel
-              </SmallButton>
-              <SmallButton onClick={applyStructure} tone="primary">
-                Apply
-              </SmallButton>
-            </div>
-          }
-        >
+      {step === 2 ? (
+        <Card>
           <div className="space-y-4">
-            {["title", "reflection", "prayer", "questions"].map((k) => (
-              <div key={k} className="rounded-2xl border border-slate-200 p-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-extrabold text-slate-500 uppercase">{k}</div>
-                  <label className="text-xs font-extrabold text-slate-600 flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={apply[k]} onChange={(e) => setApply((s) => ({ ...s, [k]: e.target.checked }))} className="rounded text-emerald-600 focus:ring-emerald-500" />
-                    Replace
-                  </label>
-                </div>
-                <div className="mt-2 text-sm whitespace-pre-wrap text-slate-800">{structureDraft[k] || "—"}</div>
-              </div>
-            ))}
-          </div>
-        </Modal>
-      ) : null}
+            <button type="button" onClick={() => setStep(1)} className="text-xs rounded-full border px-3 py-1 font-bold text-emerald-700 border-emerald-200 bg-emerald-50">{verseRef || "No verse"}</button>
+            <div className="text-2xl font-black text-slate-900">Where is your heart today?</div>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">{MOODS.map((m) => <Chip key={m.id} active={devotional.mood===m.id} onClick={() => onUpdate({ mood: m.id })}>{m.label}</Chip>)}</div>
+            {devotional.mood ? <div className="text-sm text-slate-500 italic">{moodPrompt[devotional.mood] || "What is God showing you in this verse?"}</div> : null}
+            <textarea value={devotional.reflection} onChange={(e) => onUpdate({ reflection: e.target.value })} placeholder="Write freely. No rules here." rows={10} spellCheck autoCorrect="on" autoCapitalize="sentences" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
+            <div className="text-right text-[11px] text-slate-400">{String(devotional.reflection || "").trim().split(/\s+/).filter(Boolean).length} words</div>
 
-      {guidedOpen ? (
-        <Modal
-          title={`Draft Preview — ${topic?.label || "Topic"}`}
-          onClose={() => setGuidedOpen(false)}
-          footer={
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={guidedGenerateScript}
-                    onChange={(e) => setGuidedGenerateScript(e.target.checked)}
-                    className="rounded text-emerald-600 focus:ring-emerald-500"
-                  />
-                  Also generate TikTok script
-                </label>
-                <div className="text-xs text-slate-500">
-                  {guidedScriptBusy ? "Generating..." : guidedGenerateScript ? "One-click: Apply + Script" : "Apply only"}
-                </div>
-              </div>
+            <button type="button" onClick={() => setShowPrompts((v) => !v)} className="text-xs font-bold text-slate-500 underline">Need a prompt?</button>
+            {showPrompts ? <div className="flex gap-1 overflow-x-auto no-scrollbar">{TOPIC_CHIPS.map((t)=><button key={t.id} type="button" onClick={() => onTopicClick(t)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-extrabold", selectedTopic===t.id?"bg-emerald-600 border-emerald-600 text-white":"bg-white text-slate-600 border-slate-200")}>{t.label}</button>)}</div> : null}
 
-              <div className="flex gap-2">
-                <SmallButton onClick={() => setGuidedApply({ title: true, reflection: true, prayer: true, questions: true })}>
-                  Apply all
-                </SmallButton>
-                <div className="flex-1" />
-                <SmallButton onClick={() => setGuidedOpen(false)}>Cancel</SmallButton>
-                <SmallButton
-                  onClick={() => void applyGuidedDraftAndScript()}
-                  tone="primary"
-                  disabled={guidedScriptBusy || (guidedGenerateScript && aiNeedsKey)}
-                >
-                  {guidedGenerateScript ? "Apply + Script" : "Apply"}
-                </SmallButton>
-              </div>
-
-              {guidedGenerateScript && aiNeedsKey ? (
-                <div className="text-xs font-bold text-amber-700">
-                  Add an AI key in <b>Settings</b> (or toggle off script generation).
-                </div>
-              ) : null}
+            <div className="flex items-center gap-2">
+              <button type="button" className="text-xs font-bold text-slate-500 underline" onClick={() => { void doDraftForMe(); setStep(3); }}>Skip, just use AI →</button>
+              <div className="flex-1" />
+              <button type="button" onClick={() => setStep(3)} className="rounded-2xl bg-emerald-600 text-white px-4 py-3 font-extrabold">Shape my writing →</button>
             </div>
-          }
-        >
-          <div className="space-y-3">
-            {[
-              { k: "title", label: "Title" },
-              { k: "reflection", label: "Reflection" },
-              { k: "prayer", label: "Prayer" },
-              { k: "questions", label: "Questions" },
-            ].map(({ k, label }) => (
-              <ApplySectionCard
-                key={k}
-                k={k}
-                label={label}
-                value={guidedDraft[k]}
-                checked={guidedApply[k]}
-                onToggle={(v) => setGuidedApply((s) => ({ ...s, [k]: v }))}
-                onChange={(v) => setGuidedDraft((s) => ({ ...s, [k]: v }))}
-              />
-            ))}
           </div>
-        </Modal>
+        </Card>
       ) : null}
 
-      {scanOpen ? (
-        <OcrScanModal
-          settings={settings}
-          mood={devotional.mood}
-          onClose={() => setScanOpen(false)}
-          onApplyToDevotional={(patch) => onUpdate(patch)}
-        />
+      {step === 3 ? (
+        <Card>
+          <div className="space-y-4">
+            <button type="button" onClick={() => setStep(1)} className="text-xs rounded-full border px-3 py-1 font-bold text-emerald-700 border-emerald-200 bg-emerald-50">{verseRef || "No verse"}</button>
+            <input value={devotional.title} onChange={(e) => onUpdate({ title: e.target.value })} placeholder="Give it a title (optional)" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
+
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey} className="rounded-full bg-emerald-600 text-white px-3 py-2 text-xs font-extrabold disabled:opacity-40">✨ Draft for Me</button>
+              <button onClick={() => void doFix()} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Fix Grammar</button>
+              <button onClick={() => void doLength("shorten")} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Shorten</button>
+              <button onClick={() => void doLength("lengthen")} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Expand</button>
+              <div className="relative">
+                <button onClick={() => setToneMenuOpen((o) => !o)} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Tone ▾</button>
+                {toneMenuOpen ? <div className="absolute top-full right-0 mt-1 z-30 w-40 rounded-xl border bg-white shadow">{["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t)=><button key={t} onClick={() => void doTone(t)} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50">{t}</button>)}</div> : null}
+              </div>
+            </div>
+
+            <textarea value={contentTab==="reflection"?devotional.reflection:contentTab==="prayer"?devotional.prayer:devotional.questions} onChange={(e)=>onUpdate({ [contentTab]: e.target.value })} rows={10} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
+            <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1">
+              {["reflection","prayer","questions"].map((k)=><button key={k} type="button" onClick={()=>setContentTab(k)} className={cn("rounded-xl py-2 text-xs font-extrabold", contentTab===k?"bg-white text-slate-900 shadow-sm":"text-slate-500")}>{k[0].toUpperCase()+k.slice(1)}</button>)}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500">For:</span>
+              <select value={platform} onChange={(e)=>setPlatform(e.target.value)} className="rounded-full border border-slate-200 px-3 py-1 text-xs font-extrabold">
+                {(settings.myPlatforms && settings.myPlatforms.length ? settings.myPlatforms : ["tiktok","instagram","twitter","facebook","email"]).map((p)=> <option key={p} value={p}>{p}</option>)}
+              </select>
+              <span className={cn("ml-auto text-xs font-extrabold", over ? "text-red-600" : count > limit*0.8 ? "text-amber-600" : "text-emerald-600")}>{count}/{limit}</span>
+              {over ? <button onClick={() => void doLength("shorten")} className="text-xs font-bold underline text-red-600">Auto-Shorten</button> : null}
+            </div>
+
+            {platform === "tiktok" ? (
+              <div className="rounded-2xl border border-slate-200 p-3">
+                <div className="flex items-center justify-between"><div className="text-sm font-extrabold">TikTok Script</div><button type="button" className="text-xs underline" onClick={()=>setShowTikTokScript((v)=>!v)}>{showTikTokScript?"Hide":"Show"}</button></div>
+                <div className="mt-2 flex gap-2"><SmallButton onClick={() => void generateTikTokScriptInline("regenerate")} disabled={scriptBusy}>{scriptBusy?"Generating...":"Generate"}</SmallButton><SmallButton onClick={() => void generateTikTokScriptInline("improve")} disabled={scriptBusy}>Improve</SmallButton><SmallButton onClick={() => void doLength("shorten")} disabled={scriptBusy}>Shorten</SmallButton></div>
+                {showTikTokScript ? <textarea rows={6} className="mt-2 w-full rounded-xl border px-3 py-2" value={devotional.tiktokScript || ""} onChange={(e) => onUpdate({ tiktokScript: e.target.value })} /> : null}
+              </div>
+            </div>
+
+            <button type="button" onClick={() => setStep(4)} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold">Preview & Post →</button>
+          </div>
+        </Card>
+      ) : null}
+
+      {step === 4 ? (
+        <Card>
+          <div className="space-y-4">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              {[
+                { id: "tiktok", label: "🎵 TikTok", tone: "bg-black text-white" },
+                { id: "instagram", label: "📸 Instagram", tone: "bg-gradient-to-r from-purple-500 to-pink-500 text-white" },
+                { id: "twitter", label: "🐦 Twitter/X", tone: "bg-sky-500 text-white" },
+                { id: "facebook", label: "👥 Facebook", tone: "bg-blue-600 text-white" },
+                { id: "email", label: "✉️ Email", tone: "bg-slate-700 text-white" },
+              ].map((p) => (
+                <button key={p.id} type="button" onClick={() => setPlatform(p.id)} className={cn("shrink-0 rounded-full px-3 py-2 text-xs font-extrabold border", platform===p.id ? p.tone+" border-transparent" : "bg-white border-slate-200 text-slate-600")}>{p.label}</button>
+              ))}
+            </div>
+
+            {platform === "tiktok" ? <div className="text-xs font-bold text-emerald-700 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">Caption will be in your clipboard when TikTok opens.</div> : null}
+
+            <SocialPreview platform={platform} devotional={devotional} settings={settings} text={postText} />
+
+            <div>
+              <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden"><div className={cn("h-full", postText.length>limit?"bg-red-500":postText.length>limit*0.8?"bg-amber-500":"bg-emerald-500")} style={{ width: `${Math.min(100, (postText.length/limit)*100)}%` }} /></div>
+              <div className="text-xs mt-1 text-slate-500">{postText.length} / {limit}</div>
+            </div>
+
+            {platform === "instagram" ? (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setIgMode("caption")} className={cn("rounded-full px-3 py-1 text-xs font-bold border", igMode==="caption"?"bg-slate-900 text-white border-slate-900":"border-slate-200 text-slate-600")}>Text caption</button>
+                  <button type="button" onClick={() => setIgMode("card")} className={cn("rounded-full px-3 py-1 text-xs font-bold border", igMode==="card"?"bg-slate-900 text-white border-slate-900":"border-slate-200 text-slate-600")}>Visual card</button>
+                </div>
+                {igMode === "card" ? (
+                  <>
+                    <div className="flex gap-1">{[["minimal","Minimal Light"],["dark","Dark Gradient"],["emerald","Emerald Brand"]].map(([k,l])=> <button key={k} onClick={()=>setIgBg(k)} className={cn("text-[10px] px-2 py-1 rounded border font-bold", igBg===k?"border-slate-900":"border-slate-200 text-slate-500")}>{l}</button>)}</div>
+                    <div ref={igCardRef} className={cn("aspect-square rounded-3xl border p-6 flex flex-col justify-between", igBg==="minimal"?"bg-white":"", igBg==="dark"?"bg-gradient-to-br from-slate-900 to-slate-700 text-white":"", igBg==="emerald"?"bg-gradient-to-br from-emerald-600 to-teal-700 text-white":"")}> 
+                      <div className="text-2xl font-serif-scripture leading-relaxed whitespace-pre-wrap">{devotional.verseText || postText.slice(0,220)}</div>
+                      <div className="flex justify-between text-xs font-bold"><span>{devotional.verseRef || "Scripture"}</span><span>{settings.username || "@yourname"}</span></div>
+                    </div>
+                    <SmallButton onClick={() => void exportInstagramCard()}>Export PNG</SmallButton>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="sticky bottom-20 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-3 shadow">
+              <button type="button" onClick={() => void copyAndOpen()} className="w-full rounded-2xl bg-slate-900 text-white py-3 font-extrabold">Copy & Open in {platform[0].toUpperCase()+platform.slice(1)}</button>
+              <div className="grid grid-cols-2 gap-2 mt-2"><SmallButton onClick={() => { const s=encodeURIComponent(devotional.title||devotional.verseRef||"Encouragement"); window.location.href=`mailto:?subject=${s}&body=${encodeURIComponent(postText)}`; }}>Email Draft</SmallButton><SmallButton onClick={() => { window.location.href=`sms:?&body=${encodeURIComponent(postText)}`; }}>Text Draft</SmallButton></div>
+              <SmallButton onClick={() => { onUpdate({ status: "posted", reviewed: true }); pushToast("Another seed planted 🌱"); }} className="w-full mt-2">Mark as Posted</SmallButton>
+            </div>
+          </div>
+        </Card>
       ) : null}
     </div>
   );
@@ -3835,9 +3544,7 @@ const onSaved = () => {
           />
         ) : null}
 
-        {view === "polish" && active ? <PolishView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} onLooksGood={() => { updateDevotional({ reviewed: true }); pushToast("Marked as reviewed ✓"); }} onGoShare={() => setView("compile")} /> : null}
-
-        {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} /> : null}
+                {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} /> : null}
 
         {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} onDuplicate={duplicateEntry} onMarkPosted={markPosted} /> : null}
 
@@ -3851,7 +3558,7 @@ const onSaved = () => {
           <div className="bg-white/90 backdrop-blur-xl border-t border-slate-100 shadow-[0_-4px_24px_rgba(0,0,0,0.07)] px-2 pt-1 pb-2">
             <div className="grid grid-cols-5 items-end">
               <NavButton active={view === "home"} onClick={() => setView("home")} icon={ICONS.nav.home} label="Home" />
-              <NavButton active={view === "polish"} onClick={() => { if (active) setView("polish"); else setView("library"); }} icon={ICONS.nav.review} label="Review" />
+              <NavButton active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
 
               {/* Centre New-Entry button */}
               <div className="flex flex-col items-center justify-center pb-0.5">
@@ -3867,7 +3574,7 @@ const onSaved = () => {
               </div>
 
               <NavButton active={view === "compile"} onClick={() => setView(active ? "compile" : "home")} icon={ICONS.nav.compile} label="Share" />
-              <NavButton active={view === "library"} onClick={() => setView("library")} icon={Library} label="Library" />
+              <NavButton active={view === "settings"} onClick={() => setView("settings")} icon={Settings} label="Settings" />
             </div>
           </div>
         </div>
