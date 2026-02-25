@@ -2485,6 +2485,25 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals }) {
             </button>
           ))}
         </div>
+        <button type="button" onClick={handleExport} className="mt-3 w-full flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98]">
+          <Download className="w-4 h-4" /> Export all entries as JSON
+        </button>
+      </Card>
+
+      <Card>
+        <SectionLabel>Appearance / Theme</SectionLabel>
+        <div className="grid grid-cols-3 gap-2">
+          {THEME_OPTIONS.map((t) => (
+            <button key={t.id} type="button" onClick={() => onUpdate({ theme: t.id })} className={cn("rounded-2xl py-2.5 text-xs font-bold border", settings.theme === t.id ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <SectionLabel>Data & Privacy</SectionLabel>
+        <div className="text-xs text-slate-500">All data stays on this device except AI calls you explicitly trigger.</div>
       </Card>
 
       <Card>
@@ -2866,16 +2885,43 @@ function SocialPreview({ platform, devotional, settings, text }) {
         </div>
       );
 
-    default:
-      return (
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="p-4 flex items-center justify-between border-b border-slate-200 bg-slate-50">
-            <div>
-              <div className="text-sm font-extrabold text-slate-900">TikTok Preview</div>
-              <div className="text-xs text-slate-500">Hook + short lines + CTA</div>
-            </div>
-            <div className="text-xs font-extrabold text-emerald-700 uppercase tracking-wider">{devotional.mood ? `Mood: ${devotional.mood}` : "No mood"}</div>
-          </div>
+  if (platform === "facebook") {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-slate-200 bg-slate-50">
+          <div className="text-sm font-extrabold text-slate-900">Facebook Preview</div>
+          <div className="text-xs text-slate-500">Link post style preview</div>
+        </div>
+        <div className="p-4">
+          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (platform === "twitter") {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-slate-200 bg-slate-50">
+          <div className="text-sm font-extrabold text-slate-900">Twitter / X Preview</div>
+          <div className="text-xs text-slate-500">Short-form feed post</div>
+        </div>
+        <div className="p-4">
+          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="p-4 flex items-center justify-between border-b border-slate-200 bg-slate-50">
+        <div>
+          <div className="text-sm font-extrabold text-slate-900">TikTok Preview</div>
+          <div className="text-xs text-slate-500">Hook + short lines + CTA</div>
+        </div>
+        <div className="text-xs font-extrabold text-emerald-700 uppercase tracking-wider">{devotional.mood ? `Mood: ${devotional.mood}` : "No mood"}</div>
+      </div>
 
           <div className="p-4">
             <div className="rounded-3xl bg-gradient-to-b from-black/5 to-black/0 p-5 border border-slate-200">
@@ -3566,6 +3612,17 @@ function AppInner({ session, starterMood, onLogout }) {
 
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
+
+  useEffect(() => {
+    const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
+    if (!allowed.has(view)) {
+      setView("home");
+      return;
+    }
+    if ((view === "write" || view === "polish" || view === "compile") && !active) {
+      setView(safeDevotionals.length ? "library" : "home");
+    }
+  }, [view, active, safeDevotionals.length]);
 
   useEffect(() => {
     const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
