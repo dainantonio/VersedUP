@@ -1102,7 +1102,6 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
         <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
         </div>
-        <div className="text-3xl font-black text-slate-900 mt-0.5 tracking-tight leading-tight">{getTimeGreeting(displayName)}</div>
       </div>
 
       <div className={`rounded-2xl border px-4 py-3 text-sm font-extrabold ${todaysAction.tone}`}>
@@ -1207,9 +1206,11 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
             <div className="text-sm text-slate-700 leading-relaxed line-clamp-2">
               {preview ? `"${preview}${preview.length >= 120 ? "…" : ""}"` : "Tap to continue writing…"}
             </div>
-            <div className="mt-3 flex gap-2">
-              <button type="button" onClick={() => onOpen(last.id)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">Continue writing</button>
-              {statusReady ? <button type="button" onClick={() => onOpenReadyToPost(last.id)} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white">Preview & Post</button> : null}
+            <div className="mt-3 flex flex-col gap-2">
+              {statusReady ? (
+                <button type="button" onClick={() => onOpenReadyToPost(last.id)} className="w-full rounded-xl bg-emerald-600 px-3 py-3 text-xs font-extrabold text-white flex items-center justify-center gap-1.5">🚀 Ready to post — preview &amp; share</button>
+              ) : null}
+              <button type="button" onClick={() => onOpen(last.id)} className={`rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 ${statusReady ? "w-full text-center" : ""}`}>{statusReady ? "✏️ Keep editing" : "Continue writing →"}</button>
             </div>
           </div>
         );
@@ -2169,6 +2170,8 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted 
   };
 
   const [collapsed, setCollapsed] = useState({ ready: false, in_progress: false, draft: true, posted: true });
+  const [collapsedItems, setCollapsedItems] = useState({});
+  const toggleItem = (id) => setCollapsedItems((prev) => ({ ...prev, [id]: !prev[id] }));
   const grouped = useMemo(() => {
     const buckets = { ready: [], in_progress: [], draft: [], posted: [] };
     filtered.forEach((item) => {
@@ -2240,21 +2243,27 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted 
                 <div className="space-y-3 p-3 pt-0">
                   {items.map(({ d, st }) => (
                     <div key={d.id} className="bg-white rounded-[1.25rem] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md hover:border-emerald-100">
-                      <button onClick={() => onOpen(d.id)} className="w-full text-left p-4 active:scale-[0.99] transition-transform" type="button">
+                      <button onClick={() => toggleItem(d.id)} className="w-full text-left p-4 active:scale-[0.99] transition-transform" type="button">
                         <div className="flex items-center gap-2">
-                          <div className="font-extrabold text-slate-900 text-[15px] leading-snug flex items-center gap-1.5">{d.title || "Untitled"}{d.reviewed ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : null}</div>
+                          <div className="font-extrabold text-slate-900 text-[15px] leading-snug flex-1 flex items-center gap-1.5">{d.title || "Untitled"}{d.reviewed ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : null}</div>
                           <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-black", st.tone)}>{st.dot} {st.label}</span>
+                          <ChevronDown className={cn("w-3.5 h-3.5 text-slate-400 flex-shrink-0 transition-transform", !collapsedItems[d.id] ? "rotate-180" : "")} />
                         </div>
                         {d.verseRef ? <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wide">{d.verseRef}</div> : null}
-                        {d.reflection ? <div className="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">{d.reflection}</div> : null}
-                        <div className="text-[11px] text-slate-300 mt-2 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
                       </button>
 
-                      <div className="border-t border-slate-100 grid grid-cols-3">
-                        <button type="button" onClick={() => onDuplicate(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors">Duplicate</button>
-                        <button type="button" onClick={() => onMarkPosted(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50 transition-colors">Mark Posted</button>
-                        <button type="button" onClick={() => onDelete(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-red-500 hover:bg-red-50 transition-colors">Delete</button>
-                      </div>
+                      {!collapsedItems[d.id] ? (
+                        <>
+                          {d.reflection ? <div className="px-4 pb-3 text-xs text-slate-400 line-clamp-2 leading-relaxed">{d.reflection}</div> : null}
+                          <div className="text-[11px] text-slate-300 px-4 pb-3 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
+                          <div className="border-t border-slate-100 grid grid-cols-4">
+                            <button type="button" onClick={() => onOpen(d.id)} className="flex items-center justify-center gap-1 py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50 transition-colors">Open</button>
+                            <button type="button" onClick={() => onDuplicate(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors">Copy</button>
+                            <button type="button" onClick={() => onMarkPosted(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-500 hover:bg-slate-50 transition-colors">Posted</button>
+                            <button type="button" onClick={() => onDelete(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-red-500 hover:bg-red-50 transition-colors">Del</button>
+                          </div>
+                        </>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -3640,39 +3649,6 @@ function AppInner({ session, starterMood, onLogout }) {
   }, [view, active, safeDevotionals.length]);
 
   useEffect(() => {
-    const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
-    if (!allowed.has(view)) {
-      setView("home");
-      return;
-    }
-    if ((view === "write" || view === "polish" || view === "compile") && !active) {
-      setView(safeDevotionals.length ? "library" : "home");
-    }
-  }, [view, active, safeDevotionals.length]);
-
-  useEffect(() => {
-    const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
-    if (!allowed.has(view)) {
-      setView("home");
-      return;
-    }
-    if ((view === "write" || view === "polish" || view === "compile") && !active) {
-      setView(safeDevotionals.length ? "library" : "home");
-    }
-  }, [view, active, safeDevotionals.length]);
-
-  useEffect(() => {
-    const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
-    if (!allowed.has(view)) {
-      setView("home");
-      return;
-    }
-    if ((view === "write" || view === "polish" || view === "compile") && !active) {
-      setView(safeDevotionals.length ? "library" : "home");
-    }
-  }, [view, active, safeDevotionals.length]);
-
-  useEffect(() => {
     if (!starterMood) return;
     if (safeDevotionals.length > 0) return;
     const d = createDevotional(settings);
@@ -3882,7 +3858,6 @@ const onSaved = () => {
         {/* Speed dial options */}
         {fabOpen && (
           <div className="flex flex-col gap-2.5 items-end pb-1 animate-in fade-in slide-in-from-bottom-4 duration-200">
-            <FABOption icon={Settings} label="Settings" onClick={() => { setView("settings"); setFabOpen(false); }} active={view === "settings"} />
             <FABOption icon={Library} label="Library" onClick={() => { setView("library"); setFabOpen(false); }} active={view === "library"} />
             <FABOption icon={ICONS.nav.compile} label="Share" onClick={() => { if (active) setView("compile"); setFabOpen(false); }} active={view === "compile"} />
             <FABOption icon={Plus} label="New Entry" onClick={() => { newEntry(); setFabOpen(false); }} active={false} />
