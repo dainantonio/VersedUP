@@ -1821,7 +1821,7 @@ ${devotional.reflection}`);
             onClick={() => (step === 1 ? onGoCompile() : setStep((s) => Math.max(1, s - 1)))}
             className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold"
           >
-            {step === 1 ? "← Exit" : "← Back"}
+            {step === 1 ? <X className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
           <div className="text-xs font-black text-slate-500 uppercase">{step} of 4 · {stepTitles[step - 1]}</div>
           <div className="ml-auto" />
@@ -1876,7 +1876,7 @@ ${devotional.reflection}`);
             ) : null}
 
             <SmallButton onClick={onGoSettings} tone="neutral">Scan a page instead</SmallButton>
-            <button type="button" disabled={!verseReady} onClick={() => goToStep(2)} className="w-full rounded-2xl bg-emerald-600 disabled:opacity-40 text-white py-3 font-extrabold">Use this verse →</button>
+            <button type="button" disabled={!verseReady} onClick={() => goToStep(2)} className="w-full rounded-2xl bg-emerald-600 disabled:opacity-40 text-white py-3 font-extrabold">Use this verse</button>
           </div>
         </Card>
       ) : null}
@@ -1892,9 +1892,9 @@ ${devotional.reflection}`);
             <div className="text-right text-[11px] text-slate-400">{String(devotional.reflection || "").trim().split(/\s+/).filter(Boolean).length} words</div>
 
             <div className="flex items-center gap-2">
-              <button type="button" className="text-xs font-bold text-slate-500 underline" onClick={() => { void doDraftForMe(); goToStep(3); }}>Skip, just use AI →</button>
+              <button type="button" className="text-xs font-bold text-slate-500 underline" onClick={() => { void doDraftForMe(); goToStep(3); }}>Skip, use AI</button>
               <div className="flex-1" />
-              <button type="button" onClick={() => goToStep(3)} className="rounded-2xl bg-emerald-600 text-white px-4 py-3 font-extrabold">Shape my writing →</button>
+              <button type="button" onClick={() => goToStep(3)} className="rounded-2xl bg-emerald-600 text-white px-4 py-3 font-extrabold">Shape my writing</button>
             </div>
           </div>
         </Card>
@@ -1906,14 +1906,24 @@ ${devotional.reflection}`);
             <button type="button" onClick={() => setStep(1)} className="text-xs rounded-full border px-3 py-1 font-bold text-emerald-700 border-emerald-200 bg-emerald-50">{verseRef || "No verse"}</button>
             <input value={devotional.title} onChange={(e) => onUpdate({ title: e.target.value })} placeholder="Give it a title (optional)" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
 
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
-              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey} className="rounded-full bg-emerald-600 text-white px-3 py-2 text-xs font-extrabold disabled:opacity-40">✨ Draft for Me</button>
-              <button onClick={() => void doFix()} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Fix Grammar</button>
-              <button onClick={() => void doLength("shorten")} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Shorten</button>
-              <button onClick={() => void doLength("lengthen")} disabled={busy} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Expand</button>
-              <div className="relative">
-                <button onClick={() => setToneMenuOpen((o) => !o)} className="rounded-full border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600">Tone ▾</button>
-                {toneMenuOpen ? <div className="absolute top-full right-0 mt-1 z-30 w-40 rounded-xl border bg-white shadow">{["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t)=><button key={t} onClick={() => void doTone(t)} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50">{t}</button>)}</div> : null}
+            <div className="flex gap-2 items-center">
+              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey} title="Draft for me" className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center disabled:opacity-40 hover:bg-emerald-700 transition-colors">
+                <Sparkles className="w-4 h-4" />
+              </button>
+              <button onClick={() => void doFix()} disabled={busy} title="Fix grammar" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 transition-colors">
+                <Check className="w-4 h-4" />
+              </button>
+              <button onClick={() => void doLength("shorten")} disabled={busy} title="Shorten" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 transition-colors">
+                <ChevronLeft className="w-4 h-4 rotate-90" />
+              </button>
+              <button onClick={() => void doLength("lengthen")} disabled={busy} title="Expand" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 transition-colors">
+                <ChevronRight className="w-4 h-4 rotate-90" />
+              </button>
+              <div className="relative ml-auto">
+                <button onClick={() => setToneMenuOpen((o) => !o)} title="Adjust tone" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 transition-colors">
+                  <Wand2 className="w-4 h-4" />
+                </button>
+                {toneMenuOpen ? <div className="absolute bottom-full right-0 mb-1 z-30 w-40 rounded-xl border bg-white shadow-lg overflow-hidden">{["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t)=><button key={t} onClick={() => void doTone(t)} className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-slate-50 transition-colors">{t}</button>)}</div> : null}
               </div>
             </div>
 
@@ -2123,7 +2133,7 @@ ${draft.reflection || ""}` })} disabled={hasHook}>Draft Hook</SmallButton>
       </div>
 
       <div className="flex gap-2 pb-4">
-        <SmallButton onClick={onBackToWrite} icon={ChevronLeft}>← Edit</SmallButton>
+        <SmallButton onClick={onBackToWrite} icon={ChevronLeft}>Edit</SmallButton>
         <SmallButton onClick={onLooksGood} icon={Check}>Looks Good ✓</SmallButton>
         <div className="flex-1" />
         <SmallButton onClick={onGoShare} tone="primary" icon={Share2}>Share Now →</SmallButton>
@@ -3579,8 +3589,7 @@ function AppInner({ session, starterMood, onLogout }) {
   const [lastNonSettingsView, setLastNonSettingsView] = useState(() => String(localStorage.getItem(`${STORAGE_VIEW}_last`) || "home"));
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
-  const fabRef = useRef(null);
-  const [fabOpen, setFabOpen] = useState(false);
+  
  // home | write | polish | compile | library | settings
 
   useEffect(() => {
@@ -3609,14 +3618,7 @@ function AppInner({ session, starterMood, onLogout }) {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [menuOpen]);
 
-  useEffect(() => {
-    if (!fabOpen) return;
-    const onDocClick = (event) => {
-      if (fabRef.current && !fabRef.current.contains(event.target)) setFabOpen(false);
-    };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [fabOpen]);
+
 
   const openSettings = () => {
     setView("settings");
@@ -3853,28 +3855,31 @@ const onSaved = () => {
         </PageTransition>
       </main>
 
-      {/* ── Solo FAB ── */}
-      <div ref={fabRef} className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex flex-col items-end gap-2.5">
-        {/* Speed dial options */}
-        {fabOpen && (
-          <div className="flex flex-col gap-2.5 items-end pb-1 animate-in fade-in slide-in-from-bottom-4 duration-200">
-            <FABOption icon={Library} label="Library" onClick={() => { setView("library"); setFabOpen(false); }} active={view === "library"} />
-            <FABOption icon={ICONS.nav.compile} label="Share" onClick={() => { if (active) setView("compile"); setFabOpen(false); }} active={view === "compile"} />
-            <FABOption icon={Plus} label="New Entry" onClick={() => { newEntry(); setFabOpen(false); }} active={false} />
-            <FABOption icon={ICONS.nav.home} label="Home" onClick={() => { setView("home"); setFabOpen(false); }} active={view === "home"} />
-          </div>
-        )}
-        {/* Main FAB */}
+      {/* ── Bottom Nav Bar ── */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-12 pt-3 pb-7 bg-white/90 backdrop-blur-xl border-t border-slate-100">
         <button
-          onClick={() => setFabOpen((v) => !v)}
           type="button"
-          className={cn(
-            "w-16 h-16 rounded-full flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.2)] transition-all duration-300 active:scale-95",
-            fabOpen ? "bg-slate-800 text-white rotate-45" : "bg-slate-900 text-white"
-          )}
-          title="Menu"
+          onClick={() => setView("home")}
+          className={cn("flex flex-col items-center gap-1 transition-colors", view === "home" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
+          title="Home"
         >
-          <Plus className="w-7 h-7 transition-transform duration-300" />
+          <BookOpen className="w-6 h-6" />
+        </button>
+        <button
+          type="button"
+          onClick={() => newEntry()}
+          className="w-14 h-14 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.18)] active:scale-95 transition-transform"
+          title="New Entry"
+        >
+          <Plus className="w-7 h-7" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setView("library")}
+          className={cn("flex flex-col items-center gap-1 transition-colors", view === "library" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
+          title="Library"
+        >
+          <Library className="w-6 h-6" />
         </button>
       </div>
     </div>
