@@ -272,12 +272,51 @@ const BIBLE_BOOKS = [
   "Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation",
 ];
 
-const VERSE_OF_DAY = {
-  verseRef: "Psalm 23:1-2",
-  verseText: "The Lord is my shepherd; I shall not want. He makes me lie down in green pastures.",
-  suggestedTitle: "The Shepherd Who Leads Me",
+const VERSE_OF_DAY_LIST = Object.freeze([
+  {
+    verseRef: "Psalm 23:1-2",
+    verseText: "The Lord is my shepherd; I shall not want. He makes me lie down in green pastures.",
+    suggestedTitle: "The Shepherd Who Leads Me",
+  },
+  {
+    verseRef: "Lamentations 3:22-23",
+    verseText: "His compassions fail not. They are new every morning: great is thy faithfulness.",
+    suggestedTitle: "New Mercies This Morning",
+  },
+  {
+    verseRef: "Isaiah 40:31",
+    verseText: "They that wait upon the Lord shall renew their strength; they shall mount up with wings as eagles.",
+    suggestedTitle: "Strength for Today",
+  },
+  {
+    verseRef: "Philippians 4:6-7",
+    verseText: "Be anxious for nothing... and the peace of God, which passeth all understanding, shall keep your hearts and minds through Christ Jesus.",
+    suggestedTitle: "Peace That Guards My Heart",
+  },
+  {
+    verseRef: "Matthew 11:28",
+    verseText: "Come unto me, all ye that labour and are heavy laden, and I will give you rest.",
+    suggestedTitle: "Come and Rest",
+  },
+  {
+    verseRef: "Proverbs 3:5-6",
+    verseText: "Trust in the Lord with all thine heart... and he shall direct thy paths.",
+    suggestedTitle: "Trusting His Direction",
+  },
+  {
+    verseRef: "Romans 8:28",
+    verseText: "And we know that all things work together for good to them that love God.",
+    suggestedTitle: "God Works Through It",
+  },
+]);
+
+const getVerseOfDay = (date = new Date()) => {
+  const key = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const idx = Math.abs(Math.floor(key / 86400000)) % VERSE_OF_DAY_LIST.length;
+  return VERSE_OF_DAY_LIST[idx];
 };
 
+const VERSE_OF_DAY = getVerseOfDay();
 
 const MOOD_VERSES = Object.freeze({
   joy: { label: "Joy", verseRef: "Nehemiah 8:10", verseText: "The joy of the LORD is your strength." },
@@ -1038,7 +1077,7 @@ function bumpStreakOnSave() {
 
 /* ---------------- Views ---------------- */
 
-function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, onStartWithVerse, hasActive, streak, displayName, devotionals, onOpen }) {
+function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, onStartWithVerse, hasActive, streak, displayName, devotionals, onOpen, onOpenReadyToPost }) {
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
   const [homeVerseRef, setHomeVerseRef] = useState("");
@@ -1153,7 +1192,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
         })();
         const statusReady = Boolean(last.reflection && (last.reflection || "").length > 120);
         return (
-          <button type="button" onClick={() => onOpen(last.id)} className="w-full text-left bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-slate-200 active:scale-[0.99] transition-all group">
+          <div className="w-full text-left bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-slate-200 transition-all group">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -1168,10 +1207,11 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
             <div className="text-sm text-slate-700 leading-relaxed line-clamp-2">
               {preview ? `"${preview}${preview.length >= 120 ? "…" : ""}"` : "Tap to continue writing…"}
             </div>
-            <div className="mt-3 flex items-center gap-1 text-xs font-extrabold text-slate-900 group-hover:gap-2 transition-all">
-              Continue writing <ArrowRight className="w-3.5 h-3.5" />
+            <div className="mt-3 flex gap-2">
+              <button type="button" onClick={() => onOpen(last.id)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">Continue writing</button>
+              {statusReady ? <button type="button" onClick={() => onOpenReadyToPost(last.id)} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-extrabold text-white">Preview & Post</button> : null}
             </div>
-          </button>
+          </div>
         );
       })() : (
         <div className="bg-gradient-to-br from-sky-50 to-indigo-50 rounded-[1.75rem] border border-sky-100 p-5">
@@ -1528,7 +1568,6 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [step, setStep] = useState(1);
   const [contentTab, setContentTab] = useState("reflection");
   const [platform, setPlatform] = useState(() => (settings.myPlatforms && settings.myPlatforms[0]) || "tiktok");
-  const [showPrompts, setShowPrompts] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState(TOPIC_CHIPS[0]?.id || "");
   const [postText, setPostText] = useState("");
   const [igMode, setIgMode] = useState("caption");
@@ -1783,7 +1822,7 @@ ${devotional.reflection}`);
             {step === 1 ? "← Exit" : "← Back"}
           </button>
           <div className="text-xs font-black text-slate-500 uppercase">{step} of 4 · {stepTitles[step - 1]}</div>
-          <button type="button" onClick={onGoSettings} className="ml-auto rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold">⚙ Settings</button>
+          <div className="ml-auto" />
         </div>
         <div className="mt-3 grid grid-cols-4 gap-2">
           {stepTitles.map((title, idx) => {
@@ -1813,6 +1852,9 @@ ${devotional.reflection}`);
         <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
           <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
         </div>
+        <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
+          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
+        </div>
       ) : null}
 
       {step === 1 ? (
@@ -1827,14 +1869,6 @@ ${devotional.reflection}`);
 
             <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
             <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
-
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
-              {["KJV", "NLT", "ESV", "NKJV"].map((v) => (
-                <button key={v} type="button" onClick={() => onUpdate({ bibleVersion: v, verseText: "" })} className={cn("rounded-full px-3 py-1.5 text-xs font-extrabold border", version === v ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600")}>{v}</button>
-              ))}
-            </div>
-
-            {fetching ? <div className="text-xs text-slate-500">Loading verse...</div> : null}
             {verseText ? (
               <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
                 <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{verseRef} ({version})</div>
@@ -1857,9 +1891,6 @@ ${devotional.reflection}`);
             {devotional.mood ? <div className="text-sm text-slate-500 italic">{moodPrompt[devotional.mood] || "What is God showing you in this verse?"}</div> : null}
             <textarea value={devotional.reflection} onChange={(e) => onUpdate({ reflection: e.target.value })} placeholder="Write freely. No rules here." rows={10} spellCheck autoCorrect="on" autoCapitalize="sentences" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
             <div className="text-right text-[11px] text-slate-400">{String(devotional.reflection || "").trim().split(/\s+/).filter(Boolean).length} words</div>
-
-            <button type="button" onClick={() => setShowPrompts((v) => !v)} className="text-xs font-bold text-slate-500 underline">Need a prompt?</button>
-            {showPrompts ? <div className="flex gap-1 overflow-x-auto no-scrollbar">{TOPIC_CHIPS.map((t)=><button key={t.id} type="button" onClick={() => onTopicClick(t)} className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-extrabold", selectedTopic===t.id?"bg-emerald-600 border-emerald-600 text-white":"bg-white text-slate-600 border-slate-200")}>{t.label}</button>)}</div> : null}
 
             <div className="flex items-center gap-2">
               <button type="button" className="text-xs font-bold text-slate-500 underline" onClick={() => { void doDraftForMe(); goToStep(3); }}>Skip, just use AI →</button>
@@ -1886,6 +1917,9 @@ ${devotional.reflection}`);
                 {toneMenuOpen ? <div className="absolute top-full right-0 mt-1 z-30 w-40 rounded-xl border bg-white shadow">{["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t)=><button key={t} onClick={() => void doTone(t)} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50">{t}</button>)}</div> : null}
               </div>
             </div>
+          </div>
+        </Card>
+      ) : null}
 
             <textarea value={contentTab==="reflection"?devotional.reflection:contentTab==="prayer"?devotional.prayer:devotional.questions} onChange={(e)=>onUpdate({ [contentTab]: e.target.value })} rows={10} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
             <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1">
@@ -2139,6 +2173,24 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted 
     setSortOrder((s) => (s === "newest" ? "oldest" : s === "oldest" ? "readiness" : "newest"));
   };
 
+  const [collapsed, setCollapsed] = useState({ ready: false, in_progress: false, draft: true, posted: true });
+  const grouped = useMemo(() => {
+    const buckets = { ready: [], in_progress: [], draft: [], posted: [] };
+    filtered.forEach((item) => {
+      const key = item.st.id;
+      if (!buckets[key]) buckets[key] = [];
+      buckets[key].push(item);
+    });
+    return buckets;
+  }, [filtered]);
+
+  const sections = [
+    { id: "ready", label: "Ready to Post" },
+    { id: "in_progress", label: "In Progress" },
+    { id: "draft", label: "Draft" },
+    { id: "posted", label: "Posted" },
+  ];
+
   return (
     <div className="space-y-5 pb-20 animate-enter">
       <Card>
@@ -2174,27 +2226,47 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted 
           ))}
         </div>
       </Card>
-
       <div className="space-y-3">
-        {filtered.map(({ d, st }) => (
-          <div key={d.id} className="bg-white rounded-[1.75rem] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md hover:border-emerald-100">
-            <button onClick={() => onOpen(d.id)} className="w-full text-left p-5 active:scale-[0.99] transition-transform" type="button">
-              <div className="flex items-center gap-2">
-                <div className="font-extrabold text-slate-900 text-[15px] leading-snug flex items-center gap-1.5">{d.title || "Untitled"}{d.reviewed ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : null}</div>
-                <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-black", st.tone)}>{st.dot} {st.label}</span>
-              </div>
-              {d.verseRef ? <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wide">{d.verseRef}</div> : null}
-              {d.reflection ? <div className="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">{d.reflection}</div> : null}
-              <div className="text-[11px] text-slate-300 mt-2 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
-            </button>
+        {sections.map((section) => {
+          const items = grouped[section.id] || [];
+          if (filter !== "all" && filter !== section.id) return null;
+          if (items.length === 0 && q.trim()) return null;
+          return (
+            <div key={section.id} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setCollapsed((prev) => ({ ...prev, [section.id]: !prev[section.id] }))}
+                className="w-full px-4 py-3 flex items-center justify-between text-left"
+              >
+                <div className="text-xs font-black uppercase tracking-widest text-slate-500">{section.label} ({items.length})</div>
+                <ChevronDown className={cn("w-4 h-4 text-slate-500 transition-transform", collapsed[section.id] ? "rotate-180" : "")} />
+              </button>
+              {!collapsed[section.id] ? (
+                <div className="space-y-3 p-3 pt-0">
+                  {items.map(({ d, st }) => (
+                    <div key={d.id} className="bg-white rounded-[1.25rem] border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md hover:border-emerald-100">
+                      <button onClick={() => onOpen(d.id)} className="w-full text-left p-4 active:scale-[0.99] transition-transform" type="button">
+                        <div className="flex items-center gap-2">
+                          <div className="font-extrabold text-slate-900 text-[15px] leading-snug flex items-center gap-1.5">{d.title || "Untitled"}{d.reviewed ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : null}</div>
+                          <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-black", st.tone)}>{st.dot} {st.label}</span>
+                        </div>
+                        {d.verseRef ? <div className="text-xs font-bold text-emerald-600 mt-1 uppercase tracking-wide">{d.verseRef}</div> : null}
+                        {d.reflection ? <div className="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">{d.reflection}</div> : null}
+                        <div className="text-[11px] text-slate-300 mt-2 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
+                      </button>
 
-            <div className="border-t border-slate-100 grid grid-cols-3">
-              <button type="button" onClick={() => onDuplicate(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors">Duplicate</button>
-              <button type="button" onClick={() => onMarkPosted(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50 transition-colors">Mark Posted</button>
-              <button type="button" onClick={() => onDelete(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-red-500 hover:bg-red-50 transition-colors">Delete</button>
+                      <div className="border-t border-slate-100 grid grid-cols-3">
+                        <button type="button" onClick={() => onDuplicate(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors">Duplicate</button>
+                        <button type="button" onClick={() => onMarkPosted(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50 transition-colors">Mark Posted</button>
+                        <button type="button" onClick={() => onDelete(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-red-500 hover:bg-red-50 transition-colors">Delete</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
-          </div>
-        ))}
+          );
+        })}
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-center">
             <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-3">
@@ -3423,6 +3495,8 @@ function AppInner({ session, starterMood, onLogout }) {
   });
   const [view, setView] = useState(() => String(localStorage.getItem(STORAGE_VIEW) || "home"));
   const [lastNonSettingsView, setLastNonSettingsView] = useState(() => String(localStorage.getItem(`${STORAGE_VIEW}_last`) || "home"));
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
  // home | write | polish | compile | library | settings
 
   useEffect(() => {
@@ -3442,8 +3516,18 @@ function AppInner({ session, starterMood, onLogout }) {
     else localStorage.removeItem(STORAGE_ACTIVE_ID);
   }, [activeId]);
 
-  const toggleSettings = () => {
-    setView((v) => (v === "settings" ? (lastNonSettingsView || "home") : "settings"));
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDocClick = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [menuOpen]);
+
+  const openSettings = () => {
+    setView("settings");
+    setMenuOpen(false);
   };
 
   const [toast, setToast] = useState(null);
@@ -3541,9 +3625,9 @@ function AppInner({ session, starterMood, onLogout }) {
     setView("write");
   };
 
-  const openEntry = (id) => {
+  const openEntry = (id, targetView = "write") => {
     setActiveId(id);
-    setView("write");
+    setView(targetView);
   };
 
   const deleteEntry = (id) => {
@@ -3611,17 +3695,24 @@ const onSaved = () => {
           />
           <div className="min-w-0 leading-tight flex-1">
             <div className="text-[15px] font-extrabold text-slate-900 tracking-tight">Rooted in Christ</div>
-            <div className="text-[12px] font-bold text-slate-500 truncate mt-0.5">{getTimeGreeting(getDisplayName(session, settings))}</div>
           </div>
-<button
-            type="button"
-            onClick={toggleSettings}
-            className="text-slate-400 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-slate-100"
-            aria-label="Settings"
-            title="Settings"
-          >
-            <MoreVertical className="w-5 h-5" />
-          </button>
+<div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              className="text-slate-400 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-slate-100"
+              aria-label="More"
+              title="More"
+            >
+              <MoreVertical className="w-5 h-5" />
+            </button>
+            {menuOpen ? (
+              <div className="absolute right-0 top-11 w-40 rounded-xl border border-slate-200 bg-white shadow-lg p-1 z-50">
+                <button type="button" onClick={openSettings} className="w-full text-left px-3 py-2 text-sm font-bold rounded-lg hover:bg-slate-50">⚙ Settings</button>
+                <button type="button" onClick={() => { setView("home"); setMenuOpen(false); }} className="w-full text-left px-3 py-2 text-sm font-bold rounded-lg hover:bg-slate-50">Home</button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -3640,6 +3731,7 @@ const onSaved = () => {
             displayName={getDisplayName(session, settings)}
             devotionals={safeDevotionals}
             onOpen={openEntry}
+            onOpenReadyToPost={(id) => openEntry(id, "compile")}
           />
         ) : null}
 
