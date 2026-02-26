@@ -2072,7 +2072,14 @@ ${devotional.reflection}`);
   };
 
   const stepTitles = ["Scripture", "Your Heart", "Shape It", "Post It"];
-  const progress = (step / 4) * 100;
+  const onboardingStyleSteps = [
+    { label: "Step 1", title: "Scripture", stepNum: 1 },
+    { label: "Step 2", title: "Your Heart", stepNum: 2 },
+    { label: "Step 3", title: "Shape It", stepNum: 3 },
+    { label: "Step 4", title: "Post It", stepNum: 4 },
+  ];
+  const displayStep = step;
+  const progress = (displayStep / 4) * 100;
   const verseReady = Boolean(normalizedVerseRef);
   const heartReady = Boolean(String(devotional.reflection || "").trim() || String(devotional.prayer || "").trim() || String(devotional.questions || "").trim());
   const canAccessStep = (nextStep) => {
@@ -2107,22 +2114,21 @@ ${devotional.reflection}`);
           >
             {step === 1 ? <X className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
-          <div className="text-xs font-black text-slate-500 uppercase">{step} of 4 · {stepTitles[step - 1]}</div>
+          <div className="text-xs font-black text-slate-500 uppercase">{displayStep} of 4 · {onboardingStyleSteps[displayStep - 1]?.title || stepTitles[step - 1]}</div>
           <div className="ml-auto" />
         </div>
         <div className="mt-3 grid grid-cols-4 gap-2">
-          {stepTitles.map((title, idx) => {
-            const stepNum = idx + 1;
-            const enabled = canAccessStep(stepNum);
-            const active = stepNum === step;
+          {onboardingStyleSteps.map((item) => {
+            const enabled = canAccessStep(item.stepNum);
+            const active = item.stepNum === displayStep;
             return (
               <button
-                key={title}
+                key={item.label}
                 type="button"
                 disabled={!enabled}
-                onClick={() => goToStep(stepNum)}
+                onClick={() => goToStep(item.stepNum)}
                 className={cn(
-                  "rounded-xl border px-2 py-2 text-[11px] font-black transition",
+                  "rounded-2xl border px-2.5 py-2.5 text-left transition",
                   active
                     ? "bg-emerald-600 border-emerald-600 text-white"
                     : enabled
@@ -2130,7 +2136,8 @@ ${devotional.reflection}`);
                       : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
                 )}
               >
-                {stepNum}. {title}
+                <div className="text-[10px] font-black uppercase tracking-widest opacity-80">{item.label}</div>
+                <div className="text-[11px] font-extrabold mt-1">{item.title}</div>
               </button>
             );
           })}
