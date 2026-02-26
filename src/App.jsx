@@ -10,7 +10,6 @@ import {
   Library,
   Loader2,
   PenTool,
-  Plus,
   RefreshCw,
   Search,
   Settings,
@@ -20,6 +19,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   LogIn,
   LogOut,
   User,
@@ -29,7 +29,6 @@ import {
   XCircle,
   ScanLine,
   Flame,
-  ArrowRight,
   Quote,
   ExternalLink,
   Sun,
@@ -1126,7 +1125,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
   const todaysAction = hasActive
     ? { tone: "bg-emerald-50 border-emerald-200 text-emerald-800", text: "🟢 You're ready to post — 1 entry draft waiting" }
     : latest
-      ? { tone: "bg-amber-50 border-amber-200 text-amber-800", text: "🟡 You started something yesterday — finish it" }
+      ? { tone: "bg-amber-50 border-amber-200 text-amber-800", text: "🟡 In progress — pick up where you left off" }
       : { tone: "bg-sky-50 border-sky-200 text-sky-800", text: "🔵 Fresh start — what's on your heart today?" };
 
   return (
@@ -1175,7 +1174,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
       </div>
 
       <div className="rounded-[1.5rem] border border-emerald-100 bg-white p-4 shadow-sm space-y-3">
-        <div className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Mood verse carousel</div>
+        <div className="text-[10px] font-black uppercase tracking-widest text-emerald-500">How's your heart?</div>
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {Object.entries(MOOD_VERSES).map(([k, mv]) => (
             <button
@@ -1207,7 +1206,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
         <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${VERSE_OF_DAY.verseText}"`}</div>
         <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
         <button onClick={onReflectVerseOfDay} className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md active:scale-[0.985] transition-all flex items-center gap-2 border border-white/10 relative z-10" type="button">
-          Reflect on this <ArrowRight className="w-3 h-3" />
+          Reflect on this
         </button>
       </div>
 
@@ -1243,7 +1242,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
               {statusReady ? (
                 <button type="button" onClick={() => onOpenReadyToPost(last.id)} className="w-full rounded-xl bg-emerald-600 px-3 py-3 text-xs font-extrabold text-white flex items-center justify-center gap-1.5">🚀 Ready to post — preview &amp; share</button>
               ) : null}
-              <button type="button" onClick={() => onOpen(last.id)} className={`rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 ${statusReady ? "w-full text-center" : ""}`}>{statusReady ? "✏️ Keep editing" : "Continue writing →"}</button>
+              <button type="button" onClick={() => onOpen(last.id)} className={`rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 ${statusReady ? "w-full text-center" : ""}`}>{statusReady ? "✏️ Keep editing" : "Continue writing"}</button>
             </div>
           </div>
         );
@@ -1940,10 +1939,10 @@ ${devotional.reflection}`);
             <input value={devotional.title} onChange={(e) => onUpdate({ title: e.target.value })} placeholder="Give it a title (optional)" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
 
             <div className="flex gap-2 items-center">
-              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey} title="Draft for me" className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center disabled:opacity-40 hover:bg-emerald-700 transition-colors">
+              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey} title="AI Draft" className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center disabled:opacity-40 hover:bg-emerald-700 transition-colors">
                 <Sparkles className="w-4 h-4" />
               </button>
-              <button onClick={() => void doFix()} disabled={busy} title="Fix grammar" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 transition-colors">
+              <button onClick={() => void doFix()} disabled={busy} title="Clean grammar" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 transition-colors">
                 <Check className="w-4 h-4" />
               </button>
               <button onClick={() => void doLength("shorten")} disabled={busy} title="Shorten" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 transition-colors">
@@ -1968,7 +1967,7 @@ ${devotional.reflection}`);
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-500">For:</span>
               <select value={platform} onChange={(e)=>setPlatform(e.target.value)} className="rounded-full border border-slate-200 px-3 py-1 text-xs font-extrabold">
-                {(settings.myPlatforms && settings.myPlatforms.length ? settings.myPlatforms : ["tiktok","instagram","twitter","facebook","email"]).map((p)=> <option key={p} value={p}>{p}</option>)}
+                {(settings.myPlatforms && settings.myPlatforms.length ? settings.myPlatforms : ["tiktok","instagram","twitter","facebook","email"]).map((p)=> <option key={p} value={p}>{{ tiktok: "TikTok", instagram: "Instagram", twitter: "Twitter / X", facebook: "Facebook", email: "Email" }[p] || p[0].toUpperCase() + p.slice(1)}</option>)}
               </select>
               <span className={cn("ml-auto text-xs font-extrabold", over ? "text-red-600" : count > limit*0.8 ? "text-amber-600" : "text-emerald-600")}>{count}/{limit}</span>
               {over ? <button onClick={() => void doLength("shorten")} className="text-xs font-bold underline text-red-600">Auto-Shorten</button> : null}
@@ -2119,8 +2118,8 @@ function PolishView({ devotional, settings, onUpdate, onBackToWrite, onLooksGood
   return (
     <div className="space-y-4 pb-20 animate-enter">
       <Card>
-        <div className="text-2xl font-black text-slate-900">Quick Review</div>
-        <div className="text-sm text-slate-500 mt-1 font-medium">Kill it or fix it before posting.</div>
+        <div className="text-2xl font-black text-slate-900">Final Review</div>
+        <div className="text-sm text-slate-500 mt-1 font-medium">Review and refine before you share.</div>
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -2174,7 +2173,7 @@ ${draft.reflection || ""}` })} disabled={hasHook}>Draft Hook</SmallButton>
         <SmallButton onClick={onBackToWrite} icon={ChevronLeft}>Edit</SmallButton>
         <SmallButton onClick={onLooksGood} icon={Check}>Looks Good ✓</SmallButton>
         <div className="flex-1" />
-        <SmallButton onClick={onGoShare} tone="primary" icon={Share2}>Share Now →</SmallButton>
+        <SmallButton onClick={onGoShare} tone="primary" icon={Share2}>Share Now</SmallButton>
       </div>
     </div>
   );
@@ -2290,7 +2289,7 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted,
                 className="w-full px-4 py-3 flex items-center justify-between text-left"
               >
                 <div className="text-xs font-black uppercase tracking-widest text-slate-500">{section.label} ({items.length})</div>
-                <ChevronDown className={cn("w-4 h-4 text-slate-500 transition-transform", collapsed[section.id] ? "rotate-180" : "")} />
+                <ChevronDown className={cn("w-4 h-4 text-slate-500 transition-transform", !collapsed[section.id] ? "rotate-180" : "")} />
               </button>
               {!collapsed[section.id] ? (
                 <div className="space-y-3 p-3 pt-0">
@@ -3239,12 +3238,12 @@ function AuthView({ onBack, onContinue }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-emerald-50 px-4 py-8 animate-enter">
       <div className="max-w-md mx-auto space-y-6">
-        <button type="button" onClick={onBack} className="text-sm font-bold text-slate-600 flex items-center gap-1 hover:text-slate-900 transition-colors">
-          <ChevronLeft className="w-4 h-4" /> Back
+        <button type="button" onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors">
+          <ChevronLeft className="w-5 h-5" />
         </button>
 
         <Card>
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">AUTH</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Welcome</div>
           <h2 className="mt-2 text-2xl font-black text-slate-900 tracking-tight">Sign in or continue as guest</h2>
 
           <div className="mt-6">
@@ -3259,7 +3258,7 @@ function AuthView({ onBack, onContinue }) {
 
           <div className="mt-6 grid gap-3">
             <PrimaryButton onClick={() => onContinue({ mode: "signed-in", name: name.trim() || "Friend" })} icon={User}>
-              Sign in
+              Continue
             </PrimaryButton>
             <button
               type="button"
@@ -3355,7 +3354,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
                 onClick={() => setSlide(1)}
                 className="w-full rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold text-base py-4 shadow-lg shadow-emerald-200 hover:shadow-xl hover:scale-[1.01] transition-all active:scale-[0.99]"
               >
-                See how it works →
+                See how it works
               </button>
               <button
                 type="button"
@@ -3372,7 +3371,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
         {slide === 1 ? (
           <div className="flex-1 flex flex-col animate-enter space-y-5">
             <div>
-              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 1 of 3</div>
+              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 1 · Scripture & Heart</div>
               <h2 className="text-2xl font-black text-slate-900 mt-1">Capture your verse & heart</h2>
               <p className="text-sm text-slate-500 mt-1.5 font-medium">Start with the scripture that's speaking to you. Then pick where your heart is today.</p>
             </div>
@@ -3418,7 +3417,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setSlide(0)} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"><ChevronLeft className="w-4 h-4" /> Back</button>
               <button type="button" onClick={() => setSlide(2)} className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3 shadow-md hover:shadow-lg transition-all">
-                Next →
+                Next
               </button>
             </div>
           </div>
@@ -3428,7 +3427,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
         {slide === 2 ? (
           <div className="flex-1 flex flex-col animate-enter space-y-5">
             <div>
-              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 2 of 3</div>
+              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 2 · Write & Refine</div>
               <h2 className="text-2xl font-black text-slate-900 mt-1">Write with AI at your side</h2>
               <p className="text-sm text-slate-500 mt-1.5 font-medium">Reflect freely, or let AI draft a caption in your chosen tone. Refine it with one icon tap.</p>
             </div>
@@ -3475,7 +3474,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setSlide(1)} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"><ChevronLeft className="w-4 h-4" /> Back</button>
               <button type="button" onClick={() => setSlide(3)} className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3 shadow-md hover:shadow-lg transition-all">
-                Next →
+                Next
               </button>
             </div>
           </div>
@@ -3485,7 +3484,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
         {slide === 3 ? (
           <div className="flex-1 flex flex-col animate-enter space-y-5">
             <div>
-              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 3 of 3</div>
+              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 3 · Share</div>
               <h2 className="text-2xl font-black text-slate-900 mt-1">Share to any platform</h2>
               <p className="text-sm text-slate-500 mt-1.5 font-medium">Format your post for Instagram, TikTok, Twitter, or Facebook. One tap copies the optimized caption.</p>
             </div>
@@ -3520,7 +3519,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
                     <div className={`text-[10px] font-bold ${demoPlatform === "twitter" ? "text-amber-600" : "text-emerald-600"}`}>
                       {demoPlatform === "instagram" ? "142 / 2,200 chars ✓" : demoPlatform === "tiktok" ? "142 / 2,200 chars ✓" : demoPlatform === "twitter" ? "142 / 280 chars ✓" : "142 / 63,206 chars ✓"}
                     </div>
-                    <div className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 rounded-lg px-2 py-1">Copy & Open →</div>
+                    <div className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 rounded-lg px-2 py-1">Copy & Open</div>
                   </div>
                 </div>
               ) : null}
@@ -3529,7 +3528,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setSlide(2)} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"><ChevronLeft className="w-4 h-4" /> Back</button>
               <button type="button" onClick={() => setSlide(4)} className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3 shadow-md hover:shadow-lg transition-all">
-                Let's set you up →
+                Let's set you up
               </button>
             </div>
           </div>
@@ -3539,7 +3538,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
         {slide === 4 ? (
           <div className="flex-1 flex flex-col animate-enter space-y-5">
             <div>
-              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Quick Setup</div>
+              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Almost there</div>
               <h2 className="text-2xl font-black text-slate-900 mt-1">One last thing</h2>
               <p className="text-sm text-slate-500 mt-1.5 font-medium">Personalize your experience. You can change these any time in Settings.</p>
             </div>
@@ -3863,7 +3862,7 @@ const onSaved = () => {
                   onClick={openSettings}
                   className="w-full text-left px-3 py-2 text-sm font-bold rounded-lg hover:bg-slate-50"
                 >
-                  ⚙ Settings
+                  <Settings className="w-4 h-4 inline-block mr-1.5 align-middle -mt-px" />Settings
                 </button>
               </div>
             ) : null}
@@ -3919,6 +3918,7 @@ const onSaved = () => {
           title="Home"
         >
           <BookOpen className="w-6 h-6" />
+          <div className={cn("w-1 h-1 rounded-full transition-all duration-300", view === "home" ? "bg-emerald-500" : "bg-transparent")} />
         </button>
         <button
           type="button"
@@ -3935,6 +3935,7 @@ const onSaved = () => {
           title="Library"
         >
           <Library className="w-6 h-6" />
+          <div className={cn("w-1 h-1 rounded-full transition-all duration-300", view === "library" ? "bg-emerald-500" : "bg-transparent")} />
         </button>
       </div>
     </div>
