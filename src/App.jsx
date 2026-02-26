@@ -2157,7 +2157,7 @@ ${devotional.reflection}`);
                 }}
                 className="text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-full border border-slate-200 text-slate-700 bg-slate-50"
               >
-                {isVerseOfDayMode ? "VERSE OF THE DAY" : "YOUR VERSE"}
+                {isVerseOfDayMode ? "YOUR VERSE" : "VERSE OF THE DAY"}
               </button>
             </div>
 
