@@ -132,9 +132,11 @@ const GlobalStyles = () => (
     /* Spring button — replaces active:scale-95 everywhere */
     .btn-spring {
       transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
     .btn-spring:active {
-      transform: scale(0.91);
+      transform: scale(0.91) !important;
     }
     /* Nav icon bounce */
     .nav-bounce { animation: navBounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
@@ -149,24 +151,23 @@ const GlobalStyles = () => (
       animation: rippleOut 0.55s ease-out forwards;
       transform-origin: center;
     }
-    /* Scroll-reveal cards */
+    /* Scroll-reveal cards — CSS-only, no IntersectionObserver trap */
     .scroll-card {
-      opacity: 0;
-      transform: translateY(18px) scale(0.98);
+      animation: scrollReveal 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
     }
-    .scroll-card.revealed {
-      animation: scrollReveal 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-    .scroll-card.revealed.highlight {
-      animation: scrollReveal 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards,
-                 highlightPulse 1s ease 0.45s forwards;
-    }
+    .scroll-card:nth-child(1) { animation-delay: 0ms; }
+    .scroll-card:nth-child(2) { animation-delay: 60ms; }
+    .scroll-card:nth-child(3) { animation-delay: 120ms; }
+    .scroll-card:nth-child(4) { animation-delay: 180ms; }
+    .scroll-card:nth-child(5) { animation-delay: 240ms; }
     /* Mood chip spring */
     .chip-spring {
       transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
                   background-color 150ms ease,
                   color 150ms ease,
                   border-color 150ms ease;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
     .chip-spring:active { transform: scale(0.88); }
     /* AI toolbar btn spring */
@@ -174,8 +175,10 @@ const GlobalStyles = () => (
       transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1),
                   background-color 150ms ease,
                   border-color 150ms ease;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
-    .tool-spring:active { transform: scale(0.84); }
+    .tool-spring:active { transform: scale(0.84) !important; }
 
     /* Verse arrival animations */
     @keyframes verseReveal {
@@ -278,29 +281,6 @@ function PageTransition({ children, className }) {
 }
 
 /* ── Scroll-reveal hook ── */
-function useScrollReveal(deps = []) {
-  const ref = React.useRef(null);
-  React.useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.classList.remove("revealed", "highlight");
-    el.classList.add("scroll-card");
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          el.classList.add("revealed", "highlight");
-          obs.disconnect();
-        }
-      },
-      { threshold: 0.06 }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
-  return ref;
-}
-
 /* ── Count-up hook ── */
 function useCountUp(target, duration = 800) {
   const [val, setVal] = React.useState(0);
@@ -1352,7 +1332,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
         {todaysAction.text}
       </div>
 
-      <div className="bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 overflow-hidden relative">
+      <div className="bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 overflow-hidden relative scroll-card">
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/60 via-transparent to-sky-50/20 pointer-events-none" />
         <div className="relative flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
