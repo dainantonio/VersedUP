@@ -1809,6 +1809,12 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const verseRef = String(devotional.verseRef || "").trim();
   const verseText = String(devotional.verseText || "").trim();
   const version = devotional.bibleVersion || settings.defaultBibleVersion || "KJV";
+  const bookQuery = (devotional.verseRef || "").replace(/\d.*$/, "").trim();
+  const smartBookSuggestions = useMemo(() => {
+    if (!bookQuery) return [];
+    const q = bookQuery.toLowerCase();
+    return BIBLE_BOOKS.filter((b) => b.toLowerCase().startsWith(q) || b.toLowerCase().includes(q)).slice(0, 6);
+  }, [bookQuery]);
   const guidedMode = Boolean(settings.guidedMode);
   const aiNeedsKey =
     (settings.aiProvider === "openai" && !settings.openaiKey) ||
@@ -1857,6 +1863,12 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     return () => autoFetchTimer.current && clearTimeout(autoFetchTimer.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, verseRef, version]);
+
+  const applyBookSuggestion = (book) => {
+    const tail = String(devotional.verseRef || "").replace(/^\s*[^\d]*\s*/, "").trim();
+    const nextRef = tail ? `${book} ${tail}` : `${book} `;
+    onUpdate({ verseRef: nextRef, verseText: "", scriptureSource: "your_verse" });
+  };
 
   const doFetch = async () => {
     if (!verseRef) return;
@@ -2096,7 +2108,25 @@ ${devotional.reflection}`);
               <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
             </button>
 
-            <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "", scriptureSource: "your_verse" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
+            <div className="space-y-2">
+              <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">Bible Book, Chapter & Verse</div>
+              <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "", scriptureSource: "your_verse" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
+              <div className="text-[11px] text-slate-500 font-semibold">Start typing a Bible book to auto-fill, then add chapter and verse.</div>
+              {smartBookSuggestions.length ? (
+                <div className="flex flex-wrap gap-2 pt-0.5">
+                  {smartBookSuggestions.map((book) => (
+                    <button
+                      key={book}
+                      type="button"
+                      onClick={() => applyBookSuggestion(book)}
+                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50"
+                    >
+                      {book}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
             {verseText ? (
               <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
@@ -3817,7 +3847,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
 
 /* ---------------- App shell ---------------- */
 
-function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary }) {
+function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, showWriteHint }) {
   const [bouncing, setBouncing] = React.useState(null);
   const [fabPulse, setFabPulse] = React.useState(false);
   const handleNav = (target, fn) => {
@@ -3839,6 +3869,11 @@ function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary }) {
         <div className={cn("w-1 h-1 rounded-full transition-all duration-300", view === "home" ? "bg-emerald-500 scale-125" : "bg-transparent")} />
       </button>
       <div className="relative flex items-center justify-center">
+        {showWriteHint && view === "home" ? (
+          <div className="absolute -top-7 text-[10px] font-black uppercase tracking-widest text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+            Your Verse
+          </div>
+        ) : null}
         {fabPulse && <span className="absolute inset-0 rounded-full bg-slate-900 pointer-events-none" style={{ animation: "fabRing 0.6s ease-out forwards" }} />}
         <button type="button" onClick={handleFab}
           className="w-14 h-14 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.18)] btn-spring relative z-10"
@@ -3904,6 +3939,7 @@ function AppInner({ session, starterMood, onLogout }) {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [customVerseRef, setCustomVerseRef] = useState("");
   const [customVerseText, setCustomVerseText] = useState("");
+  const [hasUsedWriteFab, setHasUsedWriteFab] = useState(false);
 
   useEffect(() => {
     const handler = (e) => {
@@ -4045,6 +4081,7 @@ function AppInner({ session, starterMood, onLogout }) {
   };
 
   const writeFromYourVerse = () => {
+    setHasUsedWriteFab(true);
     const d = createDevotional(settings);
     d.scriptureSource = "your_verse";
     d.verseRef = customVerseRef;
@@ -4197,7 +4234,7 @@ const onSaved = () => {
       </main>
 
       {/* ── Bottom Nav Bar ── */}
-      <BottomNav view={view} onHome={() => setView("home")} onWriteFromYourVerse={writeFromYourVerse} onLibrary={() => setView("library")} />
+      <BottomNav view={view} onHome={() => setView("home")} onWriteFromYourVerse={writeFromYourVerse} onLibrary={() => setView("library")} showWriteHint={!hasUsedWriteFab && !customVerseRef} />
     </div>
     </ToastContext.Provider>
   );
