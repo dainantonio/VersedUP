@@ -1908,13 +1908,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, normalizedVerseRef, version]);
 
-  const applyBookSuggestion = (book) => {
-    const tail = String(devotional.verseRef || "").replace(/^\s*[^\d]*\s*/, "").trim();
-    const nextRef = tail ? `${book} ${tail}` : `${book} `;
-    onUpdate({ verseRef: nextRef, verseText: "", scriptureSource: "your_verse" });
-  };
-
-  const applyBookSuggestion = (book) => {
+  const handleBookSuggestionPick = (book) => {
     const tail = String(devotional.verseRef || "").replace(/^\s*[^\d]*\s*/, "").trim();
     const nextRef = tail ? `${book} ${tail}` : `${book} `;
     onUpdate({ verseRef: nextRef, verseText: "", scriptureSource: "your_verse" });
@@ -2191,7 +2185,7 @@ ${devotional.reflection}`);
                     <button
                       key={book}
                       type="button"
-                      onClick={() => applyBookSuggestion(book)}
+                      onClick={() => handleBookSuggestionPick(book)}
                       className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50"
                     >
                       {book}
