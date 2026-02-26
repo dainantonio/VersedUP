@@ -390,19 +390,25 @@ const DEFAULT_SETTINGS = {
 
 
 const THEME_OPTIONS = Object.freeze([
-  { id: "light",   label: "☀️  Light" },
-  { id: "warm",    label: "🌅  Warm" },
-  { id: "forest",  label: "🌿  Forest" },
-  { id: "ocean",   label: "🌊  Ocean" },
-  { id: "slate",   label: "🪨  Slate" },
+  { id: "light",   label: "Light",   swatch: ["#ecfdf5","#f8fafc","#f0f9ff"] },
+  { id: "sunrise", label: "Sunrise", swatch: ["#fff7ed","#fef3c7","#fce7f3"] },
+  { id: "sunset",  label: "Sunset",  swatch: ["#fce7f3","#ede9fe","#e0e7ff"] },
+  { id: "dusk",    label: "Dusk",    swatch: ["#ede9fe","#e0e7ff","#fce7f3"] },
+  { id: "warm",    label: "Warm",    swatch: ["#fffbeb","#fff7ed","#fff1f2"] },
+  { id: "forest",  label: "Forest",  swatch: ["#f0fdf4","#ecfdf5","#f0fdfa"] },
+  { id: "ocean",   label: "Ocean",   swatch: ["#f0f9ff","#eff6ff","#ecfeff"] },
+  { id: "slate",   label: "Slate",   swatch: ["#f1f5f9","#f8fafc","#fafafa"] },
 ]);
 
 const THEME_STYLES = Object.freeze({
-  light:  "from-emerald-50/60 via-slate-50 to-sky-50",
-  warm:   "from-amber-50 via-orange-50/40 to-rose-50/50",
-  forest: "from-green-50/80 via-emerald-50/60 to-teal-50/50",
-  ocean:  "from-sky-50/80 via-blue-50/60 to-cyan-50/50",
-  slate:  "from-slate-100 via-slate-50 to-zinc-50",
+  light:   "from-emerald-50/60 via-slate-50 to-sky-50",
+  sunrise: "from-orange-50 via-rose-50/50 to-amber-50/70",
+  sunset:  "from-rose-100/70 via-purple-50/50 to-indigo-50/60",
+  dusk:    "from-violet-50 via-indigo-50/40 to-rose-50/40",
+  warm:    "from-amber-50 via-orange-50/40 to-rose-50/50",
+  forest:  "from-green-50/80 via-emerald-50/60 to-teal-50/50",
+  ocean:   "from-sky-50/80 via-blue-50/60 to-cyan-50/50",
+  slate:   "from-slate-100 via-slate-50 to-zinc-50",
 });
 
 
@@ -2544,10 +2550,26 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
 
       <Card>
         <SectionLabel>Appearance / Theme</SectionLabel>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {THEME_OPTIONS.map((t) => (
-            <button key={t.id} type="button" onClick={() => onUpdate({ theme: t.id })} className={cn("rounded-2xl py-2.5 text-xs font-bold border", settings.theme === t.id ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
-              {t.label}
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onUpdate({ theme: t.id })}
+              className={cn(
+                "flex flex-col items-center gap-1.5 rounded-2xl py-2.5 px-1 border transition-all active:scale-95",
+                settings.theme === t.id
+                  ? "border-slate-900 shadow-md scale-[1.04]"
+                  : "border-slate-200 hover:border-slate-300"
+              )}
+            >
+              <div
+                className="w-8 h-8 rounded-xl shadow-sm border border-white/80"
+                style={{ background: `linear-gradient(135deg, ${t.swatch[0]} 0%, ${t.swatch[1]} 50%, ${t.swatch[2]} 100%)` }}
+              />
+              <span className={cn("text-[10px] font-bold leading-none", settings.theme === t.id ? "text-slate-900" : "text-slate-500")}>
+                {t.label}
+              </span>
             </button>
           ))}
         </div>
@@ -2558,10 +2580,26 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
 
       <Card>
         <SectionLabel>Appearance / Theme</SectionLabel>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {THEME_OPTIONS.map((t) => (
-            <button key={t.id} type="button" onClick={() => onUpdate({ theme: t.id })} className={cn("rounded-2xl py-2.5 text-xs font-bold border", settings.theme === t.id ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
-              {t.label}
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onUpdate({ theme: t.id })}
+              className={cn(
+                "flex flex-col items-center gap-1.5 rounded-2xl py-2.5 px-1 border transition-all active:scale-95",
+                settings.theme === t.id
+                  ? "border-slate-900 shadow-md scale-[1.04]"
+                  : "border-slate-200 hover:border-slate-300"
+              )}
+            >
+              <div
+                className="w-8 h-8 rounded-xl shadow-sm border border-white/80"
+                style={{ background: `linear-gradient(135deg, ${t.swatch[0]} 0%, ${t.swatch[1]} 50%, ${t.swatch[2]} 100%)` }}
+              />
+              <span className={cn("text-[10px] font-bold leading-none", settings.theme === t.id ? "text-slate-900" : "text-slate-500")}>
+                {t.label}
+              </span>
             </button>
           ))}
         </div>
