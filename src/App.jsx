@@ -1845,6 +1845,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [ttCountdown, setTtCountdown] = useState(2);
   const [showTikTokScript, setShowTikTokScript] = useState(false);
   const [scriptBusy, setScriptBusy] = useState(false);
+  const [isVerseOfDayMode, setIsVerseOfDayMode] = useState(() => devotional.scriptureSource !== "your_verse");
 
   const igCardRef = useRef(null);
   const autoFetchTimer = useRef(null);
@@ -1883,6 +1884,10 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   useEffect(() => {
     setPostText(compileForPlatform(platform, devotional, settings));
   }, [platform, devotional, settings]);
+
+  useEffect(() => {
+    setIsVerseOfDayMode(devotional.scriptureSource !== "your_verse");
+  }, [devotional.scriptureSource, devotional.id]);
 
   useEffect(() => {
     if (!ttOverlay) return;
@@ -2139,77 +2144,69 @@ ${devotional.reflection}`);
         <Card>
           <div className="space-y-4">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={cn("text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border", devotional.scriptureSource === "your_verse" ? "bg-sky-50 border-sky-200 text-sky-700" : "bg-emerald-50 border-emerald-200 text-emerald-700")}>{devotional.scriptureSource === "your_verse" ? "Your Verse" : "Verse of the Day"}</span>
               <button
                 type="button"
                 onClick={() => {
-                  if (devotional.scriptureSource === "your_verse") {
-                    onUseVerseOfDay();
-                  } else {
+                  if (isVerseOfDayMode) {
+                    setIsVerseOfDayMode(false);
                     onUpdate({ verseRef: "", verseText: "", verseTextEdited: false, scriptureSource: "your_verse" });
+                  } else {
+                    setIsVerseOfDayMode(true);
+                    onUseVerseOfDay();
                   }
                 }}
-                className="text-xs font-bold text-slate-500 underline"
+                className="text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-full border border-slate-200 text-slate-700 bg-slate-50"
               >
-                {devotional.scriptureSource === "your_verse" ? "VERSE OF THE DAY" : "YOUR VERSE"}
+                {isVerseOfDayMode ? "VERSE OF THE DAY" : "YOUR VERSE"}
               </button>
             </div>
-            <div className="text-2xl font-black text-slate-900">Enter Your Scripture</div>
-            <p className="text-sm text-slate-500 font-medium -mt-2">Start with Your Scripture</p>
 
-            {devotional.scriptureSource === "verse_of_day" ? (
-              <button type="button" onClick={() => onUseVerseOfDay()} className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">Use Verse of the Day</div>
+            {isVerseOfDayMode ? (
+              <div className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">VERSE OF THE DAY</div>
                 <div className="text-sm font-bold text-emerald-700 mt-1">{VERSE_OF_DAY.verseRef}</div>
                 <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
-              </button>
-            ) : null}
-
-            <div className="space-y-2">
-              <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">Bible Book, Chapter & Verse</div>
-              <input
-                list="bible-books-list"
-                value={devotional.verseRef}
-                onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "", scriptureSource: "your_verse" })}
-                onBlur={(e) => {
-                  const normalized = normalizeVerseReferenceInput(e.target.value);
-                  if (normalized && normalized !== e.target.value) onUpdate({ verseRef: normalized, scriptureSource: "your_verse" });
-                }}
-                placeholder="e.g. John 1:1"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
-              />
-              <div className="text-[11px] text-slate-500 font-semibold">Search formats supported: John1 verse 1, John 1:1, John 1 v 1.</div>
-              {smartBookSuggestions.length ? (
-                <div className="flex flex-wrap gap-2 pt-0.5">
-                  {smartBookSuggestions.map((book) => (
-                    <button
-                      key={book}
-                      type="button"
-                      onClick={() => handleBookSuggestionPick(book)}
-                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50"
-                    >
-                      {book}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
-
-            {devotional.scriptureSource === "your_verse" && normalizedVerseRef ? (
-              <button type="button" onClick={() => onUpdate({ verseRef: normalizedVerseRef, scriptureSource: "your_verse" })} className="w-full text-left rounded-2xl border border-sky-200 bg-sky-50 p-4">
-                <div className="text-xs font-black text-sky-700 uppercase tracking-wide">Use Your Verse</div>
-                <div className="text-sm font-bold text-sky-700 mt-1">{normalizedVerseRef}</div>
-                {verseText ? <div className="text-sm mt-1 font-serif-scripture text-slate-700">{verseText}</div> : null}
-              </button>
-            ) : null}
-
-            {verseText ? (
-              <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
-                <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{normalizedVerseRef || verseRef} ({version})</div>
-                <div className="mt-2 text-lg leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">{verseText}</div>
               </div>
-            ) : null}
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">Bible Book, Chapter & Verse</div>
+                  <input
+                    list="bible-books-list"
+                    value={devotional.verseRef}
+                    onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "", scriptureSource: "your_verse" })}
+                    onBlur={(e) => {
+                      const normalized = normalizeVerseReferenceInput(e.target.value);
+                      if (normalized && normalized !== e.target.value) onUpdate({ verseRef: normalized, scriptureSource: "your_verse" });
+                    }}
+                    placeholder="e.g. John 1:1"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
+                  />
+                  <div className="text-[11px] text-slate-500 font-semibold">Search formats supported: John1 verse 1, John 1:1, John 1 v 1.</div>
+                  {smartBookSuggestions.length ? (
+                    <div className="flex flex-wrap gap-2 pt-0.5">
+                      {smartBookSuggestions.map((book) => (
+                        <button
+                          key={book}
+                          type="button"
+                          onClick={() => handleBookSuggestionPick(book)}
+                          className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50"
+                        >
+                          {book}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
+
+                <div className="w-full text-left rounded-2xl border border-sky-200 bg-sky-50 p-4">
+                  <div className="text-xs font-black text-sky-700 uppercase tracking-wide">USE YOUR VERSE</div>
+                  <div className="text-sm font-bold text-sky-700 mt-1">{normalizedVerseRef || "Bible Book, Chapter & Verse"}</div>
+                  <div className="text-sm mt-1 font-serif-scripture text-slate-700">{verseText || "Type a scripture reference to populate this card."}</div>
+                </div>
+              </>
+            )}
 
             <SmallButton onClick={onGoSettings} tone="neutral">Scan a page instead</SmallButton>
             <button type="button" disabled={!verseReady} onClick={() => goToStep(2)} className="w-full rounded-2xl bg-emerald-600 disabled:opacity-40 text-white py-3 font-extrabold">Use this verse</button>
