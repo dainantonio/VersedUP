@@ -1914,6 +1914,12 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     onUpdate({ verseRef: nextRef, verseText: "", scriptureSource: "your_verse" });
   };
 
+  const applyBookSuggestion = (book) => {
+    const tail = String(devotional.verseRef || "").replace(/^\s*[^\d]*\s*/, "").trim();
+    const nextRef = tail ? `${book} ${tail}` : `${book} `;
+    onUpdate({ verseRef: nextRef, verseText: "", scriptureSource: "your_verse" });
+  };
+
   const doFetch = async () => {
     if (!normalizedVerseRef) return;
     setFetching(true);
