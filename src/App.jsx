@@ -69,28 +69,113 @@ const GlobalStyles = () => (
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    
     @keyframes fadeSlideInBottom {
       from { opacity: 0; transform: translateY(20px); }
       to { opacity: 1; transform: translateY(0); }
     }
-
     @keyframes pulse-soft {
       0%, 100% { transform: scale(1); opacity: 1; }
       50% { transform: scale(1.05); opacity: 0.8; }
+    }
+    /* Spring bounce for interactive elements */
+    @keyframes springPop {
+      0%   { transform: scale(1); }
+      35%  { transform: scale(0.88); }
+      65%  { transform: scale(1.08); }
+      82%  { transform: scale(0.97); }
+      100% { transform: scale(1); }
+    }
+    /* Nav icon bounce on tap */
+    @keyframes navBounce {
+      0%   { transform: translateY(0) scale(1); }
+      30%  { transform: translateY(-6px) scale(1.15); }
+      55%  { transform: translateY(1px) scale(0.96); }
+      75%  { transform: translateY(-2px) scale(1.04); }
+      100% { transform: translateY(0) scale(1); }
+    }
+    /* FAB pulse ring */
+    @keyframes fabRing {
+      0%   { transform: scale(1); opacity: 0.5; }
+      100% { transform: scale(1.7); opacity: 0; }
+    }
+    /* Float for VOTD card */
+    @keyframes floatCard {
+      0%, 100% { transform: translateY(0px); }
+      50%       { transform: translateY(-4px); }
+    }
+    /* Ripple */
+    @keyframes rippleOut {
+      0%   { transform: scale(0); opacity: 0.35; }
+      100% { transform: scale(4); opacity: 0; }
+    }
+    /* Scroll reveal */
+    @keyframes scrollReveal {
+      from { opacity: 0; transform: translateY(18px) scale(0.98); }
+      to   { opacity: 1; transform: translateY(0)    scale(1);    }
+    }
+    /* Highlight pulse on scroll-in */
+    @keyframes highlightPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+      40%  { box-shadow: 0 0 0 6px rgba(16,185,129,0.12); }
+      100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
     }
 
     .animate-enter {
       animation: fadeSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
-    
     .animate-toast {
       animation: fadeSlideInBottom 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
-    
     .animate-pulse-slow {
       animation: pulse-soft 3s ease-in-out infinite;
     }
+    /* Spring button — replaces active:scale-95 everywhere */
+    .btn-spring {
+      transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .btn-spring:active {
+      transform: scale(0.91);
+    }
+    /* Nav icon bounce */
+    .nav-bounce { animation: navBounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+    /* VOTD float */
+    .float-card { animation: floatCard 4s ease-in-out infinite; }
+    /* Ripple */
+    .ripple-ring {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.4);
+      pointer-events: none;
+      animation: rippleOut 0.55s ease-out forwards;
+      transform-origin: center;
+    }
+    /* Scroll-reveal cards */
+    .scroll-card {
+      opacity: 0;
+      transform: translateY(18px) scale(0.98);
+    }
+    .scroll-card.revealed {
+      animation: scrollReveal 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .scroll-card.revealed.highlight {
+      animation: scrollReveal 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+                 highlightPulse 1s ease 0.45s forwards;
+    }
+    /* Mood chip spring */
+    .chip-spring {
+      transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                  background-color 150ms ease,
+                  color 150ms ease,
+                  border-color 150ms ease;
+    }
+    .chip-spring:active { transform: scale(0.88); }
+    /* AI toolbar btn spring */
+    .tool-spring {
+      transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                  background-color 150ms ease,
+                  border-color 150ms ease;
+    }
+    .tool-spring:active { transform: scale(0.84); }
 
     /* Verse arrival animations */
     @keyframes verseReveal {
@@ -190,6 +275,83 @@ function ToastTicker({ toast }) {
 
 function PageTransition({ children, className }) {
   return <div className={cn("animate-enter", className)}>{children}</div>;
+}
+
+/* ── Scroll-reveal hook ── */
+function useScrollReveal(deps = []) {
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.classList.remove("revealed", "highlight");
+    el.classList.add("scroll-card");
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.classList.add("revealed", "highlight");
+          obs.disconnect();
+        }
+      },
+      { threshold: 0.06 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return ref;
+}
+
+/* ── Count-up hook ── */
+function useCountUp(target, duration = 800) {
+  const [val, setVal] = React.useState(0);
+  React.useEffect(() => {
+    if (!target) { setVal(0); return; }
+    let start = null;
+    const step = (ts) => {
+      if (!start) start = ts;
+      const pct = Math.min((ts - start) / duration, 1);
+      const eased = pct === 1 ? 1 : 1 - Math.pow(2, -10 * pct);
+      setVal(Math.round(target * eased));
+      if (pct < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [target, duration]);
+  return val;
+}
+
+/* ── Ripple button ── */
+function RippleButton({ onClick, className, children, style, type = "button", disabled, title, "aria-label": ariaLabel }) {
+  const [ripples, setRipples] = React.useState([]);
+  const handleClick = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 2;
+    const x = e.clientX - rect.left - size / 2;
+    const y = e.clientY - rect.top - size / 2;
+    const id = Date.now() + Math.random();
+    setRipples((r) => [...r, { id, x, y, size }]);
+    setTimeout(() => setRipples((r) => r.filter((rp) => rp.id !== id)), 600);
+    if (onClick) onClick(e);
+  };
+  return (
+    <button
+      type={type}
+      onClick={handleClick}
+      className={cn("relative overflow-hidden", className)}
+      style={style}
+      disabled={disabled}
+      title={title}
+      aria-label={ariaLabel}
+    >
+      {children}
+      {ripples.map((rp) => (
+        <span
+          key={rp.id}
+          className="ripple-ring"
+          style={{ width: rp.size, height: rp.size, left: rp.x, top: rp.y }}
+        />
+      ))}
+    </button>
+  );
 }
 
 /**
@@ -1139,6 +1301,15 @@ function bumpStreakOnSave() {
 
 /* ---------------- Views ---------------- */
 
+function StreakCounter({ target }) {
+  const val = useCountUp(target, 900);
+  return (
+    <div className="text-5xl font-black text-slate-900 tabular-nums leading-none transition-all">
+      {val}
+    </div>
+  );
+}
+
 function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, onStartWithVerse, hasActive, streak, displayName, devotionals, onOpen, onOpenReadyToPost, showInstallBanner, onInstall, onDismissInstall }) {
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
@@ -1185,7 +1356,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/60 via-transparent to-sky-50/20 pointer-events-none" />
         <div className="relative flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="text-5xl font-black text-slate-900 tabular-nums leading-none">{streak.count}</div>
+            <StreakCounter target={streak.count} />
             <div className="relative w-8 h-8 flex-shrink-0">
               <Flame className="w-8 h-8 text-orange-500 drop-shadow-sm animate-pulse-slow absolute inset-0" fill="currentColor" />
               <Flame className="w-8 h-8 text-yellow-400 absolute inset-0 mix-blend-overlay" fill="currentColor" />
@@ -1196,20 +1367,18 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
             </div>
           </div>
           <div className="flex gap-2">
-            <button
+            <RippleButton
               onClick={hasActive ? onContinue : onNew}
-              className="flex-shrink-0 px-4 py-3 rounded-2xl bg-slate-900 text-white text-sm font-extrabold shadow-lg hover:bg-slate-800 active:scale-95 transition-all"
-              type="button"
+              className="flex-shrink-0 px-4 py-3 rounded-2xl bg-slate-900 text-white text-sm font-extrabold shadow-lg hover:bg-slate-800 btn-spring"
             >
               {hasActive ? "Continue" : "Start"}
-            </button>
-            <button
+            </RippleButton>
+            <RippleButton
               onClick={onQuickPost}
-              className="flex-shrink-0 px-4 py-3 rounded-2xl bg-emerald-600 text-white text-sm font-extrabold shadow-lg hover:bg-emerald-700 active:scale-95 transition-all"
-              type="button"
+              className="flex-shrink-0 px-4 py-3 rounded-2xl bg-emerald-600 text-white text-sm font-extrabold shadow-lg hover:bg-emerald-700 btn-spring"
             >
               60-Second Post
-            </button>
+            </RippleButton>
           </div>
         </div>
       </div>
@@ -1223,7 +1392,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
               type="button"
               onClick={() => handleSelectMoodVerse(k)}
               className={cn(
-                "shrink-0 rounded-full border px-3 py-1.5 text-xs font-extrabold transition-colors",
+                "shrink-0 rounded-full border px-3 py-1.5 text-xs font-extrabold chip-spring",
                 moodVerseKey === k ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-600 border-slate-200"
               )}
             >
@@ -1237,7 +1406,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
         </div>
       </div>
 
-      <div className="bg-gradient-to-br from-emerald-600 to-teal-800 rounded-[1.75rem] p-6 text-white shadow-lg relative overflow-hidden">
+      <div className="bg-gradient-to-br from-emerald-600 to-teal-800 rounded-[1.75rem] p-6 text-white shadow-lg relative overflow-hidden float-card">
         <Quote className="absolute -bottom-4 -right-4 w-28 h-28 text-white/10 rotate-12" fill="currentColor" />
         <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
         <div className="flex items-center gap-2 mb-3 relative z-10">
@@ -1246,9 +1415,9 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
         </div>
         <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${VERSE_OF_DAY.verseText}"`}</div>
         <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
-        <button onClick={onReflectVerseOfDay} className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md active:scale-[0.985] transition-all flex items-center gap-2 border border-white/10 relative z-10" type="button">
+        <RippleButton onClick={onReflectVerseOfDay} className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md btn-spring flex items-center gap-2 border border-white/10 relative z-10">
           Reflect on this
-        </button>
+        </RippleButton>
       </div>
 
       {devotionals.length > 0 ? (() => {
@@ -1264,7 +1433,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
         })();
         const statusReady = Boolean(last.reflection && (last.reflection || "").length > 120);
         return (
-          <div className="w-full text-left bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-slate-200 transition-all group">
+          <div className="w-full text-left bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-slate-200 transition-all group scroll-card">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -1980,20 +2149,20 @@ ${devotional.reflection}`);
             <input value={devotional.title} onChange={(e) => onUpdate({ title: e.target.value })} placeholder="Give it a title (optional)" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
 
             <div className="flex gap-2 items-center">
-              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey} title="AI Draft" className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center disabled:opacity-40 hover:bg-emerald-700 transition-colors">
+              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey} title="AI Draft" className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center disabled:opacity-40 hover:bg-emerald-700 tool-spring">
                 <Sparkles className="w-4 h-4" />
               </button>
-              <button onClick={() => void doFix()} disabled={busy} title="Clean grammar" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 transition-colors">
+              <button onClick={() => void doFix()} disabled={busy} title="Clean grammar" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 tool-spring">
                 <Check className="w-4 h-4" />
               </button>
-              <button onClick={() => void doLength("shorten")} disabled={busy} title="Shorten" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 transition-colors">
+              <button onClick={() => void doLength("shorten")} disabled={busy} title="Shorten" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 tool-spring">
                 <ChevronLeft className="w-4 h-4 rotate-90" />
               </button>
-              <button onClick={() => void doLength("lengthen")} disabled={busy} title="Expand" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 transition-colors">
+              <button onClick={() => void doLength("lengthen")} disabled={busy} title="Expand" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 tool-spring">
                 <ChevronRight className="w-4 h-4 rotate-90" />
               </button>
               <div className="relative ml-auto">
-                <button onClick={() => setToneMenuOpen((o) => !o)} title="Adjust tone" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 transition-colors">
+                <button onClick={() => setToneMenuOpen((o) => !o)} title="Adjust tone" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 tool-spring">
                   <Wand2 className="w-4 h-4" />
                 </button>
                 {toneMenuOpen ? <div className="absolute bottom-full right-0 mb-1 z-30 w-40 rounded-xl border bg-white shadow-lg overflow-hidden">{["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t)=><button key={t} onClick={() => void doTone(t)} className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-slate-50 transition-colors">{t}</button>)}</div> : null}
@@ -3670,6 +3839,45 @@ function OnboardingWizard({ authDraft, onFinish }) {
 
 /* ---------------- App shell ---------------- */
 
+function BottomNav({ view, onHome, onNew, onLibrary }) {
+  const [bouncing, setBouncing] = React.useState(null);
+  const [fabPulse, setFabPulse] = React.useState(false);
+  const handleNav = (target, fn) => {
+    setBouncing(target);
+    setTimeout(() => setBouncing(null), 500);
+    fn();
+  };
+  const handleFab = () => {
+    setFabPulse(true);
+    setTimeout(() => setFabPulse(false), 600);
+    onNew();
+  };
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-12 pt-3 pb-7 bg-white/90 backdrop-blur-xl border-t border-slate-100">
+      <button type="button" onClick={() => handleNav("home", onHome)}
+        className={cn("flex flex-col items-center gap-1 transition-colors", view === "home" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
+        title="Home">
+        <BookOpen className={cn("w-6 h-6", bouncing === "home" ? "nav-bounce" : "")} />
+        <div className={cn("w-1 h-1 rounded-full transition-all duration-300", view === "home" ? "bg-emerald-500 scale-125" : "bg-transparent")} />
+      </button>
+      <div className="relative flex items-center justify-center">
+        {fabPulse && <span className="absolute inset-0 rounded-full bg-slate-900 pointer-events-none" style={{ animation: "fabRing 0.6s ease-out forwards" }} />}
+        <button type="button" onClick={handleFab}
+          className="w-14 h-14 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.18)] btn-spring relative z-10"
+          title="New Entry">
+          <Pencil className="w-6 h-6" />
+        </button>
+      </div>
+      <button type="button" onClick={() => handleNav("library", onLibrary)}
+        className={cn("flex flex-col items-center gap-1 transition-colors", view === "library" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
+        title="Library">
+        <Library className={cn("w-6 h-6", bouncing === "library" ? "nav-bounce" : "")} />
+        <div className={cn("w-1 h-1 rounded-full transition-all duration-300", view === "library" ? "bg-emerald-500 scale-125" : "bg-transparent")} />
+      </button>
+    </div>
+  );
+}
+
 function FABOption({ icon: Icon, label, onClick, active }) {
   return (
     <div className="flex items-center gap-3 justify-end">
@@ -4013,34 +4221,7 @@ const onSaved = () => {
       </main>
 
       {/* ── Bottom Nav Bar ── */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-12 pt-3 pb-7 bg-white/90 backdrop-blur-xl border-t border-slate-100">
-        <button
-          type="button"
-          onClick={() => setView("home")}
-          className={cn("flex flex-col items-center gap-1 transition-colors", view === "home" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
-          title="Home"
-        >
-          <BookOpen className="w-6 h-6" />
-          <div className={cn("w-1 h-1 rounded-full transition-all duration-300", view === "home" ? "bg-emerald-500" : "bg-transparent")} />
-        </button>
-        <button
-          type="button"
-          onClick={() => newEntry()}
-          className="w-14 h-14 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.18)] active:scale-95 transition-transform"
-          title="New Entry"
-        >
-          <Pencil className="w-6 h-6" />
-        </button>
-        <button
-          type="button"
-          onClick={() => setView("library")}
-          className={cn("flex flex-col items-center gap-1 transition-colors", view === "library" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
-          title="Library"
-        >
-          <Library className="w-6 h-6" />
-          <div className={cn("w-1 h-1 rounded-full transition-all duration-300", view === "library" ? "bg-emerald-500" : "bg-transparent")} />
-        </button>
-      </div>
+      <BottomNav view={view} onHome={() => setView("home")} onNew={() => newEntry()} onLibrary={() => setView("library")} />
     </div>
     </ToastContext.Provider>
   );
