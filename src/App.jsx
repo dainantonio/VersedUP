@@ -290,7 +290,7 @@ const TOPIC_CHIPS = [
   },
 ];
 
-const BIBLE_VERSIONS = ["KJV", "NLT", "ESV", "NKJV"];
+const BIBLE_VERSIONS = ["KJV", "ASV", "WEB", "NLT", "ESV", "NKJV"];
 
 const BIBLE_BOOKS = [
   "Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth",
@@ -305,41 +305,58 @@ const BIBLE_BOOKS = [
 ];
 
 const VERSE_OF_DAY_LIST = Object.freeze([
-  {
-    verseRef: "Psalm 23:1-2",
-    verseText: "The Lord is my shepherd; I shall not want. He makes me lie down in green pastures.",
-    suggestedTitle: "The Shepherd Who Leads Me",
-  },
-  {
-    verseRef: "Lamentations 3:22-23",
-    verseText: "His compassions fail not. They are new every morning: great is thy faithfulness.",
-    suggestedTitle: "New Mercies This Morning",
-  },
-  {
-    verseRef: "Isaiah 40:31",
-    verseText: "They that wait upon the Lord shall renew their strength; they shall mount up with wings as eagles.",
-    suggestedTitle: "Strength for Today",
-  },
-  {
-    verseRef: "Philippians 4:6-7",
-    verseText: "Be anxious for nothing... and the peace of God, which passeth all understanding, shall keep your hearts and minds through Christ Jesus.",
-    suggestedTitle: "Peace That Guards My Heart",
-  },
-  {
-    verseRef: "Matthew 11:28",
-    verseText: "Come unto me, all ye that labour and are heavy laden, and I will give you rest.",
-    suggestedTitle: "Come and Rest",
-  },
-  {
-    verseRef: "Proverbs 3:5-6",
-    verseText: "Trust in the Lord with all thine heart... and he shall direct thy paths.",
-    suggestedTitle: "Trusting His Direction",
-  },
-  {
-    verseRef: "Romans 8:28",
-    verseText: "And we know that all things work together for good to them that love God.",
-    suggestedTitle: "God Works Through It",
-  },
+  { verseRef: "Psalm 23:1-2", verseText: "The Lord is my shepherd; I shall not want. He maketh me to lie down in green pastures.", suggestedTitle: "The Shepherd Who Leads Me" },
+  { verseRef: "Lamentations 3:22-23", verseText: "His compassions fail not. They are new every morning: great is thy faithfulness.", suggestedTitle: "New Mercies This Morning" },
+  { verseRef: "Isaiah 40:31", verseText: "They that wait upon the Lord shall renew their strength; they shall mount up with wings as eagles.", suggestedTitle: "Strength for Today" },
+  { verseRef: "Philippians 4:6-7", verseText: "Be careful for nothing; but in every thing by prayer and supplication with thanksgiving let your requests be made known unto God. And the peace of God, which passeth all understanding, shall keep your hearts and minds through Christ Jesus.", suggestedTitle: "Peace That Guards My Heart" },
+  { verseRef: "Matthew 11:28", verseText: "Come unto me, all ye that labour and are heavy laden, and I will give you rest.", suggestedTitle: "Come and Rest" },
+  { verseRef: "Proverbs 3:5-6", verseText: "Trust in the Lord with all thine heart; and lean not unto thine own understanding. In all thy ways acknowledge him, and he shall direct thy paths.", suggestedTitle: "Trusting His Direction" },
+  { verseRef: "Romans 8:28", verseText: "And we know that all things work together for good to them that love God, to them who are the called according to his purpose.", suggestedTitle: "God Works Through It" },
+  { verseRef: "Jeremiah 29:11", verseText: "For I know the thoughts that I think toward you, saith the Lord, thoughts of peace, and not of evil, to give you an expected end.", suggestedTitle: "Plans for a Future and a Hope" },
+  { verseRef: "John 3:16", verseText: "For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.", suggestedTitle: "The Heart of the Gospel" },
+  { verseRef: "Psalm 46:10", verseText: "Be still, and know that I am God: I will be exalted among the heathen, I will be exalted in the earth.", suggestedTitle: "Be Still and Know" },
+  { verseRef: "Isaiah 41:10", verseText: "Fear thou not; for I am with thee: be not dismayed; for I am thy God: I will strengthen thee; yea, I will help thee; yea, I will uphold thee with the right hand of my righteousness.", suggestedTitle: "God Is With You" },
+  { verseRef: "2 Corinthians 12:9", verseText: "My grace is sufficient for thee: for my strength is made perfect in weakness. Most gladly therefore will I rather glory in my infirmities, that the power of Christ may rest upon me.", suggestedTitle: "Grace in the Weakness" },
+  { verseRef: "Philippians 4:13", verseText: "I can do all things through Christ which strengtheneth me.", suggestedTitle: "Strength Beyond Yourself" },
+  { verseRef: "Psalm 27:1", verseText: "The Lord is my light and my salvation; whom shall I fear? the Lord is the strength of my life; of whom shall I be afraid?", suggestedTitle: "The Lord Is My Light" },
+  { verseRef: "Romans 8:38-39", verseText: "For I am persuaded, that neither death, nor life, nor angels, nor principalities, nor powers, nor things present, nor things to come, nor height, nor depth, nor any other creature, shall be able to separate us from the love of God, which is in Christ Jesus our Lord.", suggestedTitle: "Nothing Can Separate Us" },
+  { verseRef: "Hebrews 11:1", verseText: "Now faith is the substance of things hoped for, the evidence of things not seen.", suggestedTitle: "Walking by Faith" },
+  { verseRef: "Galatians 2:20", verseText: "I am crucified with Christ: nevertheless I live; yet not I, but Christ liveth in me: and the life which I now live in the flesh I live by the faith of the Son of God, who loved me, and gave himself for me.", suggestedTitle: "Christ Lives in Me" },
+  { verseRef: "1 Peter 5:7", verseText: "Casting all your care upon him; for he careth for you.", suggestedTitle: "Cast Every Burden" },
+  { verseRef: "Psalm 34:18", verseText: "The Lord is nigh unto them that are of a broken heart; and saveth such as be of a contrite spirit.", suggestedTitle: "Near to the Brokenhearted" },
+  { verseRef: "John 14:27", verseText: "Peace I leave with you, my peace I give unto you: not as the world giveth, give I unto you. Let not your heart be troubled, neither let it be afraid.", suggestedTitle: "His Peace, Not the World's" },
+  { verseRef: "Joshua 1:9", verseText: "Have not I commanded thee? Be strong and of a good courage; be not afraid, neither be thou dismayed: for the Lord thy God is with thee whithersoever thou goest.", suggestedTitle: "Be Strong and Courageous" },
+  { verseRef: "Romans 12:2", verseText: "And be not conformed to this world: but be ye transformed by the renewing of your mind, that ye may prove what is that good, and acceptable, and perfect, will of God.", suggestedTitle: "Renewed, Not Conformed" },
+  { verseRef: "Ephesians 3:20", verseText: "Now unto him that is able to do exceeding abundantly above all that we ask or think, according to the power that worketh in us.", suggestedTitle: "Exceedingly Abundantly" },
+  { verseRef: "Psalm 121:1-2", verseText: "I will lift up mine eyes unto the hills, from whence cometh my help. My help cometh from the Lord, which made heaven and earth.", suggestedTitle: "My Help Comes From the Lord" },
+  { verseRef: "2 Timothy 1:7", verseText: "For God hath not given us the spirit of fear; but of power, and of love, and of a sound mind.", suggestedTitle: "A Spirit of Power" },
+  { verseRef: "Colossians 3:23", verseText: "And whatsoever ye do, do it heartily, as to the Lord, and not unto men.", suggestedTitle: "Work as Unto the Lord" },
+  { verseRef: "John 16:33", verseText: "These things I have spoken unto you, that in me ye might have peace. In the world ye shall have tribulation: but be of good cheer; I have overcome the world.", suggestedTitle: "Take Heart — He Has Overcome" },
+  { verseRef: "Psalm 16:11", verseText: "Thou wilt shew me the path of life: in thy presence is fulness of joy; at thy right hand there are pleasures for evermore.", suggestedTitle: "Fullness of Joy in His Presence" },
+  { verseRef: "Micah 6:8", verseText: "He hath shewed thee, O man, what is good; and what doth the Lord require of thee, but to do justly, and to love mercy, and to walk humbly with thy God?", suggestedTitle: "Justice, Mercy, Humility" },
+  { verseRef: "Matthew 6:33", verseText: "But seek ye first the kingdom of God, and his righteousness; and all these things shall be added unto you.", suggestedTitle: "Seek First the Kingdom" },
+  { verseRef: "Deuteronomy 31:8", verseText: "And the Lord, he it is that doth go before thee; he will be with thee, he will not fail thee, neither forsake thee: fear not, neither be dismayed.", suggestedTitle: "He Goes Before You" },
+  { verseRef: "Psalm 91:1-2", verseText: "He that dwelleth in the secret place of the most High shall abide under the shadow of the Almighty. I will say of the Lord, He is my refuge and my fortress: my God; in him will I trust.", suggestedTitle: "Under the Shadow of the Almighty" },
+  { verseRef: "Luke 1:37", verseText: "For with God nothing shall be impossible.", suggestedTitle: "Nothing Is Impossible With God" },
+  { verseRef: "James 1:5", verseText: "If any of you lack wisdom, let him ask of God, that giveth to all men liberally, and upbraideth not; and it shall be given him.", suggestedTitle: "Ask God for Wisdom" },
+  { verseRef: "Zephaniah 3:17", verseText: "The Lord thy God in the midst of thee is mighty; he will save, he will rejoice over thee with joy; he will rest in his love, he will joy over thee with singing.", suggestedTitle: "He Rejoices Over You With Singing" },
+  { verseRef: "John 15:5", verseText: "I am the vine, ye are the branches: He that abideth in me, and I in him, the same bringeth forth much fruit: for without me ye can do nothing.", suggestedTitle: "Remain in the Vine" },
+  { verseRef: "Romans 15:13", verseText: "Now the God of hope fill you with all joy and peace in believing, that ye may abound in hope, through the power of the Holy Ghost.", suggestedTitle: "Filled With Hope" },
+  { verseRef: "Psalm 119:105", verseText: "Thy word is a lamp unto my feet, and a light unto my path.", suggestedTitle: "A Lamp to My Path" },
+  { verseRef: "Isaiah 26:3", verseText: "Thou wilt keep him in perfect peace, whose mind is stayed on thee: because he trusteth in thee.", suggestedTitle: "Perfect Peace" },
+  { verseRef: "Ephesians 6:10", verseText: "Finally, my brethren, be strong in the Lord, and in the power of his might.", suggestedTitle: "Strong in the Lord" },
+  { verseRef: "1 John 4:4", verseText: "Ye are of God, little children, and have overcome them: because greater is he that is in you, than he that is in the world.", suggestedTitle: "Greater Is He in You" },
+  { verseRef: "Psalm 37:4", verseText: "Delight thyself also in the Lord: and he shall give thee the desires of thine heart.", suggestedTitle: "Delight in the Lord" },
+  { verseRef: "Revelation 21:5", verseText: "And he that sat upon the throne said, Behold, I make all things new. And he said unto me, Write: for these words are true and faithful.", suggestedTitle: "He Makes All Things New" },
+  { verseRef: "Matthew 5:16", verseText: "Let your light so shine before men, that they may see your good works, and glorify your Father which is in heaven.", suggestedTitle: "Let Your Light Shine" },
+  { verseRef: "Isaiah 43:2", verseText: "When thou passest through the waters, I will be with thee; and through the rivers, they shall not overflow thee: when thou walkest through the fire, thou shalt not be burned.", suggestedTitle: "Through the Waters With You" },
+  { verseRef: "Romans 5:8", verseText: "But God commendeth his love toward us, in that, while we were yet sinners, Christ died for us.", suggestedTitle: "Love Demonstrated" },
+  { verseRef: "1 Corinthians 13:4-7", verseText: "Charity suffereth long, and is kind; charity envieth not; charity vaunteth not itself, is not puffed up... Beareth all things, believeth all things, hopeth all things, endureth all things.", suggestedTitle: "What Love Really Looks Like" },
+  { verseRef: "Psalm 103:12", verseText: "As far as the east is from the west, so far hath he removed our transgressions from us.", suggestedTitle: "Forgiven, Completely" },
+  { verseRef: "Philippians 1:6", verseText: "Being confident of this very thing, that he which hath begun a good work in you will perform it until the day of Jesus Christ.", suggestedTitle: "He Will Complete the Work" },
+  { verseRef: "Hebrews 12:1-2", verseText: "Let us run with patience the race that is set before us, looking unto Jesus the author and finisher of our faith.", suggestedTitle: "Eyes Fixed on Jesus" },
+  { verseRef: "2 Chronicles 7:14", verseText: "If my people, which are called by my name, shall humble themselves, and pray, and seek my face, and turn from their wicked ways; then will I hear from heaven, and will forgive their sin, and will heal their land.", suggestedTitle: "A Call to Seek His Face" },
+  { verseRef: "Nehemiah 8:10", verseText: "Go your way, eat the fat, and drink the sweet, and send portions unto them for whom nothing is prepared: for this day is holy unto our Lord: neither be ye sorry; for the joy of the Lord is your strength.", suggestedTitle: "Joy as Strength" },
 ]);
 
 const getVerseOfDay = (date = new Date()) => {
@@ -531,8 +548,11 @@ function getEntryQueueStatus(d) {
   return { id: "draft", label: "Draft", tone: "bg-sky-50 text-sky-700 border-sky-200", dot: "🔵" };
 }
 
-function isKjv(version) {
-  return String(version || "").toUpperCase() === "KJV";
+// Translations supported by bible-api.com (free, no key)
+const BIBLE_API_TRANSLATIONS = { KJV: "kjv", ASV: "asv", WEB: "web" };
+
+function canFetchDirect(version) {
+  return Object.prototype.hasOwnProperty.call(BIBLE_API_TRANSLATIONS, String(version || "").toUpperCase());
 }
 
 function bibleGatewayUrl(passage, version = "KJV") {
@@ -540,10 +560,11 @@ function bibleGatewayUrl(passage, version = "KJV") {
   return `https://www.biblegateway.com/passage/?search=${q}&version=${version}`;
 }
 
-async function fetchKjvFromBibleApi(passage) {
+async function fetchVerseFromBibleApi(passage, version = "KJV") {
   const ref = String(passage || "").trim();
   if (!ref) throw new Error("Enter a passage first.");
-  const url = `https://bible-api.com/${encodeURIComponent(ref)}?translation=kjv`;
+  const translation = BIBLE_API_TRANSLATIONS[String(version).toUpperCase()] || "kjv";
+  const url = `https://bible-api.com/${encodeURIComponent(ref)}?translation=${translation}`;
   const res = await fetch(url);
   const data = await res.json();
   if (!res.ok || !data?.text) {
@@ -551,6 +572,9 @@ async function fetchKjvFromBibleApi(passage) {
   }
   return String(data.text).trim();
 }
+
+// Keep legacy alias for any remaining callers
+const fetchKjvFromBibleApi = (passage) => fetchVerseFromBibleApi(passage, "KJV");
 
 function insertAtCursor(textareaEl, currentValue, insertText) {
   const insertion = String(insertText || "");
@@ -1115,7 +1139,7 @@ function bumpStreakOnSave() {
 
 /* ---------------- Views ---------------- */
 
-function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, onStartWithVerse, hasActive, streak, displayName, devotionals, onOpen, onOpenReadyToPost }) {
+function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, onStartWithVerse, hasActive, streak, displayName, devotionals, onOpen, onOpenReadyToPost, showInstallBanner, onInstall, onDismissInstall }) {
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
   const [homeVerseRef, setHomeVerseRef] = useState("");
@@ -1136,6 +1160,17 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
 
   return (
     <div className="space-y-4 pb-20 animate-enter">
+      {showInstallBanner && (
+        <div className="flex items-center gap-3 bg-indigo-600 text-white rounded-2xl px-4 py-3 shadow-md">
+          <div className="text-xl">📲</div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-bold leading-tight">Add VersedUP to your home screen</div>
+            <div className="text-xs text-indigo-200 mt-0.5">Launch instantly, like a native app</div>
+          </div>
+          <button onClick={onInstall} className="bg-white text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-xl flex-shrink-0 hover:bg-indigo-50 transition-colors">Install</button>
+          <button onClick={onDismissInstall} className="text-indigo-200 hover:text-white transition-colors flex-shrink-0" aria-label="Dismiss"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+      )}
       <div className="pt-1">
         <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
@@ -1677,11 +1712,11 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     if (!verseRef) return;
     setFetching(true);
     try {
-      if (!isKjv(version)) {
-        window.open(bibleGatewayUrl(verseRef, version), "_blank", "noopener,noreferrer");
-      } else {
-        const text = await fetchKjvFromBibleApi(verseRef);
+      if (canFetchDirect(version)) {
+        const text = await fetchVerseFromBibleApi(verseRef, version);
         onUpdate({ verseText: text, verseTextEdited: false });
+      } else {
+        window.open(bibleGatewayUrl(verseRef, version), "_blank", "noopener,noreferrer");
       }
     } catch (e) {
       pushToast(e?.message || "Fetch failed.");
@@ -3679,6 +3714,33 @@ function AppInner({ session, starterMood, onLogout }) {
   });
   const [view, setView] = useState(() => String(localStorage.getItem(STORAGE_VIEW) || "home"));
   const [lastNonSettingsView, setLastNonSettingsView] = useState(() => String(localStorage.getItem(`${STORAGE_VIEW}_last`) || "home"));
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      const dismissed = localStorage.getItem("versed_install_dismissed");
+      if (!dismissed) setShowInstallBanner(true);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const doInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    setInstallPrompt(null);
+    setShowInstallBanner(false);
+    if (outcome === "accepted") localStorage.setItem("versed_install_dismissed", "1");
+  };
+
+  const dismissInstall = () => {
+    setShowInstallBanner(false);
+    localStorage.setItem("versed_install_dismissed", "1");
+  };
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   
@@ -3924,6 +3986,9 @@ const onSaved = () => {
             devotionals={safeDevotionals}
             onOpen={openEntry}
             onOpenReadyToPost={(id) => openEntry(id, "compile")}
+            showInstallBanner={showInstallBanner}
+            onInstall={doInstall}
+            onDismissInstall={dismissInstall}
           />
         ) : null}
 
