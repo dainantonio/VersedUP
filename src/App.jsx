@@ -675,7 +675,23 @@ function createDevotional(settings) {
     tiktokScript: "",
     status: "draft",
     reviewed: false,
+    scriptureSource: "verse_of_day",
   };
+}
+
+function BrandLogo({ className = "h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105" }) {
+  return (
+    <img
+      src={assetUrl("logo.png")}
+      alt="VersedUP"
+      className={className}
+      draggable="false"
+      onError={(e) => {
+        e.currentTarget.onerror = null;
+        e.currentTarget.style.display = "none";
+      }}
+    />
+  );
 }
 
 
@@ -1290,10 +1306,9 @@ function StreakCounter({ target }) {
   );
 }
 
-function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, onStartWithVerse, hasActive, streak, displayName, devotionals, onOpen, onOpenReadyToPost, showInstallBanner, onInstall, onDismissInstall }) {
+function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, hasActive, streak, displayName, devotionals, onOpen, onOpenReadyToPost, showInstallBanner, onInstall, onDismissInstall }) {
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
-  const [homeVerseRef, setHomeVerseRef] = useState("");
   const moodVerse = MOOD_VERSES[moodVerseKey] || MOOD_VERSES.joy;
 
   const handleSelectMoodVerse = (key) => {
@@ -1439,22 +1454,8 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
       })() : (
         <div className="bg-gradient-to-br from-sky-50 to-indigo-50 rounded-[1.75rem] border border-sky-100 p-5">
           <div className="text-[10px] font-black uppercase tracking-widest text-sky-400 mb-2">Fresh Start</div>
-          <div className="text-sm text-slate-700 leading-relaxed font-semibold mb-3">What verse is speaking to you today?</div>
-          <div className="flex gap-2">
-            <input
-              value={homeVerseRef}
-              onChange={(e) => setHomeVerseRef(e.target.value)}
-              placeholder="e.g. John 15:5"
-              className="flex-1 rounded-xl border border-sky-200 px-3 py-2.5 text-sm font-semibold outline-none focus:ring-4 focus:ring-sky-100"
-            />
-            <button
-              type="button"
-              onClick={() => onStartWithVerse(homeVerseRef)}
-              className="rounded-xl bg-sky-600 text-white px-3 py-2.5 text-xs font-extrabold"
-            >
-              Start
-            </button>
-          </div>
+          <div className="text-sm text-slate-700 leading-relaxed font-semibold">Verse of the Day is your daily spark.</div>
+          <div className="mt-2 text-xs font-bold text-sky-700">Tap the Write button below to start with your own scripture.</div>
         </div>
       )}
     </div>
@@ -1783,7 +1784,7 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
   );
 }
 
-function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings }) {
+function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings, onUseVerseOfDay }) {
   const verseOfDay = React.useMemo(() => getVerseOfDay(), []);
   const { pushToast } = useToast();
   const [busy, setBusy] = useState(false);
@@ -2081,14 +2082,21 @@ ${devotional.reflection}`);
       {step === 1 ? (
         <Card>
           <div className="space-y-4">
-            <div className="text-2xl font-black text-slate-900">What verse is speaking to you today?</div>
-            <button type="button" onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false })} className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">Verse of the Day</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={cn("text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border", devotional.scriptureSource === "your_verse" ? "bg-sky-50 border-sky-200 text-sky-700" : "bg-emerald-50 border-emerald-200 text-emerald-700")}>{devotional.scriptureSource === "your_verse" ? "Your Verse" : "Verse of the Day"}</span>
+              {devotional.scriptureSource === "your_verse" && devotional.verseRef ? (
+                <button type="button" onClick={() => onUpdate({ verseRef: "", verseText: "", verseTextEdited: false, scriptureSource: "your_verse" })} className="text-xs font-bold text-slate-500 underline">Change Verse</button>
+              ) : null}
+            </div>
+            <div className="text-2xl font-black text-slate-900">Enter Your Scripture</div>
+            <p className="text-sm text-slate-500 font-medium -mt-2">Start with Your Scripture</p>
+            <button type="button" onClick={() => onUseVerseOfDay()} className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">Use Verse of the Day</div>
               <div className="text-sm font-bold text-emerald-700 mt-1">{VERSE_OF_DAY.verseRef}</div>
               <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
             </button>
 
-            <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
+            <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "", scriptureSource: "your_verse" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
             <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
             {verseText ? (
               <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
@@ -3422,17 +3430,7 @@ function LandingView({ onGetStarted, onViewDemo }) {
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-sky-50 px-4 py-10 animate-enter flex flex-col justify-center">
       <div className="max-w-md mx-auto w-full">
         <div className="rounded-[2.5rem] border border-slate-100 bg-white/80 backdrop-blur-xl p-10 shadow-2xl">
-          <img
-            src={assetUrl("logo.png")}
-            alt="VersedUP"
-            className="h-36 sm:h-40 w-auto mx-auto drop-shadow-md mb-6"
-            draggable="false"
-            onError={(e) => {
-              e.currentTarget.onerror = null;
-              // Fallback to text if logo fails
-              e.currentTarget.style.display = 'none';
-            }}
-          />
+          <BrandLogo className="h-36 sm:h-40 w-auto mx-auto drop-shadow-md mb-6" />
           <h1 className="mt-4 text-3xl font-black text-slate-900 text-center tracking-tight leading-tight">Rooted in Christ,<br/>growing in His fruit.</h1>
           <p className="mt-4 text-base text-slate-600 text-center leading-relaxed font-medium">Create devotionals, polish your reflection, and prepare share-ready content.</p>
 
@@ -3819,7 +3817,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
 
 /* ---------------- App shell ---------------- */
 
-function BottomNav({ view, onHome, onNew, onLibrary }) {
+function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary }) {
   const [bouncing, setBouncing] = React.useState(null);
   const [fabPulse, setFabPulse] = React.useState(false);
   const handleNav = (target, fn) => {
@@ -3830,7 +3828,7 @@ function BottomNav({ view, onHome, onNew, onLibrary }) {
   const handleFab = () => {
     setFabPulse(true);
     setTimeout(() => setFabPulse(false), 600);
-    onNew();
+    onWriteFromYourVerse();
   };
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-12 pt-3 pb-7 bg-white/90 backdrop-blur-xl border-t border-slate-100">
@@ -3844,7 +3842,7 @@ function BottomNav({ view, onHome, onNew, onLibrary }) {
         {fabPulse && <span className="absolute inset-0 rounded-full bg-slate-900 pointer-events-none" style={{ animation: "fabRing 0.6s ease-out forwards" }} />}
         <button type="button" onClick={handleFab}
           className="w-14 h-14 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.18)] btn-spring relative z-10"
-          title="New Entry">
+          title="Use Your Own Verse">
           <Pencil className="w-6 h-6" />
         </button>
       </div>
@@ -3904,6 +3902,8 @@ function AppInner({ session, starterMood, onLogout }) {
   const [lastNonSettingsView, setLastNonSettingsView] = useState(() => String(localStorage.getItem(`${STORAGE_VIEW}_last`) || "home"));
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [customVerseRef, setCustomVerseRef] = useState("");
+  const [customVerseText, setCustomVerseText] = useState("");
 
   useEffect(() => {
     const handler = (e) => {
@@ -4015,8 +4015,16 @@ function AppInner({ session, starterMood, onLogout }) {
 
   const updateDevotional = (patch) => {
     if (!active) return;
+    const safePatch = { ...patch };
+    if (Object.prototype.hasOwnProperty.call(safePatch, "verseRef")) {
+      safePatch.scriptureSource = String(safePatch.verseRef || "").trim() ? "your_verse" : (active.scriptureSource || "verse_of_day");
+      setCustomVerseRef(String(safePatch.verseRef || "").trim());
+    }
+    if (Object.prototype.hasOwnProperty.call(safePatch, "verseText")) {
+      setCustomVerseText(String(safePatch.verseText || "").trim());
+    }
     setDevotionals((list) =>
-      (Array.isArray(list) ? list : []).map((d) => (d.id === active.id ? { ...d, ...patch, updatedAt: nowIso() } : d))
+      (Array.isArray(list) ? list : []).map((d) => (d.id === active.id ? { ...d, ...safePatch, updatedAt: nowIso() } : d))
     );
   };
 
@@ -4036,15 +4044,11 @@ function AppInner({ session, starterMood, onLogout }) {
     setView("write");
   };
 
-  const startWithVerse = (verseRef) => {
-    const cleaned = String(verseRef || "").trim();
-    if (!cleaned) {
-      pushToast("Add a verse reference to start.");
-      return;
-    }
+  const writeFromYourVerse = () => {
     const d = createDevotional(settings);
-    d.verseRef = cleaned;
-    d.reflection = `Today I’m reflecting on ${cleaned}.`;
+    d.scriptureSource = "your_verse";
+    d.verseRef = customVerseRef;
+    d.verseText = customVerseText;
     setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
     setActiveId(d.id);
     setView("write");
@@ -4057,6 +4061,7 @@ function AppInner({ session, starterMood, onLogout }) {
     d.verseText = _votd.verseText;
     d.title = _votd.suggestedTitle;
     d.reflection = `Today I reflect on ${_votd.verseRef}. Lord, help me trust Your shepherding in every step.`;
+    d.scriptureSource = "verse_of_day";
     setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
     setActiveId(d.id);
     setView("write");
@@ -4120,16 +4125,7 @@ const onSaved = () => {
 
       <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/50 px-4 py-3.5 transition-all duration-300">
         <div className="max-w-md mx-auto flex items-center gap-4">
-          <img
-            src={assetUrl("logo.png")}
-            alt="VersedUP"
-            className="h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105"
-            draggable="false"
-            onError={(e) => {
-              e.currentTarget.onerror = null;
-              e.currentTarget.style.display = 'none';
-            }}
-          />
+          <BrandLogo className="h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105" />
           <div className="min-w-0 leading-tight flex-1">
             <div className="text-[15px] font-extrabold text-slate-900 tracking-tight">Rooted in Christ</div>
           </div>
@@ -4167,7 +4163,6 @@ const onSaved = () => {
             onContinue={() => setView(active ? "write" : "home")}
             onReflectVerseOfDay={reflectVerseOfDay}
             onQuickPost={quickPost}
-            onStartWithVerse={startWithVerse}
             hasActive={Boolean(active)}
             streak={streak}
             displayName={getDisplayName(session, settings)}
@@ -4189,6 +4184,7 @@ const onSaved = () => {
             onGoPolish={() => setView("polish")}
             onSaved={onSaved}
             onGoSettings={() => setView("settings")}
+            onUseVerseOfDay={reflectVerseOfDay}
           />
         ) : null}
 
@@ -4201,7 +4197,7 @@ const onSaved = () => {
       </main>
 
       {/* ── Bottom Nav Bar ── */}
-      <BottomNav view={view} onHome={() => setView("home")} onNew={() => newEntry()} onLibrary={() => setView("library")} />
+      <BottomNav view={view} onHome={() => setView("home")} onWriteFromYourVerse={writeFromYourVerse} onLibrary={() => setView("library")} />
     </div>
     </ToastContext.Provider>
   );
