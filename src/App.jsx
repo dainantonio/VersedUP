@@ -718,6 +718,50 @@ function bibleGatewayUrl(passage, version = "KJV") {
   return `https://www.biblegateway.com/passage/?search=${q}&version=${version}`;
 }
 
+function normalizeVerseReferenceInput(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  let txt = raw
+    .replace(/verse/gi, ":")
+    .replace(/v/gi, ":")
+    .replace(/\s*:\s*/g, ":")
+    .replace(/([A-Za-z])(\d)/g, "$1 $2")
+    .replace(/(\d)([A-Za-z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const bookMatch = txt.match(/^([1-3]?\s*[A-Za-z]+(?:\s+[A-Za-z]+)*)\s*(.*)$/);
+  if (!bookMatch) return txt;
+
+  const rawBook = String(bookMatch[1] || "").trim();
+  const rest = String(bookMatch[2] || "").trim();
+  const normalizedBookKey = rawBook.toLowerCase().replace(/\s+/g, "");
+
+  let book = BIBLE_BOOKS.find((b) => b.toLowerCase().replace(/\s+/g, "") === normalizedBookKey)
+    || BIBLE_BOOKS.find((b) => b.toLowerCase().replace(/\s+/g, "").startsWith(normalizedBookKey));
+
+  if (!book) {
+    book = rawBook
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => w[0]?.toUpperCase() + w.slice(1))
+      .join(" ");
+  }
+
+  if (!rest) return book;
+
+  const cv = rest.match(/^(\d{1,3})(?:\s*:\s*(\d{1,3}))?/);
+  if (cv) {
+    const chapter = cv[1];
+    const verse = cv[2];
+    return verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`;
+  }
+
+  return `${book} ${rest}`.trim();
+}
+
 async function fetchVerseFromBibleApi(passage, version = "KJV") {
   const ref = String(passage || "").trim();
   if (!ref) throw new Error("Enter a passage first.");
@@ -1785,7 +1829,6 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
 }
 
 function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings, onUseVerseOfDay }) {
-  const verseOfDay = React.useMemo(() => getVerseOfDay(), []);
   const { pushToast } = useToast();
   const [busy, setBusy] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -1807,6 +1850,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const autoFetchTimer = useRef(null);
 
   const verseRef = String(devotional.verseRef || "").trim();
+  const normalizedVerseRef = normalizeVerseReferenceInput(verseRef);
   const verseText = String(devotional.verseText || "").trim();
   const version = devotional.bibleVersion || settings.defaultBibleVersion || "KJV";
   const bookQuery = (devotional.verseRef || "").replace(/\d.*$/, "").trim();
@@ -1854,15 +1898,21 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
 
   useEffect(() => {
     if (step !== 1) return;
-    if (!verseRef) return;
-    const validLike = /\b\d{1,3}:\d{1,3}/.test(verseRef) || /\b\d{1,3}\b/.test(verseRef);
+    if (!normalizedVerseRef) return;
+    const validLike = /\b\d{1,3}:\d{1,3}/.test(normalizedVerseRef) || /\b\d{1,3}\b/.test(normalizedVerseRef);
     if (!validLike) return;
     if (verseText) return;
     if (autoFetchTimer.current) clearTimeout(autoFetchTimer.current);
     autoFetchTimer.current = setTimeout(() => { void doFetch(); }, 500);
     return () => autoFetchTimer.current && clearTimeout(autoFetchTimer.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, verseRef, version]);
+  }, [step, normalizedVerseRef, version]);
+
+  const applyBookSuggestion = (book) => {
+    const tail = String(devotional.verseRef || "").replace(/^\s*[^\d]*\s*/, "").trim();
+    const nextRef = tail ? `${book} ${tail}` : `${book} `;
+    onUpdate({ verseRef: nextRef, verseText: "", scriptureSource: "your_verse" });
+  };
 
   const applyBookSuggestion = (book) => {
     const tail = String(devotional.verseRef || "").replace(/^\s*[^\d]*\s*/, "").trim();
@@ -1871,14 +1921,14 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   };
 
   const doFetch = async () => {
-    if (!verseRef) return;
+    if (!normalizedVerseRef) return;
     setFetching(true);
     try {
       if (canFetchDirect(version)) {
-        const text = await fetchVerseFromBibleApi(verseRef, version);
-        onUpdate({ verseText: text, verseTextEdited: false });
+        const text = await fetchVerseFromBibleApi(normalizedVerseRef, version);
+        onUpdate({ verseRef: normalizedVerseRef, verseText: text, verseTextEdited: false, scriptureSource: "your_verse" });
       } else {
-        window.open(bibleGatewayUrl(verseRef, version), "_blank", "noopener,noreferrer");
+        window.open(bibleGatewayUrl(normalizedVerseRef, version), "_blank", "noopener,noreferrer");
       }
     } catch (e) {
       pushToast(e?.message || "Fetch failed.");
@@ -2024,7 +2074,7 @@ ${devotional.reflection}`);
 
   const stepTitles = ["Scripture", "Your Heart", "Shape It", "Post It"];
   const progress = (step / 4) * 100;
-  const verseReady = Boolean(verseText);
+  const verseReady = Boolean(normalizedVerseRef);
   const heartReady = Boolean(String(devotional.reflection || "").trim() || String(devotional.prayer || "").trim() || String(devotional.questions || "").trim());
   const canAccessStep = (nextStep) => {
     if (nextStep <= 1) return true;
@@ -2096,22 +2146,45 @@ ${devotional.reflection}`);
           <div className="space-y-4">
             <div className="flex items-center gap-2 flex-wrap">
               <span className={cn("text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border", devotional.scriptureSource === "your_verse" ? "bg-sky-50 border-sky-200 text-sky-700" : "bg-emerald-50 border-emerald-200 text-emerald-700")}>{devotional.scriptureSource === "your_verse" ? "Your Verse" : "Verse of the Day"}</span>
-              {devotional.scriptureSource === "your_verse" && devotional.verseRef ? (
-                <button type="button" onClick={() => onUpdate({ verseRef: "", verseText: "", verseTextEdited: false, scriptureSource: "your_verse" })} className="text-xs font-bold text-slate-500 underline">Change Verse</button>
-              ) : null}
+              <button
+                type="button"
+                onClick={() => {
+                  if (devotional.scriptureSource === "your_verse") {
+                    onUseVerseOfDay();
+                  } else {
+                    onUpdate({ verseRef: "", verseText: "", verseTextEdited: false, scriptureSource: "your_verse" });
+                  }
+                }}
+                className="text-xs font-bold text-slate-500 underline"
+              >
+                {devotional.scriptureSource === "your_verse" ? "VERSE OF THE DAY" : "YOUR VERSE"}
+              </button>
             </div>
             <div className="text-2xl font-black text-slate-900">Enter Your Scripture</div>
             <p className="text-sm text-slate-500 font-medium -mt-2">Start with Your Scripture</p>
-            <button type="button" onClick={() => onUseVerseOfDay()} className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">Use Verse of the Day</div>
-              <div className="text-sm font-bold text-emerald-700 mt-1">{VERSE_OF_DAY.verseRef}</div>
-              <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
-            </button>
+
+            {devotional.scriptureSource === "verse_of_day" ? (
+              <button type="button" onClick={() => onUseVerseOfDay()} className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">Use Verse of the Day</div>
+                <div className="text-sm font-bold text-emerald-700 mt-1">{VERSE_OF_DAY.verseRef}</div>
+                <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
+              </button>
+            ) : null}
 
             <div className="space-y-2">
               <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">Bible Book, Chapter & Verse</div>
-              <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "", scriptureSource: "your_verse" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
-              <div className="text-[11px] text-slate-500 font-semibold">Start typing a Bible book to auto-fill, then add chapter and verse.</div>
+              <input
+                list="bible-books-list"
+                value={devotional.verseRef}
+                onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "", scriptureSource: "your_verse" })}
+                onBlur={(e) => {
+                  const normalized = normalizeVerseReferenceInput(e.target.value);
+                  if (normalized && normalized !== e.target.value) onUpdate({ verseRef: normalized, scriptureSource: "your_verse" });
+                }}
+                placeholder="e.g. John 1:1"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
+              />
+              <div className="text-[11px] text-slate-500 font-semibold">Search formats supported: John1 verse 1, John 1:1, John 1 v 1.</div>
               {smartBookSuggestions.length ? (
                 <div className="flex flex-wrap gap-2 pt-0.5">
                   {smartBookSuggestions.map((book) => (
@@ -2128,9 +2201,18 @@ ${devotional.reflection}`);
               ) : null}
             </div>
             <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
+
+            {devotional.scriptureSource === "your_verse" && normalizedVerseRef ? (
+              <button type="button" onClick={() => onUpdate({ verseRef: normalizedVerseRef, scriptureSource: "your_verse" })} className="w-full text-left rounded-2xl border border-sky-200 bg-sky-50 p-4">
+                <div className="text-xs font-black text-sky-700 uppercase tracking-wide">Use Your Verse</div>
+                <div className="text-sm font-bold text-sky-700 mt-1">{normalizedVerseRef}</div>
+                {verseText ? <div className="text-sm mt-1 font-serif-scripture text-slate-700">{verseText}</div> : null}
+              </button>
+            ) : null}
+
             {verseText ? (
               <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
-                <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{verseRef} ({version})</div>
+                <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{normalizedVerseRef || verseRef} ({version})</div>
                 <div className="mt-2 text-lg leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">{verseText}</div>
               </div>
             ) : null}
@@ -4221,7 +4303,10 @@ const onSaved = () => {
             onGoPolish={() => setView("polish")}
             onSaved={onSaved}
             onGoSettings={() => setView("settings")}
-            onUseVerseOfDay={reflectVerseOfDay}
+            onUseVerseOfDay={() => {
+              const _votd = getVerseOfDay();
+              updateDevotional({ verseRef: _votd.verseRef, verseText: _votd.verseText, verseTextEdited: false, scriptureSource: "verse_of_day" });
+            }}
           />
         ) : null}
 
