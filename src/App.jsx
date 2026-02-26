@@ -197,6 +197,39 @@ function PageTransition({ children, className }) {
  * VersedUP — single file app
  */
 
+
+/* ── Brand SVG Icons ── */
+const TikTokIcon = ({ className = "w-5 h-5" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.76a4.85 4.85 0 0 1-1.01-.07z"/>
+  </svg>
+);
+
+const InstagramIcon = ({ className = "w-5 h-5" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
+  </svg>
+);
+
+const XIcon = ({ className = "w-5 h-5" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.74l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+  </svg>
+);
+
+const FacebookIcon = ({ className = "w-5 h-5" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+  </svg>
+);
+
+const EmailIcon = ({ className = "w-5 h-5" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
+    <rect width="20" height="16" x="2" y="4" rx="2"/>
+    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+  </svg>
+);
+
 const APP_ID = "versedup_v1";
 const STORAGE_SETTINGS = `${APP_ID}_settings`;
 const STORAGE_DEVOTIONALS = `${APP_ID}_devotionals`;
@@ -1111,15 +1144,15 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
       <div className="bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 overflow-hidden relative">
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/60 via-transparent to-sky-50/20 pointer-events-none" />
         <div className="relative flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-baseline gap-2">
-            <div className="text-5xl font-black text-slate-900 tabular-nums">{streak.count}</div>
-            <div className="relative w-7 h-7 flex-shrink-0">
-              <Flame className="w-7 h-7 text-orange-500 drop-shadow-sm animate-pulse-slow absolute inset-0" fill="currentColor" />
-              <Flame className="w-7 h-7 text-yellow-400 absolute inset-0 mix-blend-overlay" fill="currentColor" />
+          <div className="flex items-center gap-3">
+            <div className="text-5xl font-black text-slate-900 tabular-nums leading-none">{streak.count}</div>
+            <div className="relative w-8 h-8 flex-shrink-0">
+              <Flame className="w-8 h-8 text-orange-500 drop-shadow-sm animate-pulse-slow absolute inset-0" fill="currentColor" />
+              <Flame className="w-8 h-8 text-yellow-400 absolute inset-0 mix-blend-overlay" fill="currentColor" />
             </div>
-            <div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-tight">Day streak</div>
-              <div className="text-[11px] text-slate-500 font-medium leading-tight">God meets you here.</div>
+            <div className="flex flex-col justify-center">
+              <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">Day Streak</div>
+              <div className="text-[11px] text-slate-500 font-medium leading-tight mt-0.5">God meets you here.</div>
             </div>
           </div>
           <div className="flex gap-2">
@@ -1614,7 +1647,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   useEffect(() => {
     if (!ttOverlay) return;
     if (ttCountdown <= 0) {
-      window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
+      window.open("https://www.tiktok.com/", "_blank", "noopener,noreferrer");
       setTtOverlay(false);
       setTtCountdown(2);
       return;
@@ -1809,7 +1842,7 @@ ${devotional.reflection}`);
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
             <CheckCircle className="w-14 h-14 text-emerald-600 mx-auto" />
             <div className="mt-3 text-lg font-black text-slate-900">Caption copied to clipboard!</div>
-            <div className="mt-1 text-sm text-slate-600">Now opening TikTok in {ttCountdown}...</div>
+            <div className="mt-1 text-sm text-slate-600">Opening TikTok in {ttCountdown}… paste your caption to create a post.</div>
           </div>
         </div>
       ) : null}
@@ -1975,7 +2008,7 @@ ${devotional.reflection}`);
               </div>
             ) : null}
 
-            <button type="button" onClick={() => goToStep(4)} disabled={!heartReady} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold disabled:opacity-40">Preview & Post →</button>
+            <button type="button" onClick={() => goToStep(4)} disabled={!heartReady} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold disabled:opacity-40">Preview & Post</button>
             {!heartReady ? <div className="text-xs text-slate-500">Add a reflection, prayer, or question before posting.</div> : null}
           </div>
         </Card>
@@ -1986,13 +2019,15 @@ ${devotional.reflection}`);
           <div className="space-y-4">
             <div className="flex gap-2 overflow-x-auto no-scrollbar">
               {[
-                { id: "tiktok", label: "🎵 TikTok", tone: "bg-black text-white" },
-                { id: "instagram", label: "📸 Instagram", tone: "bg-gradient-to-r from-purple-500 to-pink-500 text-white" },
-                { id: "twitter", label: "🐦 Twitter/X", tone: "bg-sky-500 text-white" },
-                { id: "facebook", label: "👥 Facebook", tone: "bg-blue-600 text-white" },
-                { id: "email", label: "✉️ Email", tone: "bg-slate-700 text-white" },
-              ].map((p) => (
-                <button key={p.id} type="button" onClick={() => setPlatform(p.id)} className={cn("shrink-0 rounded-full px-3 py-2 text-xs font-extrabold border", platform===p.id ? p.tone+" border-transparent" : "bg-white border-slate-200 text-slate-600")}>{p.label}</button>
+                { id: "tiktok", label: "TikTok", Icon: TikTokIcon, active: "bg-black text-white border-black", inactive: "bg-white border-slate-200 text-slate-700" },
+                { id: "instagram", label: "Instagram", Icon: InstagramIcon, active: "bg-gradient-to-r from-purple-500 to-pink-500 text-white border-transparent", inactive: "bg-white border-slate-200 text-slate-700" },
+                { id: "twitter", label: "X", Icon: XIcon, active: "bg-black text-white border-black", inactive: "bg-white border-slate-200 text-slate-700" },
+                { id: "facebook", label: "Facebook", Icon: FacebookIcon, active: "bg-blue-600 text-white border-blue-600", inactive: "bg-white border-slate-200 text-slate-700" },
+                { id: "email", label: "Email", Icon: EmailIcon, active: "bg-slate-800 text-white border-slate-800", inactive: "bg-white border-slate-200 text-slate-700" },
+              ].map(({ id, label, Icon, active, inactive }) => (
+                <button key={id} type="button" onClick={() => setPlatform(id)} className={cn("shrink-0 rounded-full px-3 py-2 text-xs font-extrabold border flex items-center gap-1.5 transition-all", platform===id ? active : inactive)}>
+                  <Icon className="w-3.5 h-3.5" />{label}
+                </button>
               ))}
             </div>
 
@@ -2025,7 +2060,10 @@ ${devotional.reflection}`);
             ) : null}
 
             <div className="sticky bottom-20 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-3 shadow">
-              <button type="button" onClick={() => void copyAndOpen()} className="w-full rounded-2xl bg-slate-900 text-white py-3 font-extrabold">Copy & Open in {platform[0].toUpperCase()+platform.slice(1)}</button>
+              {typeof navigator !== "undefined" && navigator.share ? (
+                <button type="button" onClick={async () => { try { await navigator.share({ title: devotional.title || devotional.verseRef || "Devotional", text: postText }); } catch {} }} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold mb-2">Share via…</button>
+              ) : null}
+              <button type="button" onClick={() => void copyAndOpen()} className="w-full rounded-2xl bg-slate-900 text-white py-3 font-extrabold">Copy & Open {platform[0].toUpperCase()+platform.slice(1)}</button>
               <div className="grid grid-cols-2 gap-2 mt-2"><SmallButton onClick={() => { const s=encodeURIComponent(devotional.title||devotional.verseRef||"Encouragement"); window.location.href=`mailto:?subject=${s}&body=${encodeURIComponent(postText)}`; }}>Email Draft</SmallButton><SmallButton onClick={() => { window.location.href=`sms:?&body=${encodeURIComponent(postText)}`; }}>Text Draft</SmallButton></div>
               <SmallButton onClick={() => { onUpdate({ status: "posted", reviewed: true }); pushToast("Another seed planted 🌱"); }} className="w-full mt-2">Mark as Posted</SmallButton>
             </div>
@@ -2598,7 +2636,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
   useEffect(() => {
     if (!tiktokOverlay) return;
     if (ttCountdown <= 0) {
-      window.open("https://www.tiktok.com/upload", "_blank", "noopener,noreferrer");
+      window.open("https://www.tiktok.com/", "_blank", "noopener,noreferrer");
       setTiktokOverlay(false);
       setTtCountdown(2);
       return;
@@ -2732,7 +2770,7 @@ function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
             <CheckCircle className="w-14 h-14 text-emerald-600 mx-auto" />
             <div className="mt-3 text-lg font-black text-slate-900">Caption copied to clipboard!</div>
-            <div className="mt-1 text-sm text-slate-600">Now opening TikTok in {ttCountdown}...</div>
+            <div className="mt-1 text-sm text-slate-600">Opening TikTok in {ttCountdown}… paste your caption to create a post.</div>
           </div>
         </div>
       ) : null}
