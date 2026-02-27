@@ -9,16 +9,19 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>,
 )
 
-// Register service worker for PWA support
+// Safety: aggressively remove stale service workers/caches to prevent old broken bundles from loading.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register(`${import.meta.env.BASE_URL}sw.js`)
-      .then((reg) => {
-        console.log('[VersedUP] SW registered:', reg.scope);
-      })
-      .catch((err) => {
-        console.warn('[VersedUP] SW registration failed:', err);
-      });
+  window.addEventListener('load', async () => {
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+      if (window.caches?.keys) {
+        const keys = await caches.keys();
+        await Promise.all(keys.filter((k) => k.startsWith('versed-up-')).map((k) => caches.delete(k)));
+      }
+      console.info('[VersedUP] Cleared stale SW/caches for fresh client load.');
+    } catch (err) {
+      console.warn('[VersedUP] SW cleanup failed:', err);
+    }
   });
 }
