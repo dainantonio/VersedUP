@@ -1970,6 +1970,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [shareBusy, setShareBusy] = useState(false);
   const [ttOverlay, setTtOverlay] = useState(false);
   const [ttCountdown, setTtCountdown] = useState(2);
+  const [changingPlatform, setChangingPlatform] = useState(false);
 
   const igCardRef = useRef(null);
   const autoFetchTimer = useRef(null);
@@ -2667,42 +2668,38 @@ ${devotional.reflection}`);
             </div>
 
             {/* Platform confirmation — shows what was chosen in Step 3, collapsible change */}
-            {(() => {
-              const platformLabels = { tiktok: "TikTok", instagram: "Instagram", twitter: "Twitter / X", facebook: "Facebook", email: "Email" };
-              const [changingPlatform, setChangingPlatform] = React.useState(false);
-              return (
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Posting to</div>
-                      <span className="rounded-full bg-slate-900 text-white text-xs font-extrabold px-3 py-1">{platformLabels[platform] || platform}</span>
-                    </div>
-                    <button type="button" onClick={() => setChangingPlatform(v => !v)}
-                      className="text-xs font-bold text-emerald-600 hover:text-emerald-700">
-                      {changingPlatform ? "Done" : "Change"}
-                    </button>
-                  </div>
-                  {changingPlatform ? (
-                    <div className="flex flex-wrap gap-2 mt-3 animate-enter">
-                      {[
-                        { id: "tiktok", label: "TikTok", Icon: TikTokIcon },
-                        { id: "instagram", label: "Instagram", Icon: InstagramIcon },
-                        { id: "twitter", label: "X", Icon: XIcon },
-                        { id: "facebook", label: "Facebook", Icon: FacebookIcon },
-                        { id: "email", label: "Email", Icon: EmailIcon },
-                      ].map(({ id, label, Icon }) => (
-                        <button key={id} type="button" onClick={() => { setPlatform(id); setChangingPlatform(false); }}
-                          className={cn("shrink-0 rounded-full px-3 py-1.5 text-xs font-extrabold border flex items-center gap-1.5 transition-all",
-                            platform === id ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"
-                          )}>
-                          <Icon className="w-3.5 h-3.5" />{label}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Posting to</div>
+                  <span className="rounded-full bg-slate-900 text-white text-xs font-extrabold px-3 py-1">
+                    {{ tiktok: "TikTok", instagram: "Instagram", twitter: "Twitter / X", facebook: "Facebook", email: "Email" }[platform] || platform}
+                  </span>
                 </div>
-              );
-            })()}
+                <button type="button" onClick={() => setChangingPlatform(v => !v)}
+                  className="text-xs font-bold text-emerald-600 hover:text-emerald-700">
+                  {changingPlatform ? "Done" : "Change"}
+                </button>
+              </div>
+              {changingPlatform ? (
+                <div className="flex flex-wrap gap-2 mt-3 animate-enter">
+                  {[
+                    { id: "tiktok", label: "TikTok", Icon: TikTokIcon },
+                    { id: "instagram", label: "Instagram", Icon: InstagramIcon },
+                    { id: "twitter", label: "X", Icon: XIcon },
+                    { id: "facebook", label: "Facebook", Icon: FacebookIcon },
+                    { id: "email", label: "Email", Icon: EmailIcon },
+                  ].map(({ id, label, Icon }) => (
+                    <button key={id} type="button" onClick={() => { setPlatform(id); setChangingPlatform(false); }}
+                      className={cn("shrink-0 rounded-full px-3 py-1.5 text-xs font-extrabold border flex items-center gap-1.5 transition-all",
+                        platform === id ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"
+                      )}>
+                      <Icon className="w-3.5 h-3.5" />{label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
 
             {platform === "tiktok" ? <div className="text-xs font-bold text-emerald-700 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">✓ Caption will be copied to clipboard when TikTok opens.</div> : null}
 
