@@ -2123,70 +2123,109 @@ ${devotional.reflection}`);
         </div>
       </div>
 
-      {step === 1 ? (
-        <Card>
-          <div className="space-y-4">
-            <div className="text-2xl font-black text-slate-900">What verse is speaking to you today?</div>
-            <div className="flex items-center gap-2">
-              <span className={cn("text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border", (devotional.scriptureSource || "verse_of_day") === "verse_of_day" ? "bg-emerald-50 border-emerald-200 text-emerald-700 animate-pulse-slow" : "bg-slate-50 border-slate-200 text-slate-500")}>Verse of the Day</span>
-              <span className={cn("text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border", devotional.scriptureSource === "your_verse" ? "bg-sky-50 border-sky-200 text-sky-700 animate-pulse-slow" : "bg-slate-50 border-slate-200 text-slate-500")}>Your Verse</span>
-            </div>
-            <button type="button" onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false, scriptureSource: "verse_of_day" })} className={cn("w-full text-left rounded-2xl border p-4", (devotional.scriptureSource || "verse_of_day") === "verse_of_day" ? "border-emerald-300 bg-emerald-50 animate-pulse-slow" : "border-emerald-200 bg-emerald-50")}>
-              <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">Verse of the Day</div>
-              <div className="text-sm font-bold text-emerald-700 mt-1">{VERSE_OF_DAY.verseRef}</div>
-              <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
-            </button>
+      {step === 1 ? (() => {
+        const isVotd = (devotional.scriptureSource || "verse_of_day") === "verse_of_day";
+        const switchToYourVerse = () => {
+          onUpdate({ verseRef: "", verseText: "", verseTextEdited: false, scriptureSource: "your_verse" });
+        };
+        const switchToVotd = () => {
+          onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false, scriptureSource: "verse_of_day" });
+        };
+        return (
+          <Card>
+            <div className="space-y-4">
+              <div className="text-2xl font-black text-slate-900">What verse is speaking to you today?</div>
 
-            {verseText ? (
-              <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
-                <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{verseRef} ({version})</div>
-                <div className="mt-2 text-lg leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">{verseText}</div>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">Bible Book, Chapter & Verse</div>
+              {/* Single toggle button */}
+              <button
+                type="button"
+                onClick={isVotd ? switchToYourVerse : switchToVotd}
+                className={cn(
+                  "w-full flex items-center justify-between rounded-2xl border px-4 py-3 transition-all btn-spring",
+                  isVotd
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : "bg-sky-50 border-sky-200 text-sky-700"
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={cn("w-2 h-2 rounded-full", isVotd ? "bg-emerald-500" : "bg-sky-500")} />
+                  <span className="text-xs font-black uppercase tracking-widest">
+                    {isVotd ? "Verse of the Day" : "Your Verse"}
+                  </span>
+                </div>
+                <span className={cn("text-[10px] font-bold border rounded-full px-2.5 py-1", isVotd ? "border-emerald-200 text-emerald-600 bg-white/70" : "border-sky-200 text-sky-600 bg-white/70")}>
+                  {isVotd ? "Switch to Your Verse →" : "← Use Verse of the Day"}
+                </span>
+              </button>
+
+              {/* Your Verse search — only shown when in your_verse mode */}
+              {!isVotd ? (
+                <div className="space-y-2 animate-enter">
                   <input
                     list="bible-books-list"
                     value={devotional.verseRef}
+                    autoFocus
                     onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "", scriptureSource: "your_verse" })}
                     onBlur={(e) => {
                       const normalized = normalizeVerseReferenceInput(e.target.value);
                       if (normalized && normalized !== e.target.value) onUpdate({ verseRef: normalized, scriptureSource: "your_verse" });
                     }}
-                    placeholder="e.g. John 1:1"
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
+                    placeholder="e.g. John 15:5 or Psalm 23:1"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-sky-100 focus:border-sky-300"
                   />
-                  <div className="text-[11px] text-slate-500 font-semibold">Search formats supported: John1 verse 1, John 1:1, John 1 v 1.</div>
+                  <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
                   {smartBookSuggestions.length ? (
-                    <div className="flex flex-wrap gap-2 pt-0.5">
+                    <div className="flex flex-wrap gap-2">
                       {smartBookSuggestions.map((book) => (
                         <button
                           key={book}
                           type="button"
                           onClick={() => handleBookSuggestionPick(book)}
-                          className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-700 hover:border-emerald-200 hover:bg-emerald-50"
+                          className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-700 hover:border-sky-200 hover:bg-sky-50 transition-colors"
                         >
                           {book}
                         </button>
                       ))}
                     </div>
                   ) : null}
+                  {fetching ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Looking up verse…
+                    </div>
+                  ) : null}
                 </div>
-                <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
+              ) : null}
 
-                <div className="w-full text-left rounded-2xl border border-sky-200 bg-sky-50 p-4">
-                  <div className="text-xs font-black text-sky-700 uppercase tracking-wide">USE YOUR VERSE</div>
-                  <div className="text-sm font-bold text-sky-700 mt-1">{normalizedVerseRef || "Bible Book, Chapter & Verse"}</div>
-                  <div className="text-sm mt-1 font-serif-scripture text-slate-700">{verseText || "Type a scripture reference to populate this card."}</div>
-                </div>
-              </>
-            )}
+              {/* Shared verse display card — same for both modes */}
+              <div className={cn(
+                "rounded-3xl border p-5 transition-all",
+                isVotd
+                  ? "border-emerald-100 bg-emerald-50/50"
+                  : verseText
+                    ? "border-sky-100 bg-sky-50/50 animate-enter"
+                    : "border-slate-100 bg-slate-50"
+              )}>
+                {(verseRef || isVotd) ? (
+                  <>
+                    <div className={cn("text-xs font-black uppercase tracking-wide", isVotd ? "text-emerald-700" : "text-sky-700")}>
+                      {devotional.verseRef || VERSE_OF_DAY.verseRef}{version ? ` (${version})` : ""}
+                    </div>
+                    <div className="mt-2 text-base leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">
+                      {devotional.verseText || (isVotd ? VERSE_OF_DAY.verseText : "")}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-sm text-slate-400 font-medium italic">Your verse will appear here once you type a reference above.</div>
+                )}
+              </div>
 
-            <button type="button" disabled={!verseReady} onClick={() => goToStep(2)} className="w-full rounded-2xl bg-emerald-600 disabled:opacity-40 text-white py-3 font-extrabold">Use this verse</button>
-          </div>
-        </Card>
-      ) : null}
+              <button type="button" disabled={!verseReady} onClick={() => goToStep(2)} className="w-full rounded-2xl bg-emerald-600 disabled:opacity-40 text-white py-3 font-extrabold">
+                Use this verse
+              </button>
+            </div>
+          </Card>
+        );
+      })() : null}
 
       {step === 2 ? (
         <Card>
