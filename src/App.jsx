@@ -1828,7 +1828,8 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
   );
 }
 
-function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onGoSettings, onUseVerseOfDay }) {
+function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved }) {
+  const verseOfDay = React.useMemo(() => getVerseOfDay(), []);
   const { pushToast } = useToast();
   const [busy, setBusy] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -1843,9 +1844,6 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [shareBusy, setShareBusy] = useState(false);
   const [ttOverlay, setTtOverlay] = useState(false);
   const [ttCountdown, setTtCountdown] = useState(2);
-  const [showTikTokScript, setShowTikTokScript] = useState(false);
-  const [scriptBusy, setScriptBusy] = useState(false);
-  const [isVerseOfDayMode, setIsVerseOfDayMode] = useState(() => devotional.scriptureSource !== "your_verse");
 
   const igCardRef = useRef(null);
   const autoFetchTimer = useRef(null);
@@ -2010,25 +2008,6 @@ ${devotional.reflection}`);
     finally { setBusy(false); }
   };
 
-  const generateTikTokScriptInline = async (mode = "regenerate") => {
-    setScriptBusy(true);
-    try {
-      const out = await aiTikTokScript(settings, {
-        verseRef: devotional.verseRef,
-        verseText: devotional.verseText,
-        reflection: devotional.reflection,
-        mood: devotional.mood,
-        baseScript: devotional.tiktokScript || "",
-        mode,
-      });
-      onUpdate({ tiktokScript: out });
-      setPostText(out);
-      setShowTikTokScript(true);
-    } catch (e) {
-      pushToast(e?.message || "Script failed.");
-    } finally { setScriptBusy(false); }
-  };
-
   const limit = PLATFORM_LIMITS[platform] || 999999;
   const count = String(contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions || "").length;
   const over = count > limit;
@@ -2094,7 +2073,7 @@ ${devotional.reflection}`);
   };
 
   return (
-    <div className="space-y-4 pb-20 animate-enter relative">
+    <div className="space-y-3 pb-20 animate-enter relative">
       {ttOverlay ? (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
@@ -2105,7 +2084,7 @@ ${devotional.reflection}`);
         </div>
       ) : null}
 
-      <div className="rounded-2xl bg-white border border-slate-200 p-3">
+      <div className="rounded-2xl bg-white border border-slate-200 p-2.5">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -2130,7 +2109,7 @@ ${devotional.reflection}`);
                 className={cn(
                   "rounded-2xl border px-2.5 py-2.5 text-left transition",
                   active
-                    ? "bg-emerald-600 border-emerald-600 text-white"
+                    ? "bg-emerald-600 border-emerald-600 text-white animate-pulse-slow"
                     : enabled
                       ? "bg-white border-slate-200 text-slate-700"
                       : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
@@ -2150,29 +2129,23 @@ ${devotional.reflection}`);
       {step === 1 ? (
         <Card>
           <div className="space-y-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={() => {
-                  if (isVerseOfDayMode) {
-                    setIsVerseOfDayMode(false);
-                    onUpdate({ verseRef: "", verseText: "", verseTextEdited: false, scriptureSource: "your_verse" });
-                  } else {
-                    setIsVerseOfDayMode(true);
-                    onUseVerseOfDay();
-                  }
-                }}
-                className="text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-full border border-slate-200 text-slate-700 bg-slate-50"
-              >
-                {isVerseOfDayMode ? "YOUR VERSE" : "VERSE OF THE DAY"}
-              </button>
+            <div className="text-2xl font-black text-slate-900">What verse is speaking to you today?</div>
+            <div className="flex items-center gap-2">
+              <span className={cn("text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border", (devotional.scriptureSource || "verse_of_day") === "verse_of_day" ? "bg-emerald-50 border-emerald-200 text-emerald-700 animate-pulse-slow" : "bg-slate-50 border-slate-200 text-slate-500")}>Verse of the Day</span>
+              <span className={cn("text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border", devotional.scriptureSource === "your_verse" ? "bg-sky-50 border-sky-200 text-sky-700 animate-pulse-slow" : "bg-slate-50 border-slate-200 text-slate-500")}>Your Verse</span>
             </div>
+            <button type="button" onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false, scriptureSource: "verse_of_day" })} className={cn("w-full text-left rounded-2xl border p-4", (devotional.scriptureSource || "verse_of_day") === "verse_of_day" ? "border-emerald-300 bg-emerald-50 animate-pulse-slow" : "border-emerald-200 bg-emerald-50")}>
+              <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">Verse of the Day</div>
+              <div className="text-sm font-bold text-emerald-700 mt-1">{VERSE_OF_DAY.verseRef}</div>
+              <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
+            </button>
 
-            {isVerseOfDayMode ? (
-              <div className="w-full text-left rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">VERSE OF THE DAY</div>
-                <div className="text-sm font-bold text-emerald-700 mt-1">{VERSE_OF_DAY.verseRef}</div>
-                <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
+            <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "", scriptureSource: "your_verse" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
+            <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
+            {verseText ? (
+              <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
+                <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{verseRef} ({version})</div>
+                <div className="mt-2 text-lg leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">{verseText}</div>
               </div>
             ) : (
               <>
@@ -2215,7 +2188,6 @@ ${devotional.reflection}`);
               </>
             )}
 
-            <SmallButton onClick={onGoSettings} tone="neutral">Scan a page instead</SmallButton>
             <button type="button" disabled={!verseReady} onClick={() => goToStep(2)} className="w-full rounded-2xl bg-emerald-600 disabled:opacity-40 text-white py-3 font-extrabold">Use this verse</button>
           </div>
         </Card>
@@ -2231,9 +2203,7 @@ ${devotional.reflection}`);
             <textarea value={devotional.reflection} onChange={(e) => onUpdate({ reflection: e.target.value })} placeholder="Write freely. No rules here." rows={10} spellCheck autoCorrect="on" autoCapitalize="sentences" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
             <div className="text-right text-[11px] text-slate-400">{String(devotional.reflection || "").trim().split(/\s+/).filter(Boolean).length} words</div>
 
-            <div className="flex items-center gap-2">
-              <button type="button" className="text-xs font-bold text-slate-500 underline" onClick={() => { void doDraftForMe(); goToStep(3); }}>Skip, use AI</button>
-              <div className="flex-1" />
+            <div className="flex items-center justify-end">
               <button type="button" onClick={() => goToStep(3)} className="rounded-2xl bg-emerald-600 text-white px-4 py-3 font-extrabold">Shape my writing</button>
             </div>
           </div>
@@ -2280,40 +2250,6 @@ ${devotional.reflection}`);
               <span className={cn("ml-auto text-xs font-extrabold", over ? "text-red-600" : count > limit*0.8 ? "text-amber-600" : "text-emerald-600")}>{count}/{limit}</span>
               {over ? <button onClick={() => void doLength("shorten")} className="text-xs font-bold underline text-red-600">Auto-Shorten</button> : null}
             </div>
-
-            {platform === "tiktok" ? (
-              <div className="rounded-2xl border border-slate-200 p-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-extrabold">TikTok Script</div>
-                  <button
-                    type="button"
-                    className="text-xs underline"
-                    onClick={() => setShowTikTokScript((v) => !v)}
-                  >
-                    {showTikTokScript ? "Hide" : "Show"}
-                  </button>
-                </div>
-                <div className="mt-2 flex gap-2">
-                  <SmallButton onClick={() => void generateTikTokScriptInline("regenerate")} disabled={scriptBusy}>
-                    {scriptBusy ? "Generating..." : "Generate"}
-                  </SmallButton>
-                  <SmallButton onClick={() => void generateTikTokScriptInline("improve")} disabled={scriptBusy}>
-                    Improve
-                  </SmallButton>
-                  <SmallButton onClick={() => void doLength("shorten")} disabled={scriptBusy}>
-                    Shorten
-                  </SmallButton>
-                </div>
-                {showTikTokScript ? (
-                  <textarea
-                    rows={6}
-                    className="mt-2 w-full rounded-xl border px-3 py-2"
-                    value={devotional.tiktokScript || ""}
-                    onChange={(e) => onUpdate({ tiktokScript: e.target.value })}
-                  />
-                ) : null}
-              </div>
-            ) : null}
 
             <button type="button" onClick={() => goToStep(4)} disabled={!heartReady} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold disabled:opacity-40">Preview & Post</button>
             {!heartReady ? <div className="text-xs text-slate-500">Add a reflection, prayer, or question before posting.</div> : null}
@@ -4300,11 +4236,6 @@ const onSaved = () => {
             onGoCompile={() => setView("compile")}
             onGoPolish={() => setView("polish")}
             onSaved={onSaved}
-            onGoSettings={() => setView("settings")}
-            onUseVerseOfDay={() => {
-              const _votd = getVerseOfDay();
-              updateDevotional({ verseRef: _votd.verseRef, verseText: _votd.verseText, verseTextEdited: false, scriptureSource: "verse_of_day" });
-            }}
           />
         ) : null}
 
