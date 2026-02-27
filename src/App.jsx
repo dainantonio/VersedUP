@@ -2136,27 +2136,41 @@ ${devotional.reflection}`);
             <div className="space-y-4">
               <div className="text-2xl font-black text-slate-900">What verse is speaking to you today?</div>
 
-              {/* Single toggle button */}
-              <button
-                type="button"
-                onClick={isVotd ? switchToYourVerse : switchToVotd}
-                className={cn(
-                  "w-full flex items-center justify-between rounded-2xl border px-4 py-3 transition-all btn-spring",
-                  isVotd
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                    : "bg-sky-50 border-sky-200 text-sky-700"
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <div className={cn("w-2 h-2 rounded-full", isVotd ? "bg-emerald-500" : "bg-sky-500")} />
-                  <span className="text-xs font-black uppercase tracking-widest">
-                    {isVotd ? "Verse of the Day" : "Your Verse"}
-                  </span>
-                </div>
-                <span className={cn("text-[10px] font-bold border rounded-full px-2.5 py-1", isVotd ? "border-emerald-200 text-emerald-600 bg-white/70" : "border-sky-200 text-sky-600 bg-white/70")}>
-                  {isVotd ? "Switch to Your Verse →" : "← Use Verse of the Day"}
-                </span>
-              </button>
+              {/* Segmented source selector */}
+              <div className="grid grid-cols-2 gap-1.5 p-1.5 bg-slate-100/80 rounded-2xl border border-slate-200/60">
+                <button
+                  type="button"
+                  onClick={switchToVotd}
+                  className={cn(
+                    "rounded-xl py-3 px-4 transition-all duration-200 text-left",
+                    isVotd
+                      ? "bg-white shadow-sm border border-slate-200/80"
+                      : "hover:bg-white/50"
+                  )}
+                >
+                  <div className={cn("flex items-center gap-2 mb-0.5", isVotd ? "text-emerald-600" : "text-slate-400")}>
+                    <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="text-[11px] font-black uppercase tracking-widest">Daily</span>
+                  </div>
+                  <div className={cn("text-sm font-extrabold leading-tight", isVotd ? "text-slate-900" : "text-slate-400")}>Verse of the Day</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={switchToYourVerse}
+                  className={cn(
+                    "rounded-xl py-3 px-4 transition-all duration-200 text-left",
+                    !isVotd
+                      ? "bg-white shadow-sm border border-slate-200/80"
+                      : "hover:bg-white/50"
+                  )}
+                >
+                  <div className={cn("flex items-center gap-2 mb-0.5", !isVotd ? "text-sky-500" : "text-slate-400")}>
+                    <Search className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="text-[11px] font-black uppercase tracking-widest">Search</span>
+                  </div>
+                  <div className={cn("text-sm font-extrabold leading-tight", !isVotd ? "text-slate-900" : "text-slate-400")}>Your Verse</div>
+                </button>
+              </div>
 
               {/* Your Verse search — only shown when in your_verse mode */}
               {!isVotd ? (
@@ -3439,29 +3453,118 @@ function TikTokExportModal({ devotional, settings, onClose }) {
   );
 }
 
+/* ---------------- Google OAuth helpers ---------------- */
+
+// Replace with your actual Google OAuth Client ID from console.cloud.google.com
+const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+
+function loadGoogleScript() {
+  return new Promise((resolve) => {
+    if (window.google) { resolve(); return; }
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.async = true;
+    s.defer = true;
+    s.onload = resolve;
+    s.onerror = resolve;
+    document.head.appendChild(s);
+  });
+}
+
+function parseJwt(token) {
+  try {
+    const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(base64));
+  } catch {
+    return null;
+  }
+}
+
+function GoogleSignInButton({ onSuccess, onError }) {
+  const btnRef = React.useRef(null);
+  const [ready, setReady] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    loadGoogleScript().then(() => {
+      if (cancelled || !window.google?.accounts?.id) {
+        if (!cancelled) setReady(false);
+        return;
+      }
+      try {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: (response) => {
+            const payload = parseJwt(response.credential);
+            if (payload) {
+              onSuccess({ name: payload.name || payload.email, email: payload.email, picture: payload.picture, sub: payload.sub });
+            } else {
+              onError("Sign-in failed. Please try again.");
+            }
+          },
+          ux_mode: "popup",
+        });
+        if (btnRef.current) {
+          window.google.accounts.id.renderButton(btnRef.current, {
+            type: "standard",
+            shape: "pill",
+            theme: "outline",
+            size: "large",
+            text: "continue_with",
+            logo_alignment: "left",
+            width: Math.min(btnRef.current.offsetWidth || 320, 400),
+          });
+        }
+        setReady(true);
+      } catch {
+        setReady(false);
+        onError("Google Sign-In could not be loaded.");
+      }
+    });
+    return () => { cancelled = true; };
+  }, [onSuccess, onError]);
+
+  return (
+    <div className="w-full flex flex-col items-center gap-2">
+      <div ref={btnRef} className="w-full min-h-[44px] flex justify-center" />
+      {!ready && (
+        <div className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 flex items-center justify-center gap-3 text-sm font-semibold text-slate-500 opacity-70 cursor-not-allowed select-none">
+          <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+          Continue with Google
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------------- Entry flow ---------------- */
 
-function LandingView({ onGetStarted, onViewDemo }) {
+function LandingView({ onGetStarted, onViewDemo, onGoogleSuccess }) {
+  const [googleError, setGoogleError] = React.useState("");
+  const handleGoogleSuccess = React.useCallback((profile) => { onGoogleSuccess(profile); }, [onGoogleSuccess]);
+  const handleGoogleError = React.useCallback((msg) => { setGoogleError(msg); }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-sky-50 px-4 py-10 animate-enter flex flex-col justify-center">
       <div className="max-w-md mx-auto w-full">
         <div className="rounded-[2.5rem] border border-slate-100 bg-white/80 backdrop-blur-xl p-10 shadow-2xl">
           <BrandLogo className="h-36 sm:h-40 w-auto mx-auto drop-shadow-md mb-6" />
           <h1 className="mt-4 text-3xl font-black text-slate-900 text-center tracking-tight leading-tight">Rooted in Christ,<br/>growing in His fruit.</h1>
-          <p className="mt-4 text-base text-slate-600 text-center leading-relaxed font-medium">Create devotionals, polish your reflection, and prepare share-ready content.</p>
+          <p className="mt-4 text-base text-slate-600 text-center leading-relaxed font-medium">Create devotionals, polish your reflection, and share your faith.</p>
 
-          <div className="mt-8 grid gap-4">
-            <PrimaryButton onClick={onGetStarted} icon={LogIn}>
-              Get Started
-            </PrimaryButton>
-            <button
-              onClick={onViewDemo}
-              className="rounded-2xl border-2 border-slate-100 bg-white px-4 py-4 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-colors"
-              type="button"
-            >
-              View Demo
+          <div className="mt-8 space-y-3">
+            <GoogleSignInButton onSuccess={handleGoogleSuccess} onError={handleGoogleError} />
+            {googleError ? <p className="text-xs text-red-500 font-bold text-center">{googleError}</p> : null}
+            <div className="flex items-center gap-3 py-1">
+              <div className="flex-1 h-px bg-slate-100" />
+              <span className="text-xs font-bold text-slate-300">or</span>
+              <div className="flex-1 h-px bg-slate-100" />
+            </div>
+            <button onClick={onViewDemo} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-extrabold text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors" type="button">
+              Continue as Guest
             </button>
           </div>
+          <p className="mt-6 text-center text-[11px] text-slate-300 leading-relaxed">Your data stays on your device.</p>
         </div>
       </div>
     </div>
@@ -3470,45 +3573,21 @@ function LandingView({ onGetStarted, onViewDemo }) {
 
 function AuthView({ onBack, onContinue }) {
   const [name, setName] = useState("");
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-emerald-50 px-4 py-8 animate-enter">
       <div className="max-w-md mx-auto space-y-6">
         <button type="button" onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors">
           <ChevronLeft className="w-5 h-5" />
         </button>
-
         <Card>
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Welcome</div>
-          <h2 className="mt-2 text-2xl font-black text-slate-900 tracking-tight">Sign in or continue as guest</h2>
-
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">One more thing</div>
+          <h2 className="mt-2 text-2xl font-black text-slate-900 tracking-tight">What should we call you?</h2>
           <div className="mt-6">
-            <label className="text-xs font-extrabold text-slate-500 uppercase tracking-wide">DISPLAY NAME</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-4 text-lg font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-all"
-            />
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoFocus
+              className="w-full rounded-2xl border border-slate-200 px-4 py-4 text-lg font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-all" />
           </div>
-
-          <div className="mt-6 grid gap-3">
-            <PrimaryButton onClick={() => onContinue({ mode: "signed-in", name: name.trim() || "Friend" })} icon={User}>
-              Continue
-            </PrimaryButton>
-            <button
-              type="button"
-              onClick={() => onContinue({ mode: "guest", name: "Guest" })}
-              className="rounded-2xl border-2 border-slate-100 bg-white px-4 py-4 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              Continue as Guest
-            </button>
-          </div>
-
-          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 leading-relaxed">
-            <div className="font-extrabold mb-1">One key detail (so you’re not surprised)</div>
-            On GitHub Pages, auth is UI + local session (secure-feeling, not bank-secure). Later, we can swap to real auth
-            (Supabase/Clerk/Firebase) without changing the screens.
+          <div className="mt-6">
+            <PrimaryButton onClick={() => onContinue({ mode: "signed-in", name: name.trim() || "Friend" })} icon={User}>Continue</PrimaryButton>
           </div>
         </Card>
       </div>
@@ -4249,9 +4328,14 @@ export default function App() {
   const [session, setSession] = useState(() => loadSession());
   const [starterMood, setStarterMood] = useState("");
 
-  const startDemo = () => {
-    const draft = { mode: "guest", name: "Guest" };
+  // Google OAuth success — skip onboarding name step, go straight to onboarding slides
+  const handleGoogleSuccess = (profile) => {
+    const draft = { mode: "google", name: profile.name, email: profile.email, picture: profile.picture, sub: profile.sub };
     setAuthDraft(draft);
+    setStage("onboarding");
+  };
+
+  const startDemo = () => {
     const existing = safeParseJson(localStorage.getItem(STORAGE_SETTINGS), {});
     const patched = { ...DEFAULT_SETTINGS, ...(existing || {}), onboardingComplete: true, username: "Guest" };
     localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(patched));
@@ -4282,12 +4366,14 @@ export default function App() {
     setSession(null);
     setAuthDraft(null);
     setStarterMood("");
+    // Sign out of Google silently so next visit shows the picker again
+    try { if (window.google?.accounts?.id) window.google.accounts.id.disableAutoSelect(); } catch {}
     setStage("landing");
   };
 
   return (
     <ErrorBoundary>
-      {stage === "landing" ? <LandingView onGetStarted={() => setStage("auth")} onViewDemo={startDemo} /> : null}
+      {stage === "landing" ? <LandingView onGetStarted={() => setStage("auth")} onViewDemo={startDemo} onGoogleSuccess={handleGoogleSuccess} /> : null}
       {stage === "auth" ? <AuthView onBack={() => setStage("landing")} onContinue={handleAuthContinue} /> : null}
       {stage === "onboarding" ? <OnboardingWizard authDraft={authDraft} onFinish={handleFinishOnboarding} /> : null}
       {stage === "app" ? <AppInner session={session} starterMood={starterMood} onLogout={logout} /> : null}
