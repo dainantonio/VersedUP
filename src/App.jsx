@@ -1883,9 +1883,6 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     setPostText(compileForPlatform(platform, devotional, settings));
   }, [platform, devotional, settings]);
 
-  useEffect(() => {
-    setIsVerseOfDayMode(devotional.scriptureSource !== "your_verse");
-  }, [devotional.scriptureSource, devotional.id]);
 
   useEffect(() => {
     if (!ttOverlay) return;
