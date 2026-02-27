@@ -34,7 +34,11 @@ import {
   Sun,
   Eye,
   Pencil,
-  Download
+  Download,
+  Undo2,
+  Redo2,
+  ArrowUpToLine,
+  ArrowDownToLine
 } from "lucide-react";
 
 /* --- Mocks & Global Styles for Preview --- */
@@ -975,7 +979,7 @@ async function ai(settings, prompt) {
 }
 
 async function aiFixGrammar(settings, { text, mood }) {
-  const prompt = `Fix grammar and spelling. ${buildMoodHint(mood)} Return ONLY corrected text.\n\nTEXT:\n${text}`;
+  const prompt = `Correct grammar and spelling errors. ${buildMoodHint(mood)} Return only the corrected text with no explanation.\n\nTEXT:\n${text}`;
   return ai(settings, prompt);
 }
 
@@ -1057,8 +1061,8 @@ Return JSON exactly:
 async function aiRewriteLength(settings, { text, mood, direction }) {
   const prompt =
     direction === "shorten"
-      ? `Shorten this while keeping meaning. ${buildMoodHint(mood)} Return ONLY text.\n\n${text}`
-      : `Lengthen this with more depth and clarity. ${buildMoodHint(mood)} Return ONLY text.\n\n${text}`;
+      ? `Shorten this while keeping the core meaning. ${buildMoodHint(mood)} Return only the shortened text.\n\n${text}`
+      : `Expand this with more depth and clarity. ${buildMoodHint(mood)} Return only the expanded text.\n\n${text}`;
   return ai(settings, prompt);
 }
 
@@ -1393,60 +1397,12 @@ function DailyInspirationSection() {
   const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
   const prompt = getDailyReflectionPrompt(VERSE_OF_DAY.verseRef, VERSE_OF_DAY.verseText);
   const [expanded, setExpanded] = useState(false);
-  const [imgLoaded, setImgLoaded] = useState(false);
-  const [imgError, setImgError] = useState(false);
-
-  // Build Pollinations URL — deterministic seed per day so same image all day
-  const imagePromptText = buildImagePrompt(VERSE_OF_DAY.verseRef, VERSE_OF_DAY.verseText);
-  const encoded = encodeURIComponent(imagePromptText);
-  const imgUrl = `https://image.pollinations.ai/prompt/${encoded}?width=800&height=450&seed=${dayOfYear}&nologo=true&model=flux`;
-
   return (
     <div className="animate-enter space-y-3">
       <div className="flex items-center gap-2 px-1">
         <div className="flex-1 h-px bg-slate-100" />
-        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">Today's Inspiration</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">Today's Reflection</span>
         <div className="flex-1 h-px bg-slate-100" />
-      </div>
-
-      {/* AI-generated scripture image */}
-      <div className="relative rounded-[1.75rem] overflow-hidden bg-slate-100 shadow-sm" style={{ aspectRatio: "16/9" }}>
-        {/* Skeleton shimmer while loading */}
-        {!imgLoaded && !imgError && (
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 animate-pulse flex flex-col items-center justify-center gap-2">
-            <Sparkles className="w-6 h-6 text-slate-300 animate-pulse" />
-            <span className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">Generating image…</span>
-          </div>
-        )}
-        {!imgError ? (
-          <img
-            src={imgUrl}
-            alt="AI generated scripture scene"
-            className={cn(
-              "absolute inset-0 w-full h-full object-cover transition-opacity duration-700",
-              imgLoaded ? "opacity-100" : "opacity-0"
-            )}
-            onLoad={() => setImgLoaded(true)}
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-800 via-teal-700 to-sky-800 flex items-center justify-center">
-            <span className="text-white/50 text-xs font-bold">Image unavailable</span>
-          </div>
-        )}
-        {/* Subtle verse ref badge */}
-        {imgLoaded && (
-          <div className="absolute bottom-3 left-3 bg-black/40 backdrop-blur-sm rounded-full px-3 py-1">
-            <span className="text-[10px] font-black text-white/90 tracking-wide">{VERSE_OF_DAY.verseRef}</span>
-          </div>
-        )}
-        {/* AI badge */}
-        {imgLoaded && (
-          <div className="absolute top-3 right-3 bg-black/30 backdrop-blur-sm rounded-full px-2.5 py-1 flex items-center gap-1">
-            <Sparkles className="w-2.5 h-2.5 text-white/70" />
-            <span className="text-[9px] font-black text-white/70 uppercase tracking-widest">AI</span>
-          </div>
-        )}
       </div>
 
       {/* Daily Reflection Prompt */}
@@ -1970,6 +1926,33 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [fetching, setFetching] = useState(false);
   const [toneMenuOpen, setToneMenuOpen] = useState(false);
   const [step, setStep] = useState(1);
+  // Undo/redo history for reflection, prayer, questions
+  const historyRef = React.useRef({ stack: [], index: -1, skipNext: false });
+  const pushHistory = React.useCallback((patch) => {
+    const h = historyRef.current;
+    if (h.skipNext) { h.skipNext = false; return; }
+    // Trim forward history
+    h.stack = h.stack.slice(0, h.index + 1);
+    h.stack.push(patch);
+    if (h.stack.length > 100) h.stack.shift();
+    h.index = h.stack.length - 1;
+  }, []);
+  const canUndo = historyRef.current.index > 0;
+  const canRedo = historyRef.current.index < historyRef.current.stack.length - 1;
+  const doUndo = React.useCallback(() => {
+    const h = historyRef.current;
+    if (h.index <= 0) return;
+    h.index--;
+    h.skipNext = true;
+    onUpdate(h.stack[h.index]);
+  }, [onUpdate]);
+  const doRedo = React.useCallback(() => {
+    const h = historyRef.current;
+    if (h.index >= h.stack.length - 1) return;
+    h.index++;
+    h.skipNext = true;
+    onUpdate(h.stack[h.index]);
+  }, [onUpdate]);
   const [contentTab, setContentTab] = useState("reflection");
   const [platform, setPlatform] = useState(() => (settings.myPlatforms && settings.myPlatforms[0]) || "tiktok");
   const [selectedTopic, setSelectedTopic] = useState(TOPIC_CHIPS[0]?.id || "");
@@ -2132,7 +2115,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     if (!devotional.reflection?.trim()) return;
     setBusy(true);
     try {
-      const out = await ai(settings, `Rewrite in a ${tone} tone. Keep meaning. Return ONLY text.
+      const out = await ai(settings, `Rewrite this in a ${tone} tone while keeping the same meaning. Return only the rewritten text.
 
 ${devotional.reflection}`);
       onUpdate({ reflection: out });
@@ -2399,28 +2382,56 @@ ${devotional.reflection}`);
             <button type="button" onClick={() => setStep(1)} className="text-xs rounded-full border px-3 py-1 font-bold text-emerald-700 border-emerald-200 bg-emerald-50">{verseRef || "No verse"}</button>
             <input value={devotional.title} onChange={(e) => onUpdate({ title: e.target.value })} placeholder="Give it a title (optional)" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
 
-            <div className="flex gap-2 items-center">
-              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey} title="AI Draft" className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center disabled:opacity-40 hover:bg-emerald-700 tool-spring">
-                <Sparkles className="w-4 h-4" />
+            {/* Undo / Redo */}
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={doUndo} disabled={!canUndo || busy}
+                className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
+                <Undo2 className="w-3.5 h-3.5" /> Undo
               </button>
-              <button onClick={() => void doFix()} disabled={busy} title="Clean grammar" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 tool-spring">
-                <Check className="w-4 h-4" />
+              <button type="button" onClick={doRedo} disabled={!canRedo || busy}
+                className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
+                <Redo2 className="w-3.5 h-3.5" /> Redo
               </button>
-              <button onClick={() => void doLength("shorten")} disabled={busy} title="Shorten" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 tool-spring">
-                <ChevronLeft className="w-4 h-4 rotate-90" />
+            </div>
+
+            {/* AI Shape It toolbar — clear labeled buttons */}
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey}
+                className="flex items-center gap-1.5 rounded-full bg-emerald-600 text-white px-3 py-1.5 text-xs font-extrabold disabled:opacity-40 hover:bg-emerald-700 transition-all tool-spring">
+                <Sparkles className="w-3.5 h-3.5" /> AI Draft
               </button>
-              <button onClick={() => void doLength("lengthen")} disabled={busy} title="Expand" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 tool-spring">
-                <ChevronRight className="w-4 h-4 rotate-90" />
+              <button onClick={() => void doFix()} disabled={busy}
+                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
+                <Check className="w-3.5 h-3.5" /> Fix Grammar
               </button>
-              <div className="relative ml-auto">
-                <button onClick={() => setToneMenuOpen((o) => !o)} title="Adjust tone" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 tool-spring">
-                  <Wand2 className="w-4 h-4" />
+              <button onClick={() => void doLength("shorten")} disabled={busy}
+                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
+                <ArrowUpToLine className="w-3.5 h-3.5" /> Shorten
+              </button>
+              <button onClick={() => void doLength("lengthen")} disabled={busy}
+                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
+                <ArrowDownToLine className="w-3.5 h-3.5" /> Expand
+              </button>
+              <div className="relative">
+                <button onClick={() => setToneMenuOpen((o) => !o)}
+                  className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:border-slate-400 transition-all tool-spring">
+                  <Wand2 className="w-3.5 h-3.5" /> Tone
                 </button>
-                {toneMenuOpen ? <div className="absolute bottom-full right-0 mb-1 z-30 w-40 rounded-xl border bg-white shadow-lg overflow-hidden">{["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t)=><button key={t} onClick={() => void doTone(t)} className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-slate-50 transition-colors">{t}</button>)}</div> : null}
+                {toneMenuOpen ? (
+                  <div className="absolute bottom-full left-0 mb-1 z-30 w-44 rounded-xl border bg-white shadow-lg overflow-hidden">
+                    {["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t) => (
+                      <button key={t} onClick={() => void doTone(t)} className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-slate-50 transition-colors">{t}</button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
 
-            <textarea value={contentTab==="reflection"?devotional.reflection:contentTab==="prayer"?devotional.prayer:devotional.questions} onChange={(e)=>onUpdate({ [contentTab]: e.target.value })} rows={10} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
+            <textarea value={contentTab==="reflection"?devotional.reflection:contentTab==="prayer"?devotional.prayer:devotional.questions} onChange={(e) => {
+                const patch = { [contentTab]: e.target.value };
+                onUpdate(patch);
+                pushHistory({ reflection: devotional.reflection, prayer: devotional.prayer, questions: devotional.questions, ...patch });
+              }} rows={10} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
             <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1">
               {["reflection","prayer","questions"].map((k)=><button key={k} type="button" onClick={()=>setContentTab(k)} className={cn("rounded-xl py-2 text-xs font-extrabold", contentTab===k?"bg-white text-slate-900 shadow-sm":"text-slate-500")}>{k[0].toUpperCase()+k.slice(1)}</button>)}
             </div>
