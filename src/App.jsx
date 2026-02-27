@@ -1350,157 +1350,59 @@ function StreakCounter({ target }) {
   );
 }
 
-/* ── Daily Reflection Prompt + Scripture Image Card ── */
+/* ── Daily Reflection Prompt ── */
 
-// Derives a deterministic reflection prompt from the VOTD — no API needed
 function getDailyReflectionPrompt(verseRef, verseText) {
   const prompts = [
     (ref, text) => `What situation in your life right now does "${text.split(" ").slice(0, 6).join(" ")}…" speak directly into?`,
     (ref) => `If ${ref} were a personal letter written just to you today, what would God be saying?`,
-    (ref, text) => `Where have you seen the truth of ${ref} play out in the last 7 days — even in a small way?`,
-    (ref, text) => `What would change about your day if you believed ${ref} fully — not just intellectually, but in your bones?`,
+    (ref) => `Where have you seen the truth of ${ref} play out in the last 7 days — even in a small way?`,
+    (ref) => `What would change about your day if you believed ${ref} fully — not just intellectually, but in your bones?`,
     (ref) => `Who in your life most needs to hear the message of ${ref} right now? How could you carry it to them?`,
-    (ref, text) => `What's one thing you've been holding onto that ${ref} is asking you to release or trust God with?`,
+    (ref) => `What's one thing you've been holding onto that ${ref} is asking you to release or trust God with?`,
     (ref) => `How does ${ref} challenge the loudest lie you've believed about yourself recently?`,
   ];
-  // Deterministic daily rotation using day-of-year
   const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
-  const pick = prompts[dayOfYear % prompts.length];
-  return pick(verseRef, verseText);
+  return prompts[dayOfYear % prompts.length](verseRef, verseText);
 }
-
-// Unsplash keyword map — topic keywords derived from common biblical themes
-const VERSE_IMAGE_KEYWORDS = {
-  shepherd: "peaceful meadow sunrise",
-  light: "golden light rays forest",
-  love: "sunrise over mountains",
-  peace: "calm lake reflection morning",
-  strength: "mountain peak clouds",
-  hope: "dawn horizon sky",
-  joy: "sunflower field bright",
-  grace: "misty forest morning light",
-  truth: "open road horizon",
-  faith: "rocky cliff ocean sunrise",
-  fear: "lighthouse storm sea",
-  water: "waterfall jungle peaceful",
-  vine: "vineyard golden hour",
-  bread: "golden wheat field",
-  rock: "canyon rock formation sunrise",
-  default: "peaceful nature sunrise devotional",
-};
-
-function getImageKeyword(verseRef, verseText) {
-  const combined = `${verseRef} ${verseText}`.toLowerCase();
-  for (const [keyword, query] of Object.entries(VERSE_IMAGE_KEYWORDS)) {
-    if (keyword !== "default" && combined.includes(keyword)) return query;
-  }
-  return VERSE_IMAGE_KEYWORDS.default;
-}
-
-// Beautiful fallback gradients used when image fails or is loading
-const FALLBACK_GRADIENTS = [
-  "from-emerald-800 via-teal-700 to-sky-800",
-  "from-indigo-800 via-purple-700 to-pink-700",
-  "from-amber-700 via-orange-600 to-rose-700",
-  "from-sky-800 via-blue-700 to-indigo-800",
-  "from-teal-800 via-emerald-600 to-lime-700",
-  "from-rose-800 via-pink-700 to-purple-700",
-  "from-slate-800 via-slate-700 to-emerald-800",
-];
 
 function DailyInspirationSection() {
-  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
-  const gradient = FALLBACK_GRADIENTS[dayOfYear % FALLBACK_GRADIENTS.length];
   const prompt = getDailyReflectionPrompt(VERSE_OF_DAY.verseRef, VERSE_OF_DAY.verseText);
-  const imageKeyword = getImageKeyword(VERSE_OF_DAY.verseRef, VERSE_OF_DAY.verseText);
-
-  const [imgSrc, setImgSrc] = useState(null);
-  const [imgLoaded, setImgLoaded] = useState(false);
-  const [imgError, setImgError] = useState(false);
-  const [promptExpanded, setPromptExpanded] = useState(false);
-
-  // Fetch a daily nature photo from Unsplash (no API key needed via source.unsplash.com)
-  useEffect(() => {
-    // Use a deterministic seed per day so the same image shows all day
-    const seed = `versedUP-${new Date().toISOString().slice(0, 10)}-${imageKeyword.split(" ")[0]}`;
-    const encodedQuery = encodeURIComponent(imageKeyword);
-    // source.unsplash.com provides free random images — we request a landscape crop
-    setImgSrc(`https://source.unsplash.com/800x400/?${encodedQuery}&sig=${dayOfYear}`);
-  }, [imageKeyword, dayOfYear]);
+  const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="space-y-3 animate-enter">
-      {/* Section label */}
-      <div className="flex items-center gap-2 px-1">
+    <div className="animate-enter">
+      <div className="flex items-center gap-2 px-1 mb-3">
         <div className="flex-1 h-px bg-slate-100" />
-        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">Today's Inspiration</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">Today's Reflection</span>
         <div className="flex-1 h-px bg-slate-100" />
       </div>
 
-      {/* Scripture Image Card */}
-      <div className={`relative rounded-[1.75rem] overflow-hidden shadow-lg min-h-[200px] bg-gradient-to-br ${gradient}`}>
-        {/* Background image */}
-        {imgSrc && !imgError ? (
-          <img
-            src={imgSrc}
-            alt="Daily scripture background"
-            className={cn("absolute inset-0 w-full h-full object-cover transition-opacity duration-700", imgLoaded ? "opacity-60" : "opacity-0")}
-            onLoad={() => setImgLoaded(true)}
-            onError={() => setImgError(true)}
-          />
-        ) : null}
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-
-        {/* Content */}
-        <div className="relative z-10 p-6 flex flex-col justify-end min-h-[200px]">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300">Scripture</span>
-          </div>
-          <div className="text-white font-serif-scripture text-lg leading-snug drop-shadow-md">
-            "{VERSE_OF_DAY.verseText.length > 100 ? VERSE_OF_DAY.verseText.slice(0, 100) + "…" : VERSE_OF_DAY.verseText}"
-          </div>
-          <div className="mt-2 text-[11px] font-black text-emerald-300 uppercase tracking-widest drop-shadow">
-            {VERSE_OF_DAY.verseRef}
-          </div>
-        </div>
-      </div>
-
-      {/* Daily Reflection Prompt Card */}
       <div className="bg-white rounded-[1.5rem] border border-slate-100 shadow-sm overflow-hidden">
-        <div className="px-5 pt-5 pb-4">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-7 h-7 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center flex-shrink-0">
-              <span className="text-sm">💭</span>
+        <div className="px-5 pt-5 pb-5">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center flex-shrink-0">
+              <span className="text-base">💭</span>
             </div>
             <div>
               <div className="text-[10px] font-black uppercase tracking-widest text-amber-500">Reflect Today</div>
-              <div className="text-[11px] text-slate-400 font-medium">A question just for you</div>
+              <div className="text-[11px] text-slate-400 font-medium">Tied to today's verse</div>
             </div>
           </div>
 
-          <p className={cn(
-            "text-sm font-semibold text-slate-800 leading-relaxed transition-all",
-            !promptExpanded && prompt.length > 100 ? "line-clamp-2" : ""
-          )}>
+          <p className={cn("text-sm font-semibold text-slate-800 leading-relaxed", !expanded ? "line-clamp-3" : "")}>
             {prompt}
           </p>
 
-          {prompt.length > 100 ? (
-            <button
-              type="button"
-              onClick={() => setPromptExpanded(!promptExpanded)}
-              className="mt-1.5 text-[11px] font-bold text-amber-500 hover:text-amber-600"
-            >
-              {promptExpanded ? "Show less" : "Read more"}
+          {prompt.length > 120 ? (
+            <button type="button" onClick={() => setExpanded(!expanded)}
+              className="mt-2 text-[11px] font-bold text-amber-500 hover:text-amber-600">
+              {expanded ? "Show less" : "Read more"}
             </button>
           ) : null}
-        </div>
 
-        <div className="px-5 pb-4">
-          <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-            Prompt refreshes daily · {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
+          <div className="mt-4 pt-3 border-t border-slate-50 text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+            Refreshes daily · {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
           </div>
         </div>
       </div>
@@ -4294,7 +4196,10 @@ function AppInner({ session, starterMood, onLogout }) {
     if (!active) return;
     const safePatch = { ...patch };
     if (Object.prototype.hasOwnProperty.call(safePatch, "verseRef")) {
-      safePatch.scriptureSource = String(safePatch.verseRef || "").trim() ? "your_verse" : (active.scriptureSource || "verse_of_day");
+      // Only auto-derive scriptureSource if the patch doesn't already set it explicitly
+      if (!Object.prototype.hasOwnProperty.call(safePatch, "scriptureSource")) {
+        safePatch.scriptureSource = String(safePatch.verseRef || "").trim() ? "your_verse" : (active.scriptureSource || "verse_of_day");
+      }
       setCustomVerseRef(String(safePatch.verseRef || "").trim());
     }
     if (Object.prototype.hasOwnProperty.call(safePatch, "verseText")) {
