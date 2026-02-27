@@ -2106,7 +2106,7 @@ ${devotional.reflection}`);
                 className={cn(
                   "rounded-2xl border px-2.5 py-2.5 text-left transition",
                   active
-                    ? "bg-emerald-600 border-emerald-600 text-white animate-pulse-slow"
+                    ? "bg-emerald-600 border-emerald-600 text-white"
                     : enabled
                       ? "bg-white border-slate-200 text-slate-700"
                       : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
@@ -2137,8 +2137,6 @@ ${devotional.reflection}`);
               <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
             </button>
 
-            <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "", scriptureSource: "your_verse" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
-            <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
             {verseText ? (
               <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
                 <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{verseRef} ({version})</div>
@@ -2808,41 +2806,6 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
             </button>
           ))}
         </div>
-        <button type="button" onClick={handleExport} className="mt-3 w-full flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98]">
-          <Download className="w-4 h-4" /> Export all entries as JSON
-        </button>
-      </Card>
-
-      <Card>
-        <SectionLabel>Appearance / Theme</SectionLabel>
-        <div className="grid grid-cols-4 gap-2">
-          {THEME_OPTIONS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onUpdate({ theme: t.id })}
-              className={cn(
-                "flex flex-col items-center gap-1.5 rounded-2xl py-2.5 px-1 border transition-all active:scale-95",
-                settings.theme === t.id
-                  ? "border-slate-900 shadow-md scale-[1.04]"
-                  : "border-slate-200 hover:border-slate-300"
-              )}
-            >
-              <div
-                className="w-8 h-8 rounded-xl shadow-sm border border-white/80"
-                style={{ background: `linear-gradient(135deg, ${t.swatch[0]} 0%, ${t.swatch[1]} 50%, ${t.swatch[2]} 100%)` }}
-              />
-              <span className={cn("text-[10px] font-bold leading-none", settings.theme === t.id ? "text-slate-900" : "text-slate-500")}>
-                {t.label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </Card>
-
-      <Card>
-        <SectionLabel>Data & Privacy</SectionLabel>
-        <div className="text-xs text-slate-500">All data stays on this device except AI calls you explicitly trigger.</div>
       </Card>
 
       <Card>
@@ -3225,35 +3188,7 @@ function SocialPreview({ platform, devotional, settings, text }) {
         </div>
       );
 
-  if (platform === "facebook") {
-    return (
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50">
-          <div className="text-sm font-extrabold text-slate-900">Facebook Preview</div>
-          <div className="text-xs text-slate-500">Link post style preview</div>
-        </div>
-        <div className="p-4">
-          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (platform === "twitter") {
-    return (
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50">
-          <div className="text-sm font-extrabold text-slate-900">Twitter / X Preview</div>
-          <div className="text-xs text-slate-500">Short-form feed post</div>
-        </div>
-        <div className="p-4">
-          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
+  default: return (
     <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       <div className="p-4 flex items-center justify-between border-b border-slate-200 bg-slate-50">
         <div>
@@ -3262,18 +3197,17 @@ function SocialPreview({ platform, devotional, settings, text }) {
         </div>
         <div className="text-xs font-extrabold text-emerald-700 uppercase tracking-wider">{devotional.mood ? `Mood: ${devotional.mood}` : "No mood"}</div>
       </div>
-
-          <div className="p-4">
-            <div className="rounded-3xl bg-gradient-to-b from-black/5 to-black/0 p-5 border border-slate-200">
-              <div className="text-sm whitespace-pre-wrap text-slate-900 leading-relaxed">{text}</div>
-              <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-                <span>{settings.username || "@yourname"}</span>
-                <span>❤️  •  💬  •  🔖</span>
-              </div>
-            </div>
+      <div className="p-4">
+        <div className="rounded-3xl bg-gradient-to-b from-black/5 to-black/0 p-5 border border-slate-200">
+          <div className="text-sm whitespace-pre-wrap text-slate-900 leading-relaxed">{text}</div>
+          <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+            <span>{settings.username || "@yourname"}</span>
+            <span>❤️  •  💬  •  🔖</span>
           </div>
         </div>
-      );
+      </div>
+    </div>
+  );
   }
 }
 
@@ -3860,7 +3794,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
 
 /* ---------------- App shell ---------------- */
 
-function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, showWriteHint }) {
+function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, onContinueWrite, showWriteHint }) {
   const [bouncing, setBouncing] = React.useState(null);
   const [fabPulse, setFabPulse] = React.useState(false);
   const handleNav = (target, fn) => {
@@ -3871,8 +3805,15 @@ function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, showWriteHin
   const handleFab = () => {
     setFabPulse(true);
     setTimeout(() => setFabPulse(false), 600);
-    onWriteFromYourVerse();
+    if (view === "write" || view === "compile") {
+      onContinueWrite();
+    } else {
+      onWriteFromYourVerse();
+    }
   };
+
+  const isWriting = view === "write" || view === "compile";
+
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-12 pt-3 pb-7 bg-white/90 backdrop-blur-xl border-t border-slate-100">
       <button type="button" onClick={() => handleNav("home", onHome)}
@@ -3887,11 +3828,19 @@ function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, showWriteHin
             Your Verse
           </div>
         ) : null}
+        {isWriting ? (
+          <div className="absolute -top-7 text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+            {view === "compile" ? "Launch Pad" : "Writing"}
+          </div>
+        ) : null}
         {fabPulse && <span className="absolute inset-0 rounded-full bg-slate-900 pointer-events-none" style={{ animation: "fabRing 0.6s ease-out forwards" }} />}
         <button type="button" onClick={handleFab}
-          className="w-14 h-14 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.18)] btn-spring relative z-10"
-          title="Use Your Own Verse">
-          <Pencil className="w-6 h-6" />
+          className={cn(
+            "w-14 h-14 rounded-full flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.18)] btn-spring relative z-10",
+            isWriting ? "bg-emerald-600 text-white" : "bg-slate-900 text-white"
+          )}
+          title={isWriting ? "Back to writing" : "Use Your Own Verse"}>
+          {isWriting ? <PenTool className="w-6 h-6" /> : <Pencil className="w-6 h-6" />}
         </button>
       </div>
       <button type="button" onClick={() => handleNav("library", onLibrary)}
@@ -4177,7 +4126,11 @@ const onSaved = () => {
         <div className="max-w-md mx-auto flex items-center gap-4">
           <BrandLogo className="h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105" />
           <div className="min-w-0 leading-tight flex-1">
-            <div className="text-[15px] font-extrabold text-slate-900 tracking-tight">Rooted in Christ</div>
+            {(view === "write" || view === "compile") && active ? (
+              <div className="text-[13px] font-bold text-slate-500 truncate">{active.verseRef || "New Entry"}</div>
+            ) : (
+              <div className="text-[13px] font-semibold text-slate-400">{getTimeGreeting(getDisplayName(session, settings))}</div>
+            )}
           </div>
 <div className="relative" ref={menuRef}>
             <button
@@ -4245,7 +4198,7 @@ const onSaved = () => {
       </main>
 
       {/* ── Bottom Nav Bar ── */}
-      <BottomNav view={view} onHome={() => setView("home")} onWriteFromYourVerse={writeFromYourVerse} onLibrary={() => setView("library")} showWriteHint={!hasUsedWriteFab && !customVerseRef} />
+      <BottomNav view={view} onHome={() => setView("home")} onWriteFromYourVerse={writeFromYourVerse} onContinueWrite={() => setView(active ? "write" : "home")} onLibrary={() => setView("library")} showWriteHint={!hasUsedWriteFab && !customVerseRef} />
     </div>
     </ToastContext.Provider>
   );
