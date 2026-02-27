@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+\import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowUpDown,
@@ -1350,7 +1350,7 @@ function StreakCounter({ target }) {
   );
 }
 
-/* ── Daily Reflection Prompt ── */
+/* ── Daily Inspiration: AI Image + Reflection Prompt ── */
 
 function getDailyReflectionPrompt(verseRef, verseText) {
   const prompts = [
@@ -1366,18 +1366,90 @@ function getDailyReflectionPrompt(verseRef, verseText) {
   return prompts[dayOfYear % prompts.length](verseRef, verseText);
 }
 
+function buildImagePrompt(verseRef, verseText) {
+  // Extract key themes from the verse to craft a vivid scene prompt
+  const text = `${verseRef} ${verseText}`.toLowerCase();
+  const themes = [
+    [/shepherd|sheep|pasture|flock/, "a peaceful sunlit shepherd and sheep on rolling green hills at golden hour, cinematic, God rays through clouds"],
+    [/light|darkness|lamp|shine|radiant/, "golden rays of divine light breaking through storm clouds over a misty valley, epic sky, spiritual atmosphere"],
+    [/water|river|stream|well|thirst/, "a crystal clear mountain stream flowing through an ancient mossy forest, ethereal morning light"],
+    [/mountain|rock|fortress|strength/, "a lone figure standing on a mountain summit above the clouds at sunrise, majestic, cinematic"],
+    [/love|heart|grace|mercy/, "a sunrise over a peaceful countryside with wildflowers and soft warm golden light, serene and hopeful"],
+    [/peace|still|rest|quiet/, "a still misty lake at dawn surrounded by ancient trees, perfect mirror reflection, tranquil"],
+    [/seed|grow|fruit|vine|harvest/, "a lush vineyard or orchard at golden hour, sunlight through leaves, abundant life"],
+    [/eagle|fly|soar|wings/, "a majestic eagle soaring above mountain peaks through dramatic clouds at sunrise"],
+    [/fire|flame|burn|refine/, "a warm campfire at night under a breathtaking starry sky, Milky Way, peaceful wilderness"],
+    [/bread|feed|hunger|full/, "golden wheat fields at sunset, rolling hills, warm harvest light"],
+    [/storm|wind|wave|sea/, "a lighthouse standing strong against crashing ocean waves in a dramatic storm, perseverance"],
+    [/desert|wilderness|journey|path/, "a solitary traveler on an ancient dusty path through a vast desert at sunrise, spiritual quest"],
+  ];
+  for (const [pattern, imagePrompt] of themes) {
+    if (pattern.test(text)) return imagePrompt;
+  }
+  return "a breathtaking sunrise over rolling hills and ancient trees, spiritual light, cinematic nature photography, peaceful and hopeful";
+}
+
 function DailyInspirationSection() {
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
   const prompt = getDailyReflectionPrompt(VERSE_OF_DAY.verseRef, VERSE_OF_DAY.verseText);
   const [expanded, setExpanded] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  // Build Pollinations URL — deterministic seed per day so same image all day
+  const imagePromptText = buildImagePrompt(VERSE_OF_DAY.verseRef, VERSE_OF_DAY.verseText);
+  const encoded = encodeURIComponent(imagePromptText);
+  const imgUrl = `https://image.pollinations.ai/prompt/${encoded}?width=800&height=450&seed=${dayOfYear}&nologo=true&model=flux`;
 
   return (
-    <div className="animate-enter">
-      <div className="flex items-center gap-2 px-1 mb-3">
+    <div className="animate-enter space-y-3">
+      <div className="flex items-center gap-2 px-1">
         <div className="flex-1 h-px bg-slate-100" />
-        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">Today's Reflection</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">Today's Inspiration</span>
         <div className="flex-1 h-px bg-slate-100" />
       </div>
 
+      {/* AI-generated scripture image */}
+      <div className="relative rounded-[1.75rem] overflow-hidden bg-slate-100 shadow-sm" style={{ aspectRatio: "16/9" }}>
+        {/* Skeleton shimmer while loading */}
+        {!imgLoaded && !imgError && (
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 animate-pulse flex flex-col items-center justify-center gap-2">
+            <Sparkles className="w-6 h-6 text-slate-300 animate-pulse" />
+            <span className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">Generating image…</span>
+          </div>
+        )}
+        {!imgError ? (
+          <img
+            src={imgUrl}
+            alt="AI generated scripture scene"
+            className={cn(
+              "absolute inset-0 w-full h-full object-cover transition-opacity duration-700",
+              imgLoaded ? "opacity-100" : "opacity-0"
+            )}
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-800 via-teal-700 to-sky-800 flex items-center justify-center">
+            <span className="text-white/50 text-xs font-bold">Image unavailable</span>
+          </div>
+        )}
+        {/* Subtle verse ref badge */}
+        {imgLoaded && (
+          <div className="absolute bottom-3 left-3 bg-black/40 backdrop-blur-sm rounded-full px-3 py-1">
+            <span className="text-[10px] font-black text-white/90 tracking-wide">{VERSE_OF_DAY.verseRef}</span>
+          </div>
+        )}
+        {/* AI badge */}
+        {imgLoaded && (
+          <div className="absolute top-3 right-3 bg-black/30 backdrop-blur-sm rounded-full px-2.5 py-1 flex items-center gap-1">
+            <Sparkles className="w-2.5 h-2.5 text-white/70" />
+            <span className="text-[9px] font-black text-white/70 uppercase tracking-widest">AI</span>
+          </div>
+        )}
+      </div>
+
+      {/* Daily Reflection Prompt */}
       <div className="bg-white rounded-[1.5rem] border border-slate-100 shadow-sm overflow-hidden">
         <div className="px-5 pt-5 pb-5">
           <div className="flex items-center gap-2.5 mb-4">
