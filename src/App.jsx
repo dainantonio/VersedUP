@@ -1449,7 +1449,10 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
     pushToast(`${label} verse ready.`);
   };
 
-  const latest = devotionals[devotionals.length - 1] || null;
+  // Most recently edited entry (not just last in array)
+  const latest = devotionals.length > 0
+    ? [...devotionals].sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0]
+    : null;
   const todaysAction = hasActive
     ? { tone: "bg-emerald-50 border-emerald-200 text-emerald-800", text: "🟢 You're ready to post — 1 entry draft waiting" }
     : latest
@@ -1481,7 +1484,8 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
 
       <div className="bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 overflow-hidden relative scroll-card">
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/60 via-transparent to-sky-50/20 pointer-events-none" />
-        <div className="relative flex items-center justify-between gap-3 flex-wrap">
+        <div className="relative space-y-4">
+          {/* Streak row */}
           <div className="flex items-center gap-3">
             <StreakCounter target={streak.count} />
             <div className="relative w-8 h-8 flex-shrink-0">
@@ -1493,20 +1497,24 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
               <div className="text-[11px] text-slate-500 font-medium leading-tight mt-0.5">God meets you here.</div>
             </div>
           </div>
-          <div className="flex gap-2">
-            <RippleButton
-              onClick={hasActive ? onContinue : onNew}
-              className="flex-shrink-0 px-4 py-3 rounded-2xl bg-slate-900 text-white text-sm font-extrabold shadow-lg hover:bg-slate-800 btn-spring"
-            >
-              {hasActive ? "Continue" : "Start"}
-            </RippleButton>
-            <RippleButton
-              onClick={onQuickPost}
-              className="flex-shrink-0 px-4 py-3 rounded-2xl bg-emerald-600 text-white text-sm font-extrabold shadow-lg hover:bg-emerald-700 btn-spring"
-            >
-              60-Second Post
-            </RippleButton>
-          </div>
+
+          {/* Primary CTA — one clear action */}
+          <RippleButton
+            onClick={hasActive ? onContinue : onNew}
+            className="w-full py-4 rounded-2xl bg-emerald-600 text-white text-base font-extrabold shadow-lg shadow-emerald-200 hover:bg-emerald-700 btn-spring flex items-center justify-center gap-2"
+          >
+            <PenTool className="w-5 h-5" />
+            {hasActive ? "Continue Writing" : "Start Today's Devotional"}
+          </RippleButton>
+
+          {/* Secondary — less prominent */}
+          <button
+            type="button"
+            onClick={onQuickPost}
+            className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-extrabold hover:border-slate-300 hover:bg-slate-50 transition-colors"
+          >
+            ⚡ 60-Second Post — just a verse + one thought
+          </button>
         </div>
       </div>
 
@@ -2199,22 +2207,46 @@ ${devotional.reflection}`);
         </div>
       ) : null}
 
-      <div className="rounded-2xl bg-white border border-slate-200 p-2.5">
-        <div className="flex items-center gap-2">
+      {/* ── Step Progress Header ── */}
+      <div className="rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden">
+        {/* Top row: back + step label */}
+        <div className="flex items-center gap-3 px-4 pt-3.5 pb-1">
           <button
             type="button"
             onClick={() => (step === 1 ? onGoCompile() : setStep((s) => Math.max(1, s - 1)))}
-            className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold"
+            className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors active:scale-95"
+            title={step === 1 ? "Exit" : "Back"}
           >
-            {step === 1 ? <X className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            <ChevronLeft className="w-3.5 h-3.5" />
+            {step === 1 ? "Exit" : "Back"}
           </button>
-          <div className="text-xs font-black text-slate-500 uppercase">{displayStep} of 4 · {onboardingStyleSteps[displayStep - 1]?.title || stepTitles[step - 1]}</div>
-          <div className="ml-auto" />
+          <div className="flex-1 text-center">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Step {displayStep} of 4</span>
+            <span className="mx-2 text-slate-200">·</span>
+            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+              {onboardingStyleSteps[displayStep - 1]?.title || stepTitles[step - 1]}
+            </span>
+          </div>
+          {/* Spacer to balance the back button */}
+          <div className="w-16" />
         </div>
-        <div className="mt-3 grid grid-cols-4 gap-2">
+
+        {/* Progress bar — thick, prominent */}
+        <div className="px-4 pb-1">
+          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className="h-full bg-emerald-500 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Step bubbles */}
+        <div className="grid grid-cols-4 gap-1.5 px-4 pb-3.5 pt-2">
           {onboardingStyleSteps.map((item) => {
             const enabled = canAccessStep(item.stepNum);
-            const active = item.stepNum === displayStep;
+            const isActive = item.stepNum === displayStep;
+            const isDone = item.stepNum < displayStep;
             return (
               <button
                 key={item.label}
@@ -2222,22 +2254,23 @@ ${devotional.reflection}`);
                 disabled={!enabled}
                 onClick={() => goToStep(item.stepNum)}
                 className={cn(
-                  "rounded-2xl border px-2.5 py-2.5 text-left transition",
-                  active
-                    ? "bg-emerald-600 border-emerald-600 text-white"
-                    : enabled
-                      ? "bg-white border-slate-200 text-slate-700"
-                      : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                  "rounded-xl py-2 px-1 text-center transition-all duration-200",
+                  isActive
+                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-200"
+                    : isDone
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : enabled
+                        ? "bg-slate-50 border border-slate-200 text-slate-600 hover:border-slate-300"
+                        : "bg-slate-50 border border-slate-100 text-slate-300 cursor-not-allowed"
                 )}
               >
-                <div className="text-[10px] font-black uppercase tracking-widest opacity-80">{item.label}</div>
-                <div className="text-[11px] font-extrabold mt-1">{item.title}</div>
+                <div className={cn("text-[9px] font-black uppercase tracking-wider mb-0.5", isActive ? "text-emerald-200" : isDone ? "text-emerald-500" : "text-slate-400")}>
+                  {isDone ? "✓" : `Step ${item.stepNum}`}
+                </div>
+                <div className="text-[11px] font-extrabold leading-tight">{item.title}</div>
               </button>
             );
           })}
-        </div>
-        <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
-          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
@@ -2362,7 +2395,6 @@ ${devotional.reflection}`);
       {step === 2 ? (
         <Card>
           <div className="space-y-4">
-            <button type="button" onClick={() => setStep(1)} className="text-xs rounded-full border px-3 py-1 font-bold text-emerald-700 border-emerald-200 bg-emerald-50">{verseRef || "No verse"}</button>
             <div className="text-2xl font-black text-slate-900">Where is your heart today?</div>
             <div className="flex gap-2 overflow-x-auto no-scrollbar">{MOODS.map((m) => <Chip key={m.id} active={devotional.mood===m.id} onClick={() => onUpdate({ mood: m.id })}>{m.label}</Chip>)}</div>
             {devotional.mood ? <div className="text-sm text-slate-500 italic">{moodPrompt[devotional.mood] || "What is God showing you in this verse?"}</div> : null}
@@ -2379,7 +2411,6 @@ ${devotional.reflection}`);
       {step === 3 ? (
         <Card>
           <div className="space-y-4">
-            <button type="button" onClick={() => setStep(1)} className="text-xs rounded-full border px-3 py-1 font-bold text-emerald-700 border-emerald-200 bg-emerald-50">{verseRef || "No verse"}</button>
             <input value={devotional.title} onChange={(e) => onUpdate({ title: e.target.value })} placeholder="Give it a title (optional)" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
 
             {/* Undo / Redo */}
