@@ -1665,6 +1665,8 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
 
     </div>
   );
+}
+
 function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
   const { pushToast } = useToast();
   const [busy, setBusy] = useState(false);
