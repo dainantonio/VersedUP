@@ -2395,15 +2395,101 @@ ${devotional.reflection}`);
       {step === 2 ? (
         <Card>
           <div className="space-y-4">
-            <div className="text-2xl font-black text-slate-900">Where is your heart today?</div>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">{MOODS.map((m) => <Chip key={m.id} active={devotional.mood===m.id} onClick={() => onUpdate({ mood: m.id })}>{m.label}</Chip>)}</div>
-            {devotional.mood ? <div className="text-sm text-slate-500 italic">{moodPrompt[devotional.mood] || "What is God showing you in this verse?"}</div> : null}
-            <textarea value={devotional.reflection} onChange={(e) => onUpdate({ reflection: e.target.value })} placeholder="Write freely. No rules here." rows={10} spellCheck autoCorrect="on" autoCapitalize="sentences" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
-            <div className="text-right text-[11px] text-slate-400">{String(devotional.reflection || "").trim().split(/\s+/).filter(Boolean).length} words</div>
-
-            <div className="flex items-center justify-end">
-              <button type="button" onClick={() => goToStep(3)} className="rounded-2xl bg-emerald-600 text-white px-4 py-3 font-extrabold">Shape my writing</button>
+            {/* Heading + mood row */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="text-2xl font-black text-slate-900 leading-tight">Write your reflection</div>
+              {devotional.mood ? (
+                <span className="shrink-0 mt-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black uppercase tracking-wider px-2.5 py-1">
+                  {MOODS.find(m => m.id === devotional.mood)?.label || devotional.mood}
+                </span>
+              ) : null}
             </div>
+
+            {/* Mood chips — compact, scrollable */}
+            <div>
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">How's your heart?</div>
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                {MOODS.map((m) => (
+                  <Chip key={m.id} active={devotional.mood === m.id} onClick={() => onUpdate({ mood: m.id })}>{m.label}</Chip>
+                ))}
+              </div>
+            </div>
+
+            {/* Guided writing prompt — only shows when mood is set */}
+            {devotional.mood ? (
+              <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-800 font-medium italic animate-enter">
+                💭 {moodPrompt[devotional.mood] || "What is God showing you in this verse?"}
+              </div>
+            ) : null}
+
+            {/* Content tabs ABOVE textarea */}
+            <div>
+              <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1 mb-3">
+                {[
+                  { k: "reflection", label: "Reflection" },
+                  { k: "prayer", label: "Prayer" },
+                  { k: "questions", label: "Questions" },
+                ].map(({ k, label }) => (
+                  <button key={k} type="button" onClick={() => setContentTab(k)}
+                    className={cn("rounded-xl py-2 text-xs font-extrabold transition-all", contentTab === k ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}>
+                    {label}
+                    {k !== "reflection" && devotional[k]?.trim() ? (
+                      <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 align-middle" />
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+
+              {/* Undo / Redo */}
+              <div className="flex items-center gap-2 mb-2">
+                <button type="button" onClick={doUndo} disabled={!canUndo || busy}
+                  className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
+                  <Undo2 className="w-3.5 h-3.5" /> Undo
+                </button>
+                <button type="button" onClick={doRedo} disabled={!canRedo || busy}
+                  className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
+                  <Redo2 className="w-3.5 h-3.5" /> Redo
+                </button>
+              </div>
+
+              {/* Textarea */}
+              <textarea
+                value={contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions}
+                onChange={(e) => {
+                  const patch = { [contentTab]: e.target.value };
+                  onUpdate(patch);
+                  pushHistory({ reflection: devotional.reflection, prayer: devotional.prayer, questions: devotional.questions, ...patch });
+                }}
+                placeholder={
+                  contentTab === "reflection"
+                    ? (devotional.mood ? "Start writing… there are no rules here." : "Select a mood above, then write freely.")
+                    : contentTab === "prayer"
+                      ? "Write a prayer based on this verse…"
+                      : "Questions this verse raises for you…"
+                }
+                rows={10}
+                spellCheck
+                autoCorrect="on"
+                autoCapitalize="sentences"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none"
+              />
+              <div className="text-right text-[11px] text-slate-400 mt-1">
+                {String(contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions || "").trim().split(/\s+/).filter(Boolean).length} words
+              </div>
+            </div>
+
+            {/* CTA — clear next step name */}
+            <button
+              type="button"
+              onClick={() => goToStep(3)}
+              className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold flex items-center justify-center gap-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              Polish &amp; Preview
+            </button>
+            {!heartReady ? (
+              <div className="text-xs text-center text-slate-400 -mt-2">Add a reflection, prayer, or question to continue.</div>
+            ) : null}
           </div>
         </Card>
       ) : null}
@@ -2411,73 +2497,160 @@ ${devotional.reflection}`);
       {step === 3 ? (
         <Card>
           <div className="space-y-4">
-            <input value={devotional.title} onChange={(e) => onUpdate({ title: e.target.value })} placeholder="Give it a title (optional)" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
-
-            {/* Undo / Redo */}
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={doUndo} disabled={!canUndo || busy}
-                className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
-                <Undo2 className="w-3.5 h-3.5" /> Undo
-              </button>
-              <button type="button" onClick={doRedo} disabled={!canRedo || busy}
-                className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
-                <Redo2 className="w-3.5 h-3.5" /> Redo
-              </button>
+            {/* Heading — clearly different from Step 2, shows mood context */}
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-2xl font-black text-slate-900">Polish your writing</div>
+                <div className="text-sm text-slate-500 mt-1 font-medium">Refine with AI, then choose where to post.</div>
+              </div>
+              {devotional.mood ? (
+                <span className="shrink-0 mt-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black uppercase tracking-wider px-2.5 py-1">
+                  {MOODS.find(m => m.id === devotional.mood)?.label || devotional.mood}
+                </span>
+              ) : null}
             </div>
 
-            {/* AI Shape It toolbar — clear labeled buttons */}
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey}
-                className="flex items-center gap-1.5 rounded-full bg-emerald-600 text-white px-3 py-1.5 text-xs font-extrabold disabled:opacity-40 hover:bg-emerald-700 transition-all tool-spring">
-                <Sparkles className="w-3.5 h-3.5" /> AI Draft
-              </button>
-              <button onClick={() => void doFix()} disabled={busy}
-                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
-                <Check className="w-3.5 h-3.5" /> Fix Grammar
-              </button>
-              <button onClick={() => void doLength("shorten")} disabled={busy}
-                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
-                <ArrowUpToLine className="w-3.5 h-3.5" /> Shorten
-              </button>
-              <button onClick={() => void doLength("lengthen")} disabled={busy}
-                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
-                <ArrowDownToLine className="w-3.5 h-3.5" /> Expand
-              </button>
-              <div className="relative">
-                <button onClick={() => setToneMenuOpen((o) => !o)}
-                  className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:border-slate-400 transition-all tool-spring">
-                  <Wand2 className="w-3.5 h-3.5" /> Tone
+            {/* Optional title */}
+            <input
+              value={devotional.title}
+              onChange={(e) => onUpdate({ title: e.target.value })}
+              placeholder="Give it a title (optional)"
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
+            />
+
+            {/* Tabs ABOVE textarea */}
+            <div>
+              <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1 mb-3">
+                {[
+                  { k: "reflection", label: "Reflection" },
+                  { k: "prayer", label: "Prayer" },
+                  { k: "questions", label: "Questions" },
+                ].map(({ k, label }) => (
+                  <button key={k} type="button" onClick={() => setContentTab(k)}
+                    className={cn("rounded-xl py-2 text-xs font-extrabold transition-all", contentTab === k ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}>
+                    {label}
+                    {k !== "reflection" && devotional[k]?.trim() ? (
+                      <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 align-middle" />
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+
+              {/* Undo / Redo */}
+              <div className="flex items-center gap-2 mb-2">
+                <button type="button" onClick={doUndo} disabled={!canUndo || busy}
+                  className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
+                  <Undo2 className="w-3.5 h-3.5" /> Undo
                 </button>
-                {toneMenuOpen ? (
-                  <div className="absolute bottom-full left-0 mb-1 z-30 w-44 rounded-xl border bg-white shadow-lg overflow-hidden">
-                    {["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t) => (
-                      <button key={t} onClick={() => void doTone(t)} className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-slate-50 transition-colors">{t}</button>
-                    ))}
-                  </div>
-                ) : null}
+                <button type="button" onClick={doRedo} disabled={!canRedo || busy}
+                  className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
+                  <Redo2 className="w-3.5 h-3.5" /> Redo
+                </button>
+              </div>
+
+              {/* AI toolbar */}
+              <div className="flex flex-wrap gap-2 mb-3">
+                <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey}
+                  className="flex items-center gap-1.5 rounded-full bg-emerald-600 text-white px-3 py-1.5 text-xs font-extrabold disabled:opacity-40 hover:bg-emerald-700 transition-all tool-spring">
+                  <Sparkles className="w-3.5 h-3.5" /> AI Draft
+                </button>
+                <button onClick={() => void doFix()} disabled={busy}
+                  className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
+                  <Check className="w-3.5 h-3.5" /> Fix Grammar
+                </button>
+                <button onClick={() => void doLength("shorten")} disabled={busy}
+                  className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
+                  <ArrowUpToLine className="w-3.5 h-3.5" /> Shorten
+                </button>
+                <button onClick={() => void doLength("lengthen")} disabled={busy}
+                  className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
+                  <ArrowDownToLine className="w-3.5 h-3.5" /> Expand
+                </button>
+                <div className="relative">
+                  <button onClick={() => setToneMenuOpen((o) => !o)}
+                    className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:border-slate-400 transition-all tool-spring">
+                    <Wand2 className="w-3.5 h-3.5" /> Tone
+                  </button>
+                  {toneMenuOpen ? (
+                    <div className="absolute bottom-full left-0 mb-1 z-30 w-44 rounded-xl border bg-white shadow-lg overflow-hidden">
+                      {["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t) => (
+                        <button key={t} onClick={() => void doTone(t)} className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-slate-50 transition-colors">{t}</button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Verse context pill — reminds user what they're polishing */}
+              {devotional.verseRef ? (
+                <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2 text-xs font-bold text-slate-500 flex items-center gap-2">
+                  <BookOpen className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span className="text-emerald-700 font-black">{devotional.verseRef}</span>
+                  {devotional.verseText ? <span className="text-slate-400 truncate">— {devotional.verseText.slice(0, 60)}{devotional.verseText.length > 60 ? "…" : ""}</span> : null}
+                </div>
+              ) : null}
+
+              {/* Empty state guidance */}
+              {!devotional.reflection && !devotional.prayer && !devotional.questions && contentTab === "reflection" ? (
+                <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-700 font-medium animate-enter">
+                  💡 No reflection yet — go back to Step 2 to write, or use <strong>AI Draft</strong> above to generate a starting point.
+                </div>
+              ) : null}
+
+              {/* Textarea — same editing surface, clearly labeled as the polishing area */}
+              <textarea
+                value={contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions}
+                onChange={(e) => {
+                  const patch = { [contentTab]: e.target.value };
+                  onUpdate(patch);
+                  pushHistory({ reflection: devotional.reflection, prayer: devotional.prayer, questions: devotional.questions, ...patch });
+                }}
+                placeholder={
+                  contentTab === "reflection" ? "Your reflection…"
+                  : contentTab === "prayer" ? "Your prayer…"
+                  : "Questions this verse raises…"
+                }
+                rows={10}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none"
+              />
+              <div className="flex items-center justify-between mt-1">
+                <div className="text-[11px] text-slate-400">
+                  {String(contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions || "").trim().split(/\s+/).filter(Boolean).length} words
+                </div>
+                <span className={cn("text-[11px] font-extrabold", over ? "text-red-600" : count > limit * 0.8 ? "text-amber-600" : "text-emerald-600")}>
+                  {count}/{limit}
+                </span>
+              </div>
+              {over ? (
+                <button onClick={() => void doLength("shorten")} className="mt-1 text-xs font-bold underline text-red-600">
+                  Auto-Shorten to fit
+                </button>
+              ) : null}
+            </div>
+
+            {/* Platform selector — clearly labeled, prominent */}
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-2">
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Where are you posting?</div>
+              <div className="flex flex-wrap gap-2">
+                {(settings.myPlatforms && settings.myPlatforms.length ? settings.myPlatforms : ["tiktok","instagram","twitter","facebook","email"]).map((p) => {
+                  const labels = { tiktok: "TikTok", instagram: "Instagram", twitter: "Twitter / X", facebook: "Facebook", email: "Email" };
+                  return (
+                    <button key={p} type="button" onClick={() => setPlatform(p)}
+                      className={cn("rounded-full px-3 py-1.5 text-xs font-extrabold border transition-all",
+                        platform === p ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"
+                      )}>
+                      {labels[p] || p}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            <textarea value={contentTab==="reflection"?devotional.reflection:contentTab==="prayer"?devotional.prayer:devotional.questions} onChange={(e) => {
-                const patch = { [contentTab]: e.target.value };
-                onUpdate(patch);
-                pushHistory({ reflection: devotional.reflection, prayer: devotional.prayer, questions: devotional.questions, ...patch });
-              }} rows={10} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
-            <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1">
-              {["reflection","prayer","questions"].map((k)=><button key={k} type="button" onClick={()=>setContentTab(k)} className={cn("rounded-xl py-2 text-xs font-extrabold", contentTab===k?"bg-white text-slate-900 shadow-sm":"text-slate-500")}>{k[0].toUpperCase()+k.slice(1)}</button>)}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-500">For:</span>
-              <select value={platform} onChange={(e)=>setPlatform(e.target.value)} className="rounded-full border border-slate-200 px-3 py-1 text-xs font-extrabold">
-                {(settings.myPlatforms && settings.myPlatforms.length ? settings.myPlatforms : ["tiktok","instagram","twitter","facebook","email"]).map((p)=> <option key={p} value={p}>{{ tiktok: "TikTok", instagram: "Instagram", twitter: "Twitter / X", facebook: "Facebook", email: "Email" }[p] || p[0].toUpperCase() + p.slice(1)}</option>)}
-              </select>
-              <span className={cn("ml-auto text-xs font-extrabold", over ? "text-red-600" : count > limit*0.8 ? "text-amber-600" : "text-emerald-600")}>{count}/{limit}</span>
-              {over ? <button onClick={() => void doLength("shorten")} className="text-xs font-bold underline text-red-600">Auto-Shorten</button> : null}
-            </div>
-
-            <button type="button" onClick={() => goToStep(4)} disabled={!heartReady} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold disabled:opacity-40">Preview & Post</button>
-            {!heartReady ? <div className="text-xs text-slate-500">Add a reflection, prayer, or question before posting.</div> : null}
+            {/* Preview & Post CTA */}
+            <button type="button" onClick={() => goToStep(4)} disabled={!heartReady}
+              className="w-full rounded-2xl bg-slate-900 text-white py-3.5 font-extrabold disabled:opacity-40 flex items-center justify-center gap-2">
+              <Eye className="w-4 h-4" /> Preview &amp; Post
+            </button>
           </div>
         </Card>
       ) : null}
@@ -2485,21 +2658,53 @@ ${devotional.reflection}`);
       {step === 4 ? (
         <Card>
           <div className="space-y-4">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
-              {[
-                { id: "tiktok", label: "TikTok", Icon: TikTokIcon, active: "bg-black text-white border-black", inactive: "bg-white border-slate-200 text-slate-700" },
-                { id: "instagram", label: "Instagram", Icon: InstagramIcon, active: "bg-gradient-to-r from-purple-500 to-pink-500 text-white border-transparent", inactive: "bg-white border-slate-200 text-slate-700" },
-                { id: "twitter", label: "X", Icon: XIcon, active: "bg-black text-white border-black", inactive: "bg-white border-slate-200 text-slate-700" },
-                { id: "facebook", label: "Facebook", Icon: FacebookIcon, active: "bg-blue-600 text-white border-blue-600", inactive: "bg-white border-slate-200 text-slate-700" },
-                { id: "email", label: "Email", Icon: EmailIcon, active: "bg-slate-800 text-white border-slate-800", inactive: "bg-white border-slate-200 text-slate-700" },
-              ].map(({ id, label, Icon, active, inactive }) => (
-                <button key={id} type="button" onClick={() => setPlatform(id)} className={cn("shrink-0 rounded-full px-3 py-2 text-xs font-extrabold border flex items-center gap-1.5 transition-all", platform===id ? active : inactive)}>
-                  <Icon className="w-3.5 h-3.5" />{label}
-                </button>
-              ))}
+            {/* Step 4 heading */}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-black text-slate-900">Ready to post</div>
+                <div className="text-sm text-slate-500 mt-0.5 font-medium">Review your caption, then share.</div>
+              </div>
             </div>
 
-            {platform === "tiktok" ? <div className="text-xs font-bold text-emerald-700 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">Caption will be in your clipboard when TikTok opens.</div> : null}
+            {/* Platform confirmation — shows what was chosen in Step 3, collapsible change */}
+            {(() => {
+              const platformLabels = { tiktok: "TikTok", instagram: "Instagram", twitter: "Twitter / X", facebook: "Facebook", email: "Email" };
+              const [changingPlatform, setChangingPlatform] = React.useState(false);
+              return (
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Posting to</div>
+                      <span className="rounded-full bg-slate-900 text-white text-xs font-extrabold px-3 py-1">{platformLabels[platform] || platform}</span>
+                    </div>
+                    <button type="button" onClick={() => setChangingPlatform(v => !v)}
+                      className="text-xs font-bold text-emerald-600 hover:text-emerald-700">
+                      {changingPlatform ? "Done" : "Change"}
+                    </button>
+                  </div>
+                  {changingPlatform ? (
+                    <div className="flex flex-wrap gap-2 mt-3 animate-enter">
+                      {[
+                        { id: "tiktok", label: "TikTok", Icon: TikTokIcon },
+                        { id: "instagram", label: "Instagram", Icon: InstagramIcon },
+                        { id: "twitter", label: "X", Icon: XIcon },
+                        { id: "facebook", label: "Facebook", Icon: FacebookIcon },
+                        { id: "email", label: "Email", Icon: EmailIcon },
+                      ].map(({ id, label, Icon }) => (
+                        <button key={id} type="button" onClick={() => { setPlatform(id); setChangingPlatform(false); }}
+                          className={cn("shrink-0 rounded-full px-3 py-1.5 text-xs font-extrabold border flex items-center gap-1.5 transition-all",
+                            platform === id ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"
+                          )}>
+                          <Icon className="w-3.5 h-3.5" />{label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })()}
+
+            {platform === "tiktok" ? <div className="text-xs font-bold text-emerald-700 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">✓ Caption will be copied to clipboard when TikTok opens.</div> : null}
 
             <SocialPreview platform={platform} devotional={devotional} settings={settings} text={postText} />
 
@@ -3933,26 +4138,25 @@ function OnboardingWizard({ authDraft, onFinish }) {
                   : <span className="text-slate-400 italic">Your reflection will appear here…</span>
                 }
               </div>
-              {/* AI toolbar strip — icon-only, matches real app */}
-              <div className="flex gap-2 items-center">
+              {/* AI toolbar — labeled buttons matching the real app */}
+              <div className="flex flex-wrap gap-1.5 items-center">
                 <button
                   type="button"
                   onClick={() => setDemoDrafted(true)}
-                  title="Draft for me"
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                    demoDrafted ? "bg-emerald-100 text-emerald-600 border border-emerald-200" : "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:shadow-md"
+                  className={`flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-extrabold transition-all ${
+                    demoDrafted ? "bg-emerald-100 text-emerald-700 border border-emerald-200" : "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
                   }`}
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <Sparkles className="w-3 h-3" /> AI Draft
                 </button>
                 {[
-                  { icon: Check, title: "Fix grammar" },
-                  { icon: ChevronUp, title: "Shorten" },
-                  { icon: ChevronDown, title: "Expand" },
-                  { icon: Wand2, title: "Tone" },
-                ].map(({ icon: Icon, title }) => (
-                  <button key={title} type="button" title={title} className="w-9 h-9 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors">
-                    <Icon className="w-4 h-4" />
+                  { icon: Check, label: "Fix Grammar" },
+                  { icon: ArrowUpToLine, label: "Shorten" },
+                  { icon: ArrowDownToLine, label: "Expand" },
+                  { icon: Wand2, label: "Tone" },
+                ].map(({ icon: Icon, label }) => (
+                  <button key={label} type="button" className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                    <Icon className="w-3 h-3" /> {label}
                   </button>
                 ))}
               </div>
@@ -4089,7 +4293,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
 
 /* ---------------- App shell ---------------- */
 
-function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, onContinueWrite, showWriteHint }) {
+function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, onContinueWrite, showWriteHint, onSettings, hasActiveDraft }) {
   const [bouncing, setBouncing] = React.useState(null);
   const [fabPulse, setFabPulse] = React.useState(false);
   const handleNav = (target, fn) => {
@@ -4097,11 +4301,17 @@ function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, onContinueWr
     setTimeout(() => setBouncing(null), 500);
     fn();
   };
+  const [fabChoiceOpen, setFabChoiceOpen] = React.useState(false);
+
   const handleFab = () => {
     setFabPulse(true);
     setTimeout(() => setFabPulse(false), 600);
     if (view === "write" || view === "compile") {
+      // Already writing — just go back there
       onContinueWrite();
+    } else if (hasActiveDraft && view !== "write") {
+      // Has in-progress draft but not currently on write view — show choice
+      setFabChoiceOpen(true);
     } else {
       onWriteFromYourVerse();
     }
@@ -4110,14 +4320,39 @@ function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, onContinueWr
   const isWriting = view === "write" || view === "compile";
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-12 pt-3 pb-7 bg-white/90 backdrop-blur-xl border-t border-slate-100">
+    <>
+    {/* Draft-in-progress choice modal */}
+    {fabChoiceOpen ? (
+      <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-end justify-center p-4">
+        <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl space-y-3 animate-enter">
+          <div className="text-lg font-black text-slate-900">You have a draft in progress</div>
+          <div className="text-sm text-slate-500 font-medium">Continue where you left off, or start fresh?</div>
+          <button type="button" onClick={() => { setFabChoiceOpen(false); onContinueWrite(); }}
+            className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold flex items-center justify-center gap-2">
+            <PenTool className="w-4 h-4" /> Continue writing
+          </button>
+          <button type="button" onClick={() => { setFabChoiceOpen(false); onWriteFromYourVerse(); }}
+            className="w-full rounded-2xl border border-slate-200 text-slate-700 py-3 font-extrabold hover:bg-slate-50 transition-colors">
+            Start a new entry
+          </button>
+          <button type="button" onClick={() => setFabChoiceOpen(false)}
+            className="w-full text-sm font-bold text-slate-400 py-1 hover:text-slate-600 transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
+    ) : null}
+    <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-6 pt-3 pb-7 bg-white/90 backdrop-blur-xl border-t border-slate-100">
+      {/* Home */}
       <button type="button" onClick={() => handleNav("home", onHome)}
-        className={cn("flex flex-col items-center gap-1 transition-colors", view === "home" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
+        className={cn("flex flex-col items-center gap-1 transition-colors min-w-[48px]", view === "home" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
         title="Home">
         <BookOpen className={cn("w-6 h-6", bouncing === "home" ? "nav-bounce" : "")} />
-        <div className={cn("w-1 h-1 rounded-full transition-all duration-300", view === "home" ? "bg-emerald-500 scale-125" : "bg-transparent")} />
+        <span className="text-[9px] font-black uppercase tracking-wider">Home</span>
       </button>
-      <div className="relative flex items-center justify-center">
+
+      {/* Write FAB */}
+      <div className="relative flex flex-col items-center justify-center">
         {showWriteHint && view === "home" ? (
           <div className="absolute -top-7 text-[10px] font-black uppercase tracking-widest text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full whitespace-nowrap">
             Your Verse
@@ -4134,17 +4369,31 @@ function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, onContinueWr
             "w-14 h-14 rounded-full flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.18)] btn-spring relative z-10",
             isWriting ? "bg-emerald-600 text-white" : "bg-slate-900 text-white"
           )}
-          title={isWriting ? "Back to writing" : "Use Your Own Verse"}>
+          title={isWriting ? "Back to writing" : "Write"}>
           {isWriting ? <PenTool className="w-6 h-6" /> : <Pencil className="w-6 h-6" />}
         </button>
+        <span className={cn("text-[9px] font-black uppercase tracking-wider mt-1", isWriting ? "text-emerald-600" : "text-slate-400")}>
+          {isWriting ? "Writing" : "Write"}
+        </span>
       </div>
+
+      {/* Library */}
       <button type="button" onClick={() => handleNav("library", onLibrary)}
-        className={cn("flex flex-col items-center gap-1 transition-colors", view === "library" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
+        className={cn("flex flex-col items-center gap-1 transition-colors min-w-[48px]", view === "library" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
         title="Library">
         <Library className={cn("w-6 h-6", bouncing === "library" ? "nav-bounce" : "")} />
-        <div className={cn("w-1 h-1 rounded-full transition-all duration-300", view === "library" ? "bg-emerald-500 scale-125" : "bg-transparent")} />
+        <span className="text-[9px] font-black uppercase tracking-wider">Library</span>
+      </button>
+
+      {/* Settings — now a real nav item, no more hunting in 3-dot menu */}
+      <button type="button" onClick={() => handleNav("settings", onSettings)}
+        className={cn("flex flex-col items-center gap-1 transition-colors min-w-[48px]", view === "settings" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
+        title="Settings">
+        <Settings className={cn("w-6 h-6", bouncing === "settings" ? "nav-bounce" : "")} />
+        <span className="text-[9px] font-black uppercase tracking-wider">Settings</span>
       </button>
     </div>
+    </>
   );
 }
 
@@ -4430,28 +4679,7 @@ const onSaved = () => {
               <div className="text-[13px] font-semibold text-slate-400">{getTimeGreeting(getDisplayName(session, settings))}</div>
             )}
           </div>
-<div className="relative" ref={menuRef}>
-            <button
-              type="button"
-              onClick={() => setMenuOpen((v) => !v)}
-              className="text-slate-400 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-slate-100"
-              aria-label="More"
-              title="More"
-            >
-              <MoreVertical className="w-5 h-5" />
-            </button>
-            {menuOpen ? (
-              <div className="absolute right-0 top-11 w-40 rounded-xl border border-slate-200 bg-white shadow-lg p-1 z-50">
-                <button
-                  type="button"
-                  onClick={openSettings}
-                  className="w-full text-left px-3 py-2 text-sm font-bold rounded-lg hover:bg-slate-50"
-                >
-                  <Settings className="w-4 h-4 inline-block mr-1.5 align-middle -mt-px" />Settings
-                </button>
-              </div>
-            ) : null}
-          </div>
+          {/* Settings moved to bottom nav — header stays clean */}
         </div>
       </div>
 
@@ -4496,7 +4724,7 @@ const onSaved = () => {
       </main>
 
       {/* ── Bottom Nav Bar ── */}
-      <BottomNav view={view} onHome={() => setView("home")} onWriteFromYourVerse={writeFromYourVerse} onContinueWrite={() => setView(active ? "write" : "home")} onLibrary={() => setView("library")} showWriteHint={!hasUsedWriteFab && !customVerseRef} />
+      <BottomNav view={view} onHome={() => setView("home")} onWriteFromYourVerse={writeFromYourVerse} onContinueWrite={() => setView(active ? "write" : "home")} onLibrary={() => setView("library")} onSettings={() => setView("settings")} showWriteHint={!hasUsedWriteFab && !customVerseRef} hasActiveDraft={Boolean(active)} />
     </div>
     </ToastContext.Provider>
   );
