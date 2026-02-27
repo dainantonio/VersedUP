@@ -1,5 +1,5 @@
 // VersedUP Service Worker — cache-first with network fallback
-const CACHE_NAME = 'versed-up-v8';
+const CACHE_NAME = 'versed-up-v9';
 const APP_SHELL = [
   '/VersedUP/',
   '/VersedUP/index.html',
