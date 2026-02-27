@@ -2854,6 +2854,7 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted,
   const [q, setQ] = useState("");
   const [sortOrder, setSortOrder] = useState("newest");
   const [filter, setFilter] = useState("all");
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -2978,12 +2979,39 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted,
                       {!collapsedItems[d.id] ? (
                         <>
                           {d.reflection ? <div className="px-4 pb-3 text-xs text-slate-400 line-clamp-2 leading-relaxed">{d.reflection}</div> : null}
-                          <div className="text-[11px] text-slate-300 px-4 pb-3 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
-                          <div className="border-t border-slate-100 grid grid-cols-4">
-                            <button type="button" onClick={() => onOpen(d.id)} className="flex items-center justify-center gap-1 py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50 transition-colors">Open</button>
-                            <button type="button" onClick={() => onDuplicate(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors">Copy</button>
-                            <button type="button" onClick={() => onMarkPosted(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-500 hover:bg-slate-50 transition-colors">Posted</button>
-                            <button type="button" onClick={() => onDelete(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-red-500 hover:bg-red-50 transition-colors">Del</button>
+                          <div className="text-[11px] text-slate-300 px-4 pb-2 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
+                          {/* Action buttons — clear labels, no abbreviations */}
+                          <div className="px-3 pb-3 space-y-2">
+                            <button
+                              type="button"
+                              onClick={() => onOpen(d.id)}
+                              className="w-full rounded-xl bg-emerald-600 text-white py-2.5 text-xs font-extrabold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5"
+                            >
+                              <PenTool className="w-3.5 h-3.5" /> Open &amp; Edit
+                            </button>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => onDuplicate(d.id)}
+                                className="rounded-xl border border-slate-200 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
+                              >
+                                <Copy className="w-3.5 h-3.5" /> Duplicate
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onMarkPosted(d.id)}
+                                className="rounded-xl border border-slate-200 py-2 text-xs font-extrabold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
+                              >
+                                <CheckCircle className="w-3.5 h-3.5" /> Mark Posted
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(d.id)}
+                              className="w-full rounded-xl border border-red-100 bg-red-50 py-2 text-xs font-extrabold text-red-500 hover:bg-red-100 hover:border-red-200 transition-colors flex items-center justify-center gap-1.5"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Delete entry
+                            </button>
                           </div>
                         </>
                       ) : null}
@@ -3003,6 +3031,43 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted,
           </div>
         ) : null}
       </div>
+
+      {/* ── Delete confirmation modal ── */}
+      {confirmDeleteId ? (() => {
+        const entry = devotionals.find(d => d.id === confirmDeleteId);
+        const title = entry?.title || entry?.verseRef || "this entry";
+        return (
+          <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-end justify-center p-4">
+            <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl space-y-4 animate-enter">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5 text-red-500" />
+                </div>
+                <div>
+                  <div className="text-base font-black text-slate-900">Delete entry?</div>
+                  <div className="text-sm text-slate-500 mt-0.5 font-medium">
+                    "<span className="text-slate-700 font-semibold">{title}</span>" will be permanently removed. This cannot be undone.
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); }}
+                className="w-full rounded-2xl bg-red-500 hover:bg-red-600 text-white py-3.5 font-extrabold transition-colors"
+              >
+                Yes, delete entry
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(null)}
+                className="w-full rounded-2xl border border-slate-200 text-slate-700 py-3 font-extrabold hover:bg-slate-50 transition-colors"
+              >
+                Keep it
+              </button>
+            </div>
+          </div>
+        );
+      })() : null}
     </div>
   );
 }
@@ -4303,7 +4368,7 @@ function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, onContinueWr
   const handleFab = () => {
     setFabPulse(true);
     setTimeout(() => setFabPulse(false), 600);
-    if (view === "write" || view === "compile") {
+    if (view === "write") {
       // Already writing — just go back there
       onContinueWrite();
     } else if (hasActiveDraft && view !== "write") {
@@ -4314,7 +4379,7 @@ function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, onContinueWr
     }
   };
 
-  const isWriting = view === "write" || view === "compile";
+  const isWriting = view === "write";
 
   return (
     <>
@@ -4357,7 +4422,7 @@ function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, onContinueWr
         ) : null}
         {isWriting ? (
           <div className="absolute -top-7 text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full whitespace-nowrap">
-            {view === "compile" ? "Launch Pad" : "Writing"}
+            Writing
           </div>
         ) : null}
         {fabPulse && <span className="absolute inset-0 rounded-full bg-slate-900 pointer-events-none" style={{ animation: "fabRing 0.6s ease-out forwards" }} />}
@@ -4471,7 +4536,7 @@ function AppInner({ session, starterMood, onLogout }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   
- // home | write | polish | compile | library | settings
+ // home | write | library | settings
 
   useEffect(() => {
     if (view !== "settings") setLastNonSettingsView(view);
@@ -4521,12 +4586,12 @@ function AppInner({ session, starterMood, onLogout }) {
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
 
   useEffect(() => {
-    const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
+    const allowed = new Set(["home", "write", "library", "settings"]);
     if (!allowed.has(view)) {
       setView("home");
       return;
     }
-    if ((view === "write" || view === "polish" || view === "compile") && !active) {
+    if (view === "write" && !active) {
       setView(safeDevotionals.length ? "library" : "home");
     }
   }, [view, active, safeDevotionals.length]);
@@ -4670,7 +4735,7 @@ const onSaved = () => {
         <div className="max-w-md mx-auto flex items-center gap-4">
           <BrandLogo className="h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105" />
           <div className="min-w-0 leading-tight flex-1">
-            {(view === "write" || view === "compile") && active ? (
+            {view === "write" && active ? (
               <div className="text-[13px] font-bold text-slate-500 truncate">{active.verseRef || "New Entry"}</div>
             ) : (
               <div className="text-[13px] font-semibold text-slate-400">{getTimeGreeting(getDisplayName(session, settings))}</div>
@@ -4694,7 +4759,7 @@ const onSaved = () => {
             displayName={getDisplayName(session, settings)}
             devotionals={safeDevotionals}
             onOpen={openEntry}
-            onOpenReadyToPost={(id) => openEntry(id, "compile")}
+            onOpenReadyToPost={(id) => { openEntry(id, "write"); localStorage.setItem(`${APP_ID}_wizard_step_${id}`, "4"); }}
             showInstallBanner={showInstallBanner}
             onInstall={doInstall}
             onDismissInstall={dismissInstall}
@@ -4706,13 +4771,13 @@ const onSaved = () => {
             devotional={active}
             settings={settings}
             onUpdate={updateDevotional}
-            onGoCompile={() => setView("compile")}
-            onGoPolish={() => setView("polish")}
+            onGoCompile={() => {}}
+            onGoPolish={() => {}}
             onSaved={onSaved}
           />
         ) : null}
 
-                {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} /> : null}
+                {/* CompileView removed — sharing unified into WriteView Step 4 */}
 
         {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} onDuplicate={duplicateEntry} onMarkPosted={markPosted} onBack={() => setView("home")} /> : null}
 
