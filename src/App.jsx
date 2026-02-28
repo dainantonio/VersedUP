@@ -5088,13 +5088,13 @@ function AppInner({ session, starterMood, onLogout }) {
   };
 
   
-const onSaved = () => {
-  const before = streak;
-  const next = bumpStreakOnSave();
-  setStreak(next);
-  const changed = before?.lastDay !== next?.lastDay;
-  pushToast(changed ? `Saved • 🔥 Streak: ${next.count} days` : "Saved");
-};
+  const onSaved = () => {
+    const before = streak;
+    const next = bumpStreakOnSave();
+    setStreak(next);
+    const changed = before?.lastDay !== next?.lastDay;
+    pushToast(changed ? `Saved • 🔥 Streak: ${next.count} days` : "Saved");
+  };
 
   return (
     <ToastContext.Provider value={{ pushToast }}>
@@ -5173,6 +5173,10 @@ export default function App() {
     return () => clearTimeout(t);
   }, []);
 
+  const [authDraft, setAuthDraft] = useState(null);
+  const [session, setSession] = useState(() => loadSession());
+  const [starterMood, setStarterMood] = useState("");
+
   if (splash) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-emerald-50 via-white to-sky-50">
@@ -5180,9 +5184,6 @@ export default function App() {
       </div>
     );
   }
-  const [authDraft, setAuthDraft] = useState(null);
-  const [session, setSession] = useState(() => loadSession());
-  const [starterMood, setStarterMood] = useState("");
 
   // Google OAuth success — skip onboarding name step, go straight to onboarding slides
   const handleGoogleSuccess = (profile) => {
