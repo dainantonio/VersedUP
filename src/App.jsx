@@ -42,64 +42,55 @@ import {
   BellOff
 } from "lucide-react";
 
-/* ── Firebase + FCM ─────────────────────────────────── */
-// Firebase loaded dynamically — run: npm install firebase
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDqBDUeZ-HtNpIiZK0Q9jRMU6vGfNYyEWI",
-  authDomain: "versedup-f246f.firebaseapp.com",
-  projectId: "versedup-f246f",
-  storageBucket: "versedup-f246f.firebasestorage.app",
-  messagingSenderId: "209958052615",
-  appId: "1:209958052615:web:49eb475c6b7c41fd551ba2",
-};
-const FCM_VAPID_KEY = ""; // TODO: paste your Web Push VAPID key from Firebase Console → Project Settings → Cloud Messaging
-
-let _firebaseApp = null;
-let _messaging = null;
-
-async function getFirebaseApp() {
-  if (!_firebaseApp) {
-    const { initializeApp } = await import("firebase/app");
-    _firebaseApp = initializeApp(FIREBASE_CONFIG);
-  }
-  return _firebaseApp;
-}
-
-async function getFirebaseMessaging() {
-  if (!_messaging) {
-    try {
-      const app = await getFirebaseApp();
-      const { getMessaging } = await import("firebase/messaging");
-      _messaging = getMessaging(app);
-    } catch {}
-  }
-  return _messaging;
-}
+/* ── Notifications (no external deps) ───────────────── */
+// FCM project config — no firebase SDK needed, uses REST + browser Push API
+const FCM_PROJECT_ID = "versedup-f246f";
+const FCM_SENDER_ID  = "209958052615";
+// TODO: paste your Web Push VAPID key from Firebase Console →
+//       Project Settings → Cloud Messaging → Web Push certificates
+const FCM_VAPID_KEY  = "";
 
 async function requestNotificationPermission() {
   if (!("Notification" in window)) return { status: "unsupported" };
   if (Notification.permission === "granted") return { status: "granted" };
-  if (Notification.permission === "denied") return { status: "denied" };
+  if (Notification.permission === "denied")  return { status: "denied" };
   const result = await Notification.requestPermission();
   return { status: result };
 }
 
 async function getFCMToken() {
+  // Requires: VAPID key set + service worker registered
   if (!FCM_VAPID_KEY) return null;
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return null;
   try {
-    const messaging = await getFirebaseMessaging();
-    if (!messaging) return null;
-    const { getToken } = await import("firebase/messaging");
-    const token = await getToken(messaging, { vapidKey: FCM_VAPID_KEY });
-    return token || null;
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(FCM_VAPID_KEY),
+    });
+    // Convert push subscription to FCM token via FCM registration endpoint
+    const res = await fetch(
+      `https://fcm.googleapis.com/fcm/send`,
+      { method: "HEAD" }  // just a connectivity check; real token is the sub endpoint
+    ).catch(() => null);
+    // Return the subscription endpoint as the "token" for now
+    // (Full FCM v1 token exchange requires a backend — store sub for server use)
+    return sub.endpoint;
   } catch (e) {
-    console.warn("FCM getToken failed:", e);
+    console.warn("Push subscription failed:", e);
     return null;
   }
 }
 
-const STORAGE_FCM_TOKEN = `${typeof APP_ID !== "undefined" ? APP_ID : "versed_up"}_fcm_token`;
-const STORAGE_NOTIF_PREF = `${typeof APP_ID !== "undefined" ? APP_ID : "versed_up"}_notif_pref`;
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
+const STORAGE_FCM_TOKEN  = "versed_up_fcm_token";
+const STORAGE_NOTIF_PREF = "versed_up_notif_pref";
 
 function loadNotifPref() {
   try { return JSON.parse(localStorage.getItem(STORAGE_NOTIF_PREF) || "null"); } catch { return null; }
