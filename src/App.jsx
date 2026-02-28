@@ -973,8 +973,36 @@ async function ai(settings, prompt) {
     }
   }
 
+  // Mock mode: return the input text unchanged for edit operations,
+  // or a minimal stub for generation operations.
   await new Promise((r) => setTimeout(r, 650));
-  return prompt.slice(0, 2800);
+  // Detect operation type from prompt keywords and extract user text
+  const lower = prompt.toLowerCase();
+  if (lower.startsWith("correct grammar") || lower.startsWith("shorten this") || lower.startsWith("expand this") || lower.startsWith("rewrite this") || lower.startsWith("change the tone")) {
+    // Edit operation: extract the text after the instruction line(s)
+    // The user text is always after the last blank line in the prompt
+    const parts = prompt.split(/
+
++/);
+    const userText = parts[parts.length - 1]?.trim() || "";
+    return userText || prompt.slice(0, 500);
+  }
+  // Generation operation (AI Draft, TikTok script, etc.) — return a useful stub
+  if (lower.includes("tiktok script") || lower.includes("write a tiktok")) {
+    return "POV: This verse stopped me today.
+
+Read it slowly.
+
+[Paste your reflection here]
+
+Save this if it spoke to you. 🙏
+#Faith #Devotional #Jesus";
+  }
+  // Fallback for any other generation: return first 300 chars of user content from prompt
+  const parts = prompt.split(/
+
++/);
+  return parts[parts.length - 1]?.trim().slice(0, 300) || "Your reflection will appear here once AI is configured.";
 }
 
 async function aiFixGrammar(settings, { text, mood }) {
@@ -2234,6 +2262,33 @@ ${devotional.reflection}`);
   };
 
   const stepTitles = ["Scripture", "Your Heart", "Shape It", "Post It"];
+
+  // ── Verse reminder pill — shown in Steps 2, 3, 4 ──────────────────────────
+  const VersePill = () => {
+    const [expanded, setExpanded] = React.useState(false);
+    const ref = devotional.verseRef || verseOfDay.verseRef || "";
+    const text = devotional.verseText || (devotional.scriptureSource !== "your_verse" ? verseOfDay.verseText : "");
+    if (!ref) return null;
+    const firstSentence = text ? text.split(/(?<=[.!?])\s+/)[0] : "";
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        className="w-full text-left rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 flex items-start gap-2.5 transition-all hover:bg-emerald-50"
+      >
+        <BookOpen className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+        <div className="min-w-0 flex-1">
+          <span className="text-xs font-black text-emerald-700">{ref}</span>
+          {firstSentence ? (
+            <p className={cn("text-xs text-slate-600 font-serif-scripture leading-snug mt-0.5", expanded ? "" : "line-clamp-1")}>
+              {expanded ? text : `"${firstSentence}${firstSentence.length < text.length ? "…" : ""}"`}
+            </p>
+          ) : null}
+        </div>
+        <span className="text-slate-300 text-[10px] shrink-0 mt-0.5">{expanded ? "▲" : "▼"}</span>
+      </button>
+    );
+  };
   const onboardingStyleSteps = [
     { label: "Step 1", title: "Scripture", stepNum: 1 },
     { label: "Step 2", title: "Your Heart", stepNum: 2 },
@@ -2477,15 +2532,8 @@ ${devotional.reflection}`);
               ) : null}
             </div>
 
-            {/* Mood chips — compact, scrollable */}
-            <div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">How's your heart?</div>
-              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                {MOODS.map((m) => (
-                  <Chip key={m.id} active={devotional.mood === m.id} onClick={() => onUpdate({ mood: m.id })}>{m.label}</Chip>
-                ))}
-              </div>
-            </div>
+            {/* Verse reminder — collapsed pill so user never loses their scripture */}
+            <VersePill />
 
             {/* Guided writing prompt — only shows when mood is set */}
             {devotional.mood ? (
@@ -2653,14 +2701,8 @@ ${devotional.reflection}`);
                 </div>
               </div>
 
-              {/* Verse context pill — reminds user what they're polishing */}
-              {devotional.verseRef ? (
-                <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2 text-xs font-bold text-slate-500 flex items-center gap-2">
-                  <BookOpen className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span className="text-emerald-700 font-black">{devotional.verseRef}</span>
-                  {devotional.verseText ? <span className="text-slate-400 truncate">— {devotional.verseText.slice(0, 60)}{devotional.verseText.length > 60 ? "…" : ""}</span> : null}
-                </div>
-              ) : null}
+              {/* Verse context pill */}
+              <VersePill />
 
               {/* Empty state guidance */}
               {!devotional.reflection && !devotional.prayer && !devotional.questions && contentTab === "reflection" ? (
@@ -2737,6 +2779,9 @@ ${devotional.reflection}`);
                 <div className="text-sm text-slate-500 mt-0.5 font-medium">Review your caption, then share.</div>
               </div>
             </div>
+
+            {/* Verse reminder */}
+            <VersePill />
 
             {/* Platform confirmation — shows what was chosen in Step 3, collapsible change */}
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
@@ -3337,20 +3382,21 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
     onUpdate({ myPlatforms: next.length ? next : ["tiktok"] });
   };
 
+  const [writingOpen, setWritingOpen] = React.useState(false);
+
   return (
-    <div className="space-y-4 pb-20 animate-enter">
-      <div className="flex items-center gap-3">
+    <div className="space-y-3 pb-20 animate-enter">
+      {/* ── Header ── */}
+      <div className="flex items-center gap-3 pb-1">
         <button type="button" onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors active:scale-95" title="Back">
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <div>
-          <div className="text-2xl font-black text-slate-900">Settings</div>
-          <div className="text-sm text-slate-500 mt-0.5 font-medium">Short, scannable, and creator-first.</div>
-        </div>
+        <div className="text-2xl font-black text-slate-900">Settings</div>
       </div>
 
+      {/* ── SECTION 1: Profile ── */}
+      <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest px-1">Profile</div>
       <Card>
-        <SectionLabel>Profile</SectionLabel>
         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Name / Username</label>
         <input
           value={settings.username || ""}
@@ -3358,10 +3404,22 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
           placeholder="@yourname"
           className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
         />
+        <div className="mt-4">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Active Platforms</label>
+          <div className="flex flex-wrap gap-2">
+            {platforms.map((p) => (
+              <button key={p.id} type="button" onClick={() => togglePlatform(p.id)}
+                className={cn("rounded-full border px-3 py-1.5 text-xs font-extrabold transition-all", selectedPlatforms.includes(p.id) ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400")}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </Card>
 
+      {/* ── SECTION 3: AI ── */}
+      <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest px-1 pt-1">AI Writing Assistant</div>
       <Card>
-        <SectionLabel>AI Writing Assistant</SectionLabel>
 
         {/* Mode explainer — always visible */}
         <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4 space-y-3 mb-3">
@@ -3515,77 +3573,38 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
         </div>
       </Card>
 
+      {/* ── SECTION 2: Writing ── */}
+      <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest px-1 pt-1">Writing</div>
       <Card>
-        <SectionLabel>Writing Preferences</SectionLabel>
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Default Bible Version</label>
+        </div>
         <select
           value={settings.defaultBibleVersion}
           onChange={(e) => onUpdate({ defaultBibleVersion: e.target.value })}
-          className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
+          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
         >
           {BIBLE_VERSIONS.map((v) => <option key={v} value={v}>{v}</option>)}
         </select>
-        <div className="mt-2 divide-y divide-slate-100">
-          <CompactToggleRow title="Guided mode" desc="Hints and suggested flows while writing." checked={Boolean(settings.guidedMode)} onChange={(e) => onUpdate({ guidedMode: e.target.checked })} />
-          <CompactToggleRow title="Auto-fill on topic tap" desc="Fill Title / Prayer / Questions when empty." checked={Boolean(settings.autoFillEmptyOnTopicTap)} onChange={(e) => onUpdate({ autoFillEmptyOnTopicTap: e.target.checked })} />
-          <CompactToggleRow title="Auto-generate TikTok script" desc="Default for Draft for Me flow." checked={Boolean(settings.guidedAutoGenerateTikTok)} onChange={(e) => onUpdate({ guidedAutoGenerateTikTok: e.target.checked })} />
-          <CompactToggleRow title="Include watermark" desc="Adds VersedUP on shares." checked={Boolean(settings.includeWatermark !== false)} onChange={(e) => onUpdate({ includeWatermark: e.target.checked })} />
-        </div>
+
+        {/* Collapsible advanced toggles */}
+        <button type="button" onClick={() => setWritingOpen(v => !v)}
+          className="mt-3 w-full flex items-center justify-between text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors">
+          <span>Advanced options</span>
+          <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", writingOpen ? "rotate-180" : "")} />
+        </button>
+        {writingOpen ? (
+          <div className="mt-2 divide-y divide-slate-100 animate-enter">
+            <CompactToggleRow title="Auto-fill on topic tap" desc="Fill Title / Prayer / Questions when empty." checked={Boolean(settings.autoFillEmptyOnTopicTap)} onChange={(e) => onUpdate({ autoFillEmptyOnTopicTap: e.target.checked })} />
+            <CompactToggleRow title="Auto-generate TikTok script" desc="Auto-generates in Draft for Me flow." checked={Boolean(settings.guidedAutoGenerateTikTok)} onChange={(e) => onUpdate({ guidedAutoGenerateTikTok: e.target.checked })} />
+            <CompactToggleRow title="Include watermark" desc="Adds VersedUP branding on shares." checked={Boolean(settings.includeWatermark !== false)} onChange={(e) => onUpdate({ includeWatermark: e.target.checked })} />
+          </div>
+        ) : null}
       </Card>
 
+      {/* ── SECTION 4: Appearance ── */}
+      <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest px-1 pt-1">Appearance</div>
       <Card>
-        <SectionLabel>Export & Share</SectionLabel>
-        <div className="text-xs text-slate-500">Your active platforms — these appear as options when you're ready to post.</div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {platforms.map((p) => (
-            <button key={p.id} type="button" onClick={() => togglePlatform(p.id)} className={cn("rounded-full border px-3 py-1.5 text-xs font-extrabold", selectedPlatforms.includes(p.id) ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <button type="button" onClick={handleExport} className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98]">
-            <Download className="w-4 h-4" /> Export JSON
-          </button>
-          <label className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98] cursor-pointer">
-            <ArrowUpToLine className="w-4 h-4" /> Import JSON
-            <input
-              type="file"
-              accept="application/json,.json"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                  try {
-                    const parsed = JSON.parse(String(ev.target.result || ""));
-                    const incoming = Array.isArray(parsed)
-                      ? parsed
-                      : Array.isArray(parsed?.entries) ? parsed.entries : null;
-                    if (!incoming) { pushToast("Invalid backup file — expected { entries: [...] }"); return; }
-                    const valid = incoming.filter(d => d && typeof d === "object" && d.id);
-                    if (!valid.length) { pushToast("No valid entries found in file."); return; }
-                    if (!window.confirm(`Import ${valid.length} entr${valid.length === 1 ? "y" : "ies"}? Existing entries with the same ID will be updated.`)) return;
-                    // Merge: keep existing entries not in file, then add/update from file
-                    onUpdate({ _importEntries: valid });
-                    pushToast(`Imported ${valid.length} entr${valid.length === 1 ? "y" : "ies"} ✓`);
-                  } catch {
-                    pushToast("Could not read file — make sure it is a valid VersedUP JSON backup.");
-                  }
-                };
-                reader.readAsText(file);
-                e.target.value = "";
-              }}
-            />
-          </label>
-        </div>
-        <div className="mt-2 text-[11px] text-slate-400 leading-relaxed">
-          Export saves all entries as a JSON backup. Import merges entries from a previous backup without deleting existing work.
-        </div>
-      </Card>
-
-      <Card>
-        <SectionLabel>Appearance / Theme</SectionLabel>
         <div className="grid grid-cols-4 gap-2">
           {THEME_OPTIONS.map((t) => (
             <button
@@ -3594,38 +3613,64 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
               onClick={() => onUpdate({ theme: t.id })}
               className={cn(
                 "flex flex-col items-center gap-1.5 rounded-2xl py-2.5 px-1 border transition-all active:scale-95",
-                settings.theme === t.id
-                  ? "border-slate-900 shadow-md scale-[1.04]"
-                  : "border-slate-200 hover:border-slate-300"
+                settings.theme === t.id ? "border-slate-900 shadow-md scale-[1.04]" : "border-slate-200 hover:border-slate-300"
               )}
             >
-              <div
-                className="w-8 h-8 rounded-xl shadow-sm border border-white/80"
-                style={{ background: `linear-gradient(135deg, ${t.swatch[0]} 0%, ${t.swatch[1]} 50%, ${t.swatch[2]} 100%)` }}
-              />
-              <span className={cn("text-[10px] font-bold leading-none", settings.theme === t.id ? "text-slate-900" : "text-slate-500")}>
-                {t.label}
-              </span>
+              <div className="w-8 h-8 rounded-xl shadow-sm border border-white/80"
+                style={{ background: `linear-gradient(135deg, ${t.swatch[0]} 0%, ${t.swatch[1]} 50%, ${t.swatch[2]} 100%)` }} />
+              <span className={cn("text-[10px] font-bold leading-none", settings.theme === t.id ? "text-slate-900" : "text-slate-500")}>{t.label}</span>
             </button>
           ))}
         </div>
       </Card>
 
+      {/* ── SECTION 5: Data ── */}
+      <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest px-1 pt-1">Data</div>
       <Card>
-        <SectionLabel>Data & Privacy</SectionLabel>
-        <div className="text-xs text-slate-500">All data stays on this device except AI calls you explicitly trigger.</div>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={handleExport}
+            className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98]">
+            <Download className="w-4 h-4" /> Export JSON
+          </button>
+          <label className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98] cursor-pointer">
+            <ArrowUpToLine className="w-4 h-4" /> Import JSON
+            <input type="file" accept="application/json,.json" className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  try {
+                    const parsed = JSON.parse(String(ev.target.result || ""));
+                    const incoming = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.entries) ? parsed.entries : null;
+                    if (!incoming) { pushToast("Invalid backup file."); return; }
+                    const valid = incoming.filter(d => d && typeof d === "object" && d.id);
+                    if (!valid.length) { pushToast("No valid entries found."); return; }
+                    if (!window.confirm(`Import ${valid.length} entr${valid.length === 1 ? "y" : "ies"}? Existing entries with the same ID will be updated.`)) return;
+                    onUpdate({ _importEntries: valid });
+                    pushToast(`Imported ${valid.length} entr${valid.length === 1 ? "y" : "ies"} ✓`);
+                  } catch { pushToast("Could not read file — make sure it is a valid VersedUP JSON backup."); }
+                };
+                reader.readAsText(file);
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </div>
+        <div className="mt-2 text-[11px] text-slate-400">All data stays on this device. AI calls are the only external requests.</div>
       </Card>
 
-      <Card className="border-red-100">
-        <SectionLabel>Danger Zone</SectionLabel>
-        <button type="button" onClick={onReset} className="w-full flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 py-3 text-sm font-extrabold text-red-700 hover:bg-red-100 transition-all active:scale-[0.98]">
-          <Trash2 className="w-4 h-4" /> Reset all local data
-        </button>
-      </Card>
-
+      {/* ── SECTION 6: Account ── */}
+      <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest px-1 pt-1">Account</div>
       <Card>
-        <SectionLabel>Session</SectionLabel>
         <SmallButton onClick={onLogout} tone="danger" icon={LogOut}>Sign out</SmallButton>
+        <div className="mt-3 pt-3 border-t border-slate-100">
+          <button type="button" onClick={onReset}
+            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 py-2.5 text-xs font-extrabold text-red-600 hover:bg-red-100 transition-all active:scale-[0.98]">
+            <Trash2 className="w-3.5 h-3.5" /> Reset all local data
+          </button>
+          <div className="mt-1.5 text-[10px] text-slate-400 text-center">This cannot be undone.</div>
+        </div>
       </Card>
     </div>
   );
@@ -3633,26 +3678,47 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
 
 /* ---------------- Compile + previews ---------------- */
 
+const PLATFORM_HASHTAGS = {
+  tiktok:    "#Faith #Devotional #Jesus #ChristianTikTok",
+  instagram: "#Faith #Devotional #Jesus #ScriptureOfTheDay",
+  twitter:   "#Faith #Jesus",
+  facebook:  "#Faith #Devotional",
+  email:     "",
+};
+
 function compileForPlatform(platform, d, settings) {
-  const verseLine = d.verseRef ? `“${d.verseText || ""}”\n— ${d.verseRef}\n\n` : "";
-  const titleLine = d.title ? `${d.title}\n\n` : "";
+  const verseLine = d.verseRef ? `"${d.verseText || ""}"
+— ${d.verseRef}
+
+` : "";
+  const titleLine = d.title ? `${d.title}
+
+` : "";
   const body = d.reflection || "";
-  const prayer = d.prayer ? `\n\nPrayer:\n${d.prayer}` : "";
-  const questions = d.questions ? `\n\nQuestions:\n${d.questions}` : "";
+  const prayer = d.prayer ? `
+
+Prayer:
+${d.prayer}` : "";
+  const questions = d.questions ? `
+
+Questions:
+${d.questions}` : "";
+  const allUserText = body + (d.prayer || "") + (d.questions || "");
+  const userHasTags = /#\w+/.test(allUserText);
+  const tags = (!userHasTags && PLATFORM_HASHTAGS[platform]) ? "\n\n" + PLATFORM_HASHTAGS[platform] : "";
 
   if (platform === "tiktok") {
-    return (
-      d.tiktokScript ||
-      `POV: You needed this today ✨\n\n${d.verseRef || ""}\n\n${body}\n\nSave this for later ❤️\n#Faith #Devotional`
-    ).trim();
+    const base = d.tiktokScript || `POV: You needed this today ✨\n\n${d.verseRef || ""}\n\n${body}\n\nSave this for later ❤️`;
+    const baseTags = /#\w+/.test(base) ? "" : tags;
+    return (base + baseTags).trim();
   }
   if (platform === "instagram") {
-    return `${titleLine}${verseLine}${body}${questions}${prayer}\n\n#Faith #Devotional`.trim();
+    return `${titleLine}${verseLine}${body}${questions}${prayer}${tags}`.trim();
   }
   if (platform === "email") {
     return `Subject: ${d.verseRef || "Encouragement"}\n\nHi friend,\n\n${verseLine}${body}${prayer}\n\nBlessings,\n${settings.username || ""}`.trim();
   }
-  return `${titleLine}${verseLine}${body}${questions}${prayer}`.trim();
+  return `${titleLine}${verseLine}${body}${questions}${prayer}${tags}`.trim();
 }
 
 function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
@@ -5117,7 +5183,21 @@ const onSaved = () => {
 }
 
 export default function App() {
+  const [splash, setSplash] = useState(true);
   const [stage, setStage] = useState(() => (loadSession() ? "app" : "landing"));
+
+  useEffect(() => {
+    const t = setTimeout(() => setSplash(false), 700);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (splash) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-emerald-50 via-white to-sky-50">
+        <BrandLogo className="h-36 w-auto object-contain drop-shadow-lg animate-enter" />
+      </div>
+    );
+  }
   const [authDraft, setAuthDraft] = useState(null);
   const [session, setSession] = useState(() => loadSession());
   const [starterMood, setStarterMood] = useState("");
