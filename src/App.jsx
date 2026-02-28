@@ -979,29 +979,17 @@ async function ai(settings, prompt) {
   // Detect operation type from prompt keywords and extract user text
   const lower = prompt.toLowerCase();
   if (lower.startsWith("correct grammar") || lower.startsWith("shorten this") || lower.startsWith("expand this") || lower.startsWith("rewrite this") || lower.startsWith("change the tone")) {
-    // Edit operation: extract the text after the instruction line(s)
-    // The user text is always after the last blank line in the prompt
-    const parts = prompt.split(/
-
-+/);
+    // Edit operation: return only the user text (last block after double newline)
+    const parts = prompt.split(/\n\n+/);
     const userText = parts[parts.length - 1]?.trim() || "";
     return userText || prompt.slice(0, 500);
   }
   // Generation operation (AI Draft, TikTok script, etc.) — return a useful stub
   if (lower.includes("tiktok script") || lower.includes("write a tiktok")) {
-    return "POV: This verse stopped me today.
-
-Read it slowly.
-
-[Paste your reflection here]
-
-Save this if it spoke to you. 🙏
-#Faith #Devotional #Jesus";
+    return "POV: This verse stopped me today.\n\nRead it slowly.\n\n[Paste your reflection here]\n\nSave this if it spoke to you. \uD83D\uDE4F\n#Faith #Devotional #Jesus";
   }
   // Fallback for any other generation: return first 300 chars of user content from prompt
-  const parts = prompt.split(/
-
-+/);
+  const parts = prompt.split(/\n\n+/);
   return parts[parts.length - 1]?.trim().slice(0, 300) || "Your reflection will appear here once AI is configured.";
 }
 
