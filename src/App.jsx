@@ -950,12 +950,27 @@ async function geminiGenerate({ apiKey, prompt }) {
   return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 }
 
+function cleanAiInstructionEcho(output) {
+  const text = String(output || "").trim();
+  if (!text) return "";
+  const hasGrammarInstruction = /fix grammar and spelling|correct grammar and spelling errors|return only (the )?corrected text|return only corrected text/i.test(text);
+  if (!hasGrammarInstruction) return text;
+
+  const match = text.match(/\n\s*TEXT:\s*\n([\s\S]*)$/i);
+  if (match?.[1]?.trim()) return match[1].trim();
+
+  return text
+    .replace(/^.*?(TEXT:\s*)/is, "")
+    .replace(/^(fix|correct) grammar[\s\S]*?no explanation\.?/i, "")
+    .trim();
+}
+
 async function ai(settings, prompt) {
   const provider = settings.aiProvider;
 
   if (provider === "openai" && settings.openaiKey) {
     try {
-      return await openAiResponseText({ apiKey: settings.openaiKey, prompt });
+      return cleanAiInstructionEcho(await openAiResponseText({ apiKey: settings.openaiKey, prompt }));
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn("OpenAI failed; falling back to mock:", e);
@@ -965,7 +980,7 @@ async function ai(settings, prompt) {
 
   if (provider === "gemini" && settings.geminiKey) {
     try {
-      return await geminiGenerate({ apiKey: settings.geminiKey, prompt });
+      return cleanAiInstructionEcho(await geminiGenerate({ apiKey: settings.geminiKey, prompt }));
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn("Gemini failed; falling back to mock:", e);
@@ -974,7 +989,7 @@ async function ai(settings, prompt) {
   }
 
   await new Promise((r) => setTimeout(r, 650));
-  return prompt.slice(0, 2800);
+  return cleanAiInstructionEcho(prompt.slice(0, 2800));
 }
 
 async function aiFixGrammar(settings, { text, mood }) {
@@ -1970,8 +1985,6 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [shareBusy, setShareBusy] = useState(false);
   const [ttOverlay, setTtOverlay] = useState(false);
   const [ttCountdown, setTtCountdown] = useState(2);
-  const [changingPlatform, setChangingPlatform] = useState(false);
-  const [sharedConfirm, setSharedConfirm] = useState(false);
 
   const igCardRef = useRef(null);
   const autoFetchTimer = useRef(null);
@@ -1979,6 +1992,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const verseRef = String(devotional.verseRef || "").trim();
   const normalizedVerseRef = normalizeVerseReferenceInput(verseRef);
   const verseText = String(devotional.verseText || "").trim();
+  const verseReminder = (verseText.split(/(?<=[.!?])\s+/)[0] || verseText).trim();
   const version = devotional.bibleVersion || settings.defaultBibleVersion || "KJV";
   const bookQuery = (devotional.verseRef || "").replace(/\d.*$/, "").trim();
   const smartBookSuggestions = useMemo(() => {
@@ -2061,14 +2075,6 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
 
   const onTopicClick = (t) => {
     setSelectedTopic(t.id);
-  };
-
-  const moodPrompt = {
-    grateful: "What gift from this verse can you thank God for right now?",
-    anxious: "What truth from this verse counters what you're afraid of?",
-    hopeful: "What promise here gives you hope for today?",
-    weary: "Where does this verse offer rest for your tired heart?",
-    peaceful: "How can you carry this peace into someone else's life today?",
   };
 
   const doDraftForMe = async () => {
@@ -2217,10 +2223,8 @@ ${devotional.reflection}`);
         </div>
       ) : null}
 
-      {/* ── Step Progress Header ── */}
-      <div className="rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden">
-        {/* Top row: back + step label */}
-        <div className="flex items-center gap-3 px-4 pt-3.5 pb-1">
+      <div className="rounded-2xl bg-white border border-slate-200 p-2.5">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => (step === 1 ? onGoCompile() : setStep((s) => Math.max(1, s - 1)))}
@@ -2264,14 +2268,12 @@ ${devotional.reflection}`);
                 disabled={!enabled}
                 onClick={() => goToStep(item.stepNum)}
                 className={cn(
-                  "rounded-xl py-2 px-1 text-center transition-all duration-200",
-                  isActive
-                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-200"
-                    : isDone
-                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                      : enabled
-                        ? "bg-slate-50 border border-slate-200 text-slate-600 hover:border-slate-300"
-                        : "bg-slate-50 border border-slate-100 text-slate-300 cursor-not-allowed"
+                  "rounded-xl border px-2 py-2 text-[11px] font-black transition",
+                  active
+                    ? "bg-emerald-600 border-emerald-600 text-white animate-pulse-slow"
+                    : enabled
+                      ? "bg-white border-slate-200 text-slate-700"
+                      : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
                 )}
               >
                 <div className={cn("text-[9px] font-black uppercase tracking-wider mb-0.5", isActive ? "text-emerald-200" : isDone ? "text-emerald-500" : "text-slate-400")}>
@@ -2284,145 +2286,49 @@ ${devotional.reflection}`);
         </div>
       </div>
 
-      {step === 1 ? (() => {
-        const isVotd = (devotional.scriptureSource || "verse_of_day") === "verse_of_day";
-        const switchToYourVerse = () => {
-          onUpdate({ verseRef: "", verseText: "", verseTextEdited: false, scriptureSource: "your_verse" });
-        };
-        const switchToVotd = () => {
-          onUpdate({ verseRef: verseOfDay.verseRef, verseText: verseOfDay.verseText, verseTextEdited: false, scriptureSource: "verse_of_day" });
-        };
-        return (
-          <Card>
-            <div className="space-y-4">
-              <div className="text-2xl font-black text-slate-900">What verse is speaking to you today?</div>
-
-              {/* Segmented source selector */}
-              <div className="grid grid-cols-2 gap-1.5 p-1.5 bg-slate-100 rounded-2xl">
-                <button
-                  type="button"
-                  onClick={switchToVotd}
-                  className={cn(
-                    "rounded-xl py-3 px-4 transition-all duration-200 text-left",
-                    isVotd
-                      ? "bg-emerald-600 shadow-md"
-                      : "hover:bg-white/60"
-                  )}
-                >
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <Sparkles className={cn("w-3.5 h-3.5 flex-shrink-0", isVotd ? "text-emerald-200" : "text-slate-400")} />
-                    <span className={cn("text-[11px] font-black uppercase tracking-widest", isVotd ? "text-emerald-200" : "text-slate-400")}>Daily</span>
-                  </div>
-                  <div className={cn("text-sm font-extrabold leading-tight", isVotd ? "text-white" : "text-slate-500")}>Verse of the Day</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={switchToYourVerse}
-                  className={cn(
-                    "rounded-xl py-3 px-4 transition-all duration-200 text-left",
-                    !isVotd
-                      ? "bg-sky-600 shadow-md"
-                      : "hover:bg-white/60"
-                  )}
-                >
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <Search className={cn("w-3.5 h-3.5 flex-shrink-0", !isVotd ? "text-sky-200" : "text-slate-400")} />
-                    <span className={cn("text-[11px] font-black uppercase tracking-widest", !isVotd ? "text-sky-200" : "text-slate-400")}>Search</span>
-                  </div>
-                  <div className={cn("text-sm font-extrabold leading-tight", !isVotd ? "text-white" : "text-slate-500")}>Your Verse</div>
-                </button>
-              </div>
-
-              {/* Your Verse search — only shown when in your_verse mode */}
-              {!isVotd ? (
-                <div className="space-y-2 animate-enter">
-                  <input
-                    list="bible-books-list"
-                    value={devotional.verseRef}
-                    autoFocus
-                    onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "", scriptureSource: "your_verse" })}
-                    onBlur={(e) => {
-                      const normalized = normalizeVerseReferenceInput(e.target.value);
-                      if (normalized && normalized !== e.target.value) onUpdate({ verseRef: normalized, scriptureSource: "your_verse" });
-                    }}
-                    placeholder="e.g. John 15:5 or Psalm 23:1"
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-sky-100 focus:border-sky-300"
-                  />
-                  <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
-                  {smartBookSuggestions.length ? (
-                    <div className="flex flex-wrap gap-2">
-                      {smartBookSuggestions.map((book) => (
-                        <button
-                          key={book}
-                          type="button"
-                          onClick={() => handleBookSuggestionPick(book)}
-                          className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-700 hover:border-sky-200 hover:bg-sky-50 transition-colors"
-                        >
-                          {book}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                  {fetching ? (
-                    <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Looking up verse…
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {/* Shared verse display card — same for both modes */}
-              <div className={cn(
-                "rounded-3xl border p-5 transition-all",
-                isVotd
-                  ? "border-emerald-100 bg-emerald-50/50"
-                  : verseText
-                    ? "border-sky-100 bg-sky-50/50 animate-enter"
-                    : "border-slate-100 bg-slate-50"
-              )}>
-                {(verseRef || isVotd) ? (
-                  <>
-                    <div className={cn("text-xs font-black uppercase tracking-wide", isVotd ? "text-emerald-700" : "text-sky-700")}>
-                      {devotional.verseRef || verseOfDay.verseRef}{version ? ` (${version})` : ""}
-                    </div>
-                    <div className="mt-2 text-base leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">
-                      {devotional.verseText || (isVotd ? verseOfDay.verseText : "")}
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-sm text-slate-400 font-medium italic">Your verse will appear here once you type a reference above.</div>
-                )}
-              </div>
-
-              <button type="button" disabled={!verseReady} onClick={() => goToStep(2)} className="w-full rounded-2xl bg-emerald-600 disabled:opacity-40 text-white py-3 font-extrabold">
-                Use this verse
-              </button>
+      {step === 1 ? (
+        <Card>
+          <div className="space-y-4">
+            <div className="text-2xl font-black text-slate-900">What verse is speaking to you today?</div>
+            <div className="flex items-center gap-2">
+              <span className={cn("text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border", (devotional.scriptureSource || "verse_of_day") === "verse_of_day" ? "bg-emerald-50 border-emerald-200 text-emerald-700 animate-pulse-slow" : "bg-slate-50 border-slate-200 text-slate-500")}>Verse of the Day</span>
+              <span className={cn("text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border", devotional.scriptureSource === "your_verse" ? "bg-sky-50 border-sky-200 text-sky-700 animate-pulse-slow" : "bg-slate-50 border-slate-200 text-slate-500")}>Your Verse</span>
             </div>
-          </Card>
-        );
-      })() : null}
+            <button type="button" onClick={() => onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false, scriptureSource: "verse_of_day" })} className={cn("w-full text-left rounded-2xl border p-4", (devotional.scriptureSource || "verse_of_day") === "verse_of_day" ? "border-emerald-300 bg-emerald-50 animate-pulse-slow" : "border-emerald-200 bg-emerald-50")}>
+              <div className="text-xs font-black text-emerald-700 uppercase tracking-wide">Verse of the Day</div>
+              <div className="text-sm font-bold text-emerald-700 mt-1">{VERSE_OF_DAY.verseRef}</div>
+              <div className="text-sm mt-1 font-serif-scripture text-slate-700">{VERSE_OF_DAY.verseText}</div>
+            </button>
+
+            <input list="bible-books-list" value={devotional.verseRef} onChange={(e) => onUpdate({ verseRef: e.target.value, verseText: "", scriptureSource: "your_verse" })} placeholder="e.g. John 15:5" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
+            <datalist id="bible-books-list">{BIBLE_BOOKS.map((b) => <option key={b} value={b} />)}</datalist>
+            {verseText ? (
+              <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-5 animate-enter">
+                <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{verseRef} ({version})</div>
+                <div className="mt-2 text-lg leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">{verseText}</div>
+              </div>
+
+            <button type="button" disabled={!verseReady} onClick={() => goToStep(2)} className="w-full rounded-2xl bg-emerald-600 disabled:opacity-40 text-white py-3 font-extrabold">Use this verse</button>
+          </div>
+        </Card>
+      ) : null}
 
       {step === 2 ? (
         <Card>
           <div className="space-y-4">
-            {/* Heading + mood row */}
-            <div className="flex items-start justify-between gap-3">
-              <div className="text-2xl font-black text-slate-900 leading-tight">Write your reflection</div>
-              {devotional.mood ? (
-                <span className="shrink-0 mt-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black uppercase tracking-wider px-2.5 py-1">
-                  {MOODS.find(m => m.id === devotional.mood)?.label || devotional.mood}
-                </span>
-              ) : null}
-            </div>
-
-            {/* Mood chips — compact, scrollable */}
-            <div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">How's your heart?</div>
-              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                {MOODS.map((m) => (
-                  <Chip key={m.id} active={devotional.mood === m.id} onClick={() => onUpdate({ mood: m.id })}>{m.label}</Chip>
-                ))}
+            <button type="button" onClick={() => setStep(1)} className="text-xs rounded-full border px-3 py-1 font-bold text-emerald-700 border-emerald-200 bg-emerald-50">{verseRef || "No verse"}</button>
+            {verseText ? (
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Verse Reminder</div>
+                <div className="text-sm font-medium text-slate-700 mt-1">{verseReminder}</div>
               </div>
+            ) : null}
+            <div className="text-2xl font-black text-slate-900">Write your reflection</div>
+            <textarea value={devotional.reflection} onChange={(e) => onUpdate({ reflection: e.target.value })} placeholder="Write freely. No rules here." rows={10} spellCheck autoCorrect="on" autoCapitalize="sentences" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
+            <div className="text-right text-[11px] text-slate-400">{String(devotional.reflection || "").trim().split(/\s+/).filter(Boolean).length} words</div>
+
+            <div className="flex items-center justify-end">
+              <button type="button" onClick={() => goToStep(3)} className="rounded-2xl bg-emerald-600 text-white px-4 py-3 font-extrabold">Shape my writing</button>
             </div>
 
             {/* Guided writing prompt — only shows when mood is set */}
@@ -2546,121 +2452,8 @@ ${devotional.reflection}`);
                 ))}
               </div>
 
-              {/* Undo / Redo */}
-              <div className="flex items-center gap-2 mb-2">
-                <button type="button" onClick={doUndo} disabled={!canUndo || busy}
-                  className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
-                  <Undo2 className="w-3.5 h-3.5" /> Undo
-                </button>
-                <button type="button" onClick={doRedo} disabled={!canRedo || busy}
-                  className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
-                  <Redo2 className="w-3.5 h-3.5" /> Redo
-                </button>
-              </div>
-
-              {/* AI toolbar */}
-              <div className="flex flex-wrap gap-2 mb-3">
-                <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey}
-                  className="flex items-center gap-1.5 rounded-full bg-emerald-600 text-white px-3 py-1.5 text-xs font-extrabold disabled:opacity-40 hover:bg-emerald-700 transition-all tool-spring">
-                  <Sparkles className="w-3.5 h-3.5" /> AI Draft
-                </button>
-                <button onClick={() => void doFix()} disabled={busy}
-                  className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
-                  <Check className="w-3.5 h-3.5" /> Fix Grammar
-                </button>
-                <button onClick={() => void doLength("shorten")} disabled={busy}
-                  className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
-                  <ArrowUpToLine className="w-3.5 h-3.5" /> Shorten
-                </button>
-                <button onClick={() => void doLength("lengthen")} disabled={busy}
-                  className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
-                  <ArrowDownToLine className="w-3.5 h-3.5" /> Expand
-                </button>
-                <div className="relative">
-                  <button onClick={() => setToneMenuOpen((o) => !o)}
-                    className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:border-slate-400 transition-all tool-spring">
-                    <Wand2 className="w-3.5 h-3.5" /> Tone
-                  </button>
-                  {toneMenuOpen ? (
-                    <div className="absolute bottom-full left-0 mb-1 z-30 w-44 rounded-xl border bg-white shadow-lg overflow-hidden">
-                      {["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t) => (
-                        <button key={t} onClick={() => void doTone(t)} className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-slate-50 transition-colors">{t}</button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* Verse context pill — reminds user what they're polishing */}
-              {devotional.verseRef ? (
-                <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2 text-xs font-bold text-slate-500 flex items-center gap-2">
-                  <BookOpen className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span className="text-emerald-700 font-black">{devotional.verseRef}</span>
-                  {devotional.verseText ? <span className="text-slate-400 truncate">— {devotional.verseText.slice(0, 60)}{devotional.verseText.length > 60 ? "…" : ""}</span> : null}
-                </div>
-              ) : null}
-
-              {/* Empty state guidance */}
-              {!devotional.reflection && !devotional.prayer && !devotional.questions && contentTab === "reflection" ? (
-                <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-700 font-medium animate-enter">
-                  💡 No reflection yet — go back to Step 2 to write, or use <strong>AI Draft</strong> above to generate a starting point.
-                </div>
-              ) : null}
-
-              {/* Textarea — same editing surface, clearly labeled as the polishing area */}
-              <textarea
-                value={contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions}
-                onChange={(e) => {
-                  const patch = { [contentTab]: e.target.value };
-                  onUpdate(patch);
-                  pushHistory({ reflection: devotional.reflection, prayer: devotional.prayer, questions: devotional.questions, ...patch });
-                }}
-                placeholder={
-                  contentTab === "reflection" ? "Your reflection…"
-                  : contentTab === "prayer" ? "Your prayer…"
-                  : "Questions this verse raises…"
-                }
-                rows={10}
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none"
-              />
-              <div className="flex items-center justify-between mt-1">
-                <div className="text-[11px] text-slate-400">
-                  {String(contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions || "").trim().split(/\s+/).filter(Boolean).length} words
-                </div>
-                <span className={cn("text-[11px] font-extrabold", over ? "text-red-600" : count > limit * 0.8 ? "text-amber-600" : "text-emerald-600")}>
-                  {count}/{limit}
-                </span>
-              </div>
-              {over ? (
-                <button onClick={() => void doLength("shorten")} className="mt-1 text-xs font-bold underline text-red-600">
-                  Auto-Shorten to fit
-                </button>
-              ) : null}
-            </div>
-
-            {/* Platform selector — clearly labeled, prominent */}
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-2">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Where are you posting?</div>
-              <div className="flex flex-wrap gap-2">
-                {(settings.myPlatforms && settings.myPlatforms.length ? settings.myPlatforms : ["tiktok","instagram","twitter","facebook","email"]).map((p) => {
-                  const labels = { tiktok: "TikTok", instagram: "Instagram", twitter: "Twitter / X", facebook: "Facebook", email: "Email" };
-                  return (
-                    <button key={p} type="button" onClick={() => setPlatform(p)}
-                      className={cn("rounded-full px-3 py-1.5 text-xs font-extrabold border transition-all",
-                        platform === p ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"
-                      )}>
-                      {labels[p] || p}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Preview & Post CTA */}
-            <button type="button" onClick={() => goToStep(4)} disabled={!heartReady}
-              className="w-full rounded-2xl bg-slate-900 text-white py-3.5 font-extrabold disabled:opacity-40 flex items-center justify-center gap-2">
-              <Eye className="w-4 h-4" /> Preview &amp; Post
-            </button>
+            <button type="button" onClick={() => goToStep(4)} disabled={!heartReady} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold disabled:opacity-40">Preview & Post</button>
+            {!heartReady ? <div className="text-xs text-slate-500">Add a reflection, prayer, or question before posting.</div> : null}
           </div>
         </Card>
       ) : null}
@@ -4230,8 +4023,8 @@ function OnboardingWizard({ authDraft, onFinish }) {
         {/* ── SLIDE 0: Welcome ── */}
         {slide === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center animate-enter space-y-6">
-            <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-2xl shadow-emerald-200">
-              <BookOpen className="w-12 h-12 text-white" />
+            <div className="rounded-[2rem] border border-slate-100 bg-white/90 p-4 shadow-2xl shadow-emerald-100">
+              <img src={assetUrl("logo.png")} alt="VersedUP" className="h-20 w-auto mx-auto" draggable="false" />
             </div>
             <div>
               <div className="text-4xl font-black text-slate-900 tracking-tight">VersedUP</div>
