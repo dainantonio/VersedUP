@@ -43,9 +43,7 @@ import {
 } from "lucide-react";
 
 /* ── Firebase + FCM ─────────────────────────────────── */
-import { initializeApp } from "firebase/app";
-import { getMessaging, getToken, onMessage } from "firebase/messaging";
-
+// Firebase loaded dynamically — run: npm install firebase
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDqBDUeZ-HtNpIiZK0Q9jRMU6vGfNYyEWI",
   authDomain: "versedup-f246f.firebaseapp.com",
@@ -54,19 +52,26 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "209958052615",
   appId: "1:209958052615:web:49eb475c6b7c41fd551ba2",
 };
-const FCM_VAPID_KEY = "BNJ8ogsK_fGl09mvXA0rF_OHkRiXK5cSg814xL3vS7-DIwIAaiKv8NO290VU3uV8VBfeVCGzEtpeMA-BEcr5wG8"; // TODO: paste your Web Push VAPID key from Firebase Console → Project Settings → Cloud Messaging
+const FCM_VAPID_KEY = ""; // TODO: paste your Web Push VAPID key from Firebase Console → Project Settings → Cloud Messaging
 
 let _firebaseApp = null;
 let _messaging = null;
 
-function getFirebaseApp() {
-  if (!_firebaseApp) _firebaseApp = initializeApp(FIREBASE_CONFIG);
+async function getFirebaseApp() {
+  if (!_firebaseApp) {
+    const { initializeApp } = await import("firebase/app");
+    _firebaseApp = initializeApp(FIREBASE_CONFIG);
+  }
   return _firebaseApp;
 }
 
-function getFirebaseMessaging() {
+async function getFirebaseMessaging() {
   if (!_messaging) {
-    try { _messaging = getMessaging(getFirebaseApp()); } catch {}
+    try {
+      const app = await getFirebaseApp();
+      const { getMessaging } = await import("firebase/messaging");
+      _messaging = getMessaging(app);
+    } catch {}
   }
   return _messaging;
 }
@@ -82,8 +87,9 @@ async function requestNotificationPermission() {
 async function getFCMToken() {
   if (!FCM_VAPID_KEY) return null;
   try {
-    const messaging = getFirebaseMessaging();
+    const messaging = await getFirebaseMessaging();
     if (!messaging) return null;
+    const { getToken } = await import("firebase/messaging");
     const token = await getToken(messaging, { vapidKey: FCM_VAPID_KEY });
     return token || null;
   } catch (e) {
