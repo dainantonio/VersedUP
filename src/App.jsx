@@ -1011,7 +1011,7 @@ async function geminiGenerate({ apiKey, prompt }) {
   return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 }
 
-async function ai(settings, prompt) {
+async function ai(settings, prompt, _inputText = null) {
   const provider = settings.aiProvider;
 
   if (provider === "openai" && settings.openaiKey) {
@@ -1020,7 +1020,7 @@ async function ai(settings, prompt) {
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn("OpenAI failed; falling back to mock:", e);
-      return ai({ ...settings, aiProvider: "mock" }, prompt);
+      return ai({ ...settings, aiProvider: "mock" }, prompt, _inputText);
     }
   }
 
@@ -1030,27 +1030,21 @@ async function ai(settings, prompt) {
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn("Gemini failed; falling back to mock:", e);
-      return ai({ ...settings, aiProvider: "mock" }, prompt);
+      return ai({ ...settings, aiProvider: "mock" }, prompt, _inputText);
     }
   }
 
-  // Mock mode: return the input text unchanged for edit operations,
-  // or a minimal stub for generation operations.
+  // Mock mode — never return prompt instructions to the user
   await new Promise((r) => setTimeout(r, 650));
-  // Mock mode: return input text for edit ops, stub for generation ops
-  const lower = prompt.toLowerCase();
-  if (lower.startsWith("correct grammar") || lower.startsWith("shorten this") || lower.startsWith("expand this") || lower.startsWith("rewrite this") || lower.startsWith("change the tone")) {
-    // Edit operation: return the user's text unchanged (last paragraph of prompt)
-    const idx = prompt.lastIndexOf("\n\n");
-    return idx >= 0 ? prompt.slice(idx + 2).trim() : prompt.trim();
-  }
-  // Fallback: return a minimal stub so fields don't get prompt text
-  return "Your reflection will appear here. Add an OpenAI or Gemini key in Settings for real AI suggestions.";
+  // If caller passed the original input text, return it directly (edit ops)
+  if (_inputText !== null) return _inputText || "";
+  // Fallback stub for generation ops
+  return "";
 }
 
 async function aiFixGrammar(settings, { text, mood }) {
   const prompt = `Correct grammar and spelling errors. ${buildMoodHint(mood)} Return only the corrected text with no explanation.\n\nTEXT:\n${text}`;
-  return ai(settings, prompt);
+  return ai(settings, prompt, text);
 }
 
 async function aiStructure(settings, { verseRef, verseText, reflection, mood }) {
@@ -1133,7 +1127,7 @@ async function aiRewriteLength(settings, { text, mood, direction }) {
     direction === "shorten"
       ? `Shorten this while keeping the core meaning. ${buildMoodHint(mood)} Return only the shortened text.\n\n${text}`
       : `Expand this with more depth and clarity. ${buildMoodHint(mood)} Return only the expanded text.\n\n${text}`;
-  return ai(settings, prompt);
+  return ai(settings, prompt, text);
 }
 
 async function aiTikTokScript(settings, { verseRef, verseText, reflection, mood, baseScript, mode }) {
@@ -2274,7 +2268,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     try {
       const out = await ai(settings, `Rewrite this in a ${tone} tone while keeping the same meaning. Return only the rewritten text.
 
-${devotional.reflection}`);
+${devotional.reflection}`, txt);
       onUpdate({ reflection: out });
     } catch (e) { pushToast(e?.message || "Tone failed."); }
     finally { setBusy(false); }
@@ -3821,8 +3815,8 @@ function compileForPlatform(platform, d, settings) {
   const verseLine = d.verseRef ? `"${d.verseText || ""}"${nl}— ${d.verseRef}${nl}${nl}` : "";
   const titleLine = d.title ? `${d.title}${nl}${nl}` : "";
   const body = d.reflection || "";
-  const prayer = d.prayer ? `${nl}${nl}Prayer:${nl}${d.prayer}` : "";
-  const questions = d.questions ? `${nl}${nl}Questions:${nl}${d.questions}` : "";
+  const prayer = d.prayer ? `${nl}${nl}${d.prayer}` : "";
+  const questions = d.questions ? `${nl}${nl}${d.questions}` : "";
   const allUserText = body + (d.prayer || "") + (d.questions || "");
   const userHasTags = /#\w+/.test(allUserText);
   const tags = (!userHasTags && PLATFORM_HASHTAGS[platform]) ? nl + nl + PLATFORM_HASHTAGS[platform] : "";
@@ -4417,7 +4411,7 @@ function TikTokExportModal({ devotional, settings, onClose }) {
 /* ---------------- Google OAuth helpers ---------------- */
 
 // Replace with your actual Google OAuth Client ID from console.cloud.google.com
-const GOOGLE_CLIENT_ID = "1641573548-4p00rv9n7hl9lforkhnve018mun1nnfh.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
 
 function loadGoogleScript() {
   return new Promise((resolve) => {
