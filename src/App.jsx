@@ -14,7 +14,6 @@ import {
   Search,
   Settings,
   Share2,
-  MoreVertical,
   Sparkles,
   ChevronLeft,
   ChevronRight,
@@ -511,7 +510,7 @@ const getVerseOfDay = (date = new Date()) => {
   return VERSE_OF_DAY_LIST[idx];
 };
 
-const VERSE_OF_DAY = getVerseOfDay();
+// VERSE_OF_DAY is now evaluated dynamically at render time via getVerseOfDay()
 
 const MOOD_VERSES = Object.freeze({
   joy: { label: "Joy", verseRef: "Nehemiah 8:10", verseText: "The joy of the LORD is your strength." },
@@ -1395,7 +1394,8 @@ function buildImagePrompt(verseRef, verseText) {
 
 function DailyInspirationSection() {
   const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
-  const prompt = getDailyReflectionPrompt(VERSE_OF_DAY.verseRef, VERSE_OF_DAY.verseText);
+  const todayVerse = getVerseOfDay();
+  const prompt = getDailyReflectionPrompt(todayVerse.verseRef, todayVerse.verseText);
   const [expanded, setExpanded] = useState(false);
   return (
     <div className="animate-enter space-y-3">
@@ -1548,8 +1548,8 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
           <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
           <span className="text-[10px] font-black uppercase tracking-widest text-emerald-200">Verse of the Day</span>
         </div>
-        <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${VERSE_OF_DAY.verseText}"`}</div>
-        <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
+        <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${getVerseOfDay().verseText}"`}</div>
+        <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{getVerseOfDay().verseRef.toUpperCase()}</div>
         <RippleButton onClick={onReflectVerseOfDay} className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md btn-spring flex items-center gap-2 border border-white/10 relative z-10">
           Reflect on this
         </RippleButton>
@@ -1971,6 +1971,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [ttOverlay, setTtOverlay] = useState(false);
   const [ttCountdown, setTtCountdown] = useState(2);
   const [changingPlatform, setChangingPlatform] = useState(false);
+  const [sharedConfirm, setSharedConfirm] = useState(false);
 
   const igCardRef = useRef(null);
   const autoFetchTimer = useRef(null);
@@ -2137,29 +2138,37 @@ ${devotional.reflection}`);
   const over = count > limit;
 
   const copyAndOpen = async () => {
+    // Auto-save entry as "shared" immediately so work is never lost
+    onUpdate({ status: "ready", updatedAt: new Date().toISOString() });
     try { await navigator.clipboard.writeText(postText); } catch {}
     if (platform === "tiktok") {
-      setTtOverlay(true); setTtCountdown(2); return;
+      setTtOverlay(true); setTtCountdown(2);
+      setSharedConfirm(true);
+      return;
     }
     if (platform === "instagram") {
       window.location.href = "instagram://camera";
       setTimeout(() => window.open("https://www.instagram.com/create/select/", "_blank", "noopener,noreferrer"), 800);
+      setSharedConfirm(true);
       return;
     }
     if (platform === "twitter") {
       const shareUrl = encodeURIComponent(window.location.href);
       const shareText = encodeURIComponent(postText);
       window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`, "_blank", "noopener,noreferrer");
+      setSharedConfirm(true);
       return;
     }
     if (platform === "facebook") {
       const u = encodeURIComponent(window.location.href);
       window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}`, "_blank", "noopener,noreferrer");
+      setSharedConfirm(true);
       return;
     }
     if (platform === "email") {
       const subject = encodeURIComponent(devotional.title || devotional.verseRef || "Encouragement");
       window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(postText)}`;
+      setSharedConfirm(true);
     }
   };
 
@@ -2281,7 +2290,7 @@ ${devotional.reflection}`);
           onUpdate({ verseRef: "", verseText: "", verseTextEdited: false, scriptureSource: "your_verse" });
         };
         const switchToVotd = () => {
-          onUpdate({ verseRef: VERSE_OF_DAY.verseRef, verseText: VERSE_OF_DAY.verseText, verseTextEdited: false, scriptureSource: "verse_of_day" });
+          onUpdate({ verseRef: verseOfDay.verseRef, verseText: verseOfDay.verseText, verseTextEdited: false, scriptureSource: "verse_of_day" });
         };
         return (
           <Card>
@@ -2374,10 +2383,10 @@ ${devotional.reflection}`);
                 {(verseRef || isVotd) ? (
                   <>
                     <div className={cn("text-xs font-black uppercase tracking-wide", isVotd ? "text-emerald-700" : "text-sky-700")}>
-                      {devotional.verseRef || VERSE_OF_DAY.verseRef}{version ? ` (${version})` : ""}
+                      {devotional.verseRef || verseOfDay.verseRef}{version ? ` (${version})` : ""}
                     </div>
                     <div className="mt-2 text-base leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">
-                      {devotional.verseText || (isVotd ? VERSE_OF_DAY.verseText : "")}
+                      {devotional.verseText || (isVotd ? verseOfDay.verseText : "")}
                     </div>
                   </>
                 ) : (
@@ -2729,13 +2738,51 @@ ${devotional.reflection}`);
               </div>
             ) : null}
 
-            <div className="sticky bottom-20 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-3 shadow">
-              {typeof navigator !== "undefined" && navigator.share ? (
-                <button type="button" onClick={async () => { try { await navigator.share({ title: devotional.title || devotional.verseRef || "Devotional", text: postText }); } catch {} }} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold mb-2">Share via…</button>
-              ) : null}
-              <button type="button" onClick={() => void copyAndOpen()} className="w-full rounded-2xl bg-slate-900 text-white py-3 font-extrabold">Copy & Open {platform[0].toUpperCase()+platform.slice(1)}</button>
-              <div className="grid grid-cols-2 gap-2 mt-2"><SmallButton onClick={() => { const s=encodeURIComponent(devotional.title||devotional.verseRef||"Encouragement"); window.location.href=`mailto:?subject=${s}&body=${encodeURIComponent(postText)}`; }}>Email Draft</SmallButton><SmallButton onClick={() => { window.location.href=`sms:?&body=${encodeURIComponent(postText)}`; }}>Text Draft</SmallButton></div>
-              <SmallButton onClick={() => { onUpdate({ status: "posted", reviewed: true }); pushToast("Another seed planted 🌱"); }} className="w-full mt-2">Mark as Posted</SmallButton>
+            <div className="sticky bottom-20 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-3 shadow space-y-2">
+              {sharedConfirm ? (
+                /* Post-share confirmation state */
+                <>
+                  <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2.5 flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                    <div className="text-xs font-semibold text-emerald-800">
+                      Caption copied &amp; {platform === "email" ? "email opened" : `${platform[0].toUpperCase() + platform.slice(1)} opened`}. Mark this as posted once you publish.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onUpdate({ status: "posted", reviewed: true });
+                      pushToast("Another seed planted 🌱");
+                      setSharedConfirm(false);
+                    }}
+                    className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle className="w-4 h-4" /> Mark as Posted
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void copyAndOpen()}
+                    className="w-full rounded-2xl border border-slate-200 text-slate-700 py-2.5 font-extrabold text-sm hover:bg-slate-50 transition-colors"
+                  >
+                    Copy &amp; open again
+                  </button>
+                </>
+              ) : (
+                /* Pre-share state */
+                <>
+                  {typeof navigator !== "undefined" && navigator.share ? (
+                    <button type="button" onClick={async () => { try { await navigator.share({ title: devotional.title || devotional.verseRef || "Devotional", text: postText }); setSharedConfirm(true); } catch {} }} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold">Share via…</button>
+                  ) : null}
+                  <button type="button" onClick={() => void copyAndOpen()} className="w-full rounded-2xl bg-slate-900 text-white py-3 font-extrabold">
+                    Copy &amp; Open {platform[0].toUpperCase() + platform.slice(1)}
+                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <SmallButton onClick={() => { const s=encodeURIComponent(devotional.title||devotional.verseRef||"Encouragement"); window.location.href=`mailto:?subject=${s}&body=${encodeURIComponent(postText)}`; }}>Email Draft</SmallButton>
+                    <SmallButton onClick={() => { window.location.href=`sms:?&body=${encodeURIComponent(postText)}`; }}>Text Draft</SmallButton>
+                  </div>
+                  <SmallButton onClick={() => { onUpdate({ status: "posted", reviewed: true }); pushToast("Another seed planted 🌱"); }} className="w-full">Already posted? Mark it ✓</SmallButton>
+                </>
+              )}
             </div>
           </div>
         </Card>
@@ -3197,51 +3244,137 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
       </Card>
 
       <Card>
-        <SectionLabel>AI Provider + Keys</SectionLabel>
-        <button type="button" onClick={() => setAiOpen((v) => !v)} className="w-full flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700">
-          <span>{aiSummary}</span>
-          <ChevronDown className={cn("w-4 h-4 transition-transform", aiOpen ? "rotate-180" : "")} />
-        </button>
+        <SectionLabel>AI Writing Assistant</SectionLabel>
 
-        {aiOpen ? (
-          <div className="mt-3 space-y-3">
-            {aiNeedsKey && settings.aiProvider !== "mock" ? (
+        {/* Mode explainer — always visible */}
+        <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4 space-y-3 mb-3">
+          {[
+            {
+              id: "mock",
+              label: "Built-in",
+              badge: "Free · No setup",
+              badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+              desc: "Template-based suggestions. Works immediately, no account needed. Great for getting started.",
+            },
+            {
+              id: "openai",
+              label: "OpenAI GPT-4",
+              badge: "Paid · Best quality",
+              badgeColor: "bg-sky-50 text-sky-700 border-sky-200",
+              desc: "Highest quality AI writing. Requires an OpenAI API key (~$0.01–0.05 per session).",
+              link: "https://platform.openai.com/api-keys",
+              linkLabel: "Get a key at platform.openai.com →",
+            },
+            {
+              id: "gemini",
+              label: "Google Gemini",
+              badge: "Free tier available",
+              badgeColor: "bg-violet-50 text-violet-700 border-violet-200",
+              desc: "Google's AI model. Generous free tier. Requires a Google AI Studio API key.",
+              link: "https://aistudio.google.com/app/apikey",
+              linkLabel: "Get a key at aistudio.google.com →",
+            },
+          ].map((mode) => (
+            <button
+              key={mode.id}
+              type="button"
+              onClick={() => onUpdate({ aiProvider: mode.id })}
+              className={cn(
+                "w-full text-left rounded-2xl border p-3.5 transition-all",
+                settings.aiProvider === mode.id
+                  ? "border-emerald-400 bg-white shadow-sm ring-2 ring-emerald-100"
+                  : "border-slate-200 bg-white hover:border-slate-300"
+              )}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <div className={cn(
+                  "w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0",
+                  settings.aiProvider === mode.id ? "border-emerald-500" : "border-slate-300"
+                )}>
+                  {settings.aiProvider === mode.id && (
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  )}
+                </div>
+                <span className="text-sm font-extrabold text-slate-900">{mode.label}</span>
+                <span className={cn("ml-auto rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide", mode.badgeColor)}>
+                  {mode.badge}
+                </span>
+              </div>
+              <div className="text-xs text-slate-500 leading-relaxed ml-6">{mode.desc}</div>
+              {mode.link && settings.aiProvider === mode.id ? (
+                <a
+                  href={mode.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-2 ml-6 inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-700 underline"
+                >
+                  {mode.linkLabel}
+                </a>
+              ) : null}
+            </button>
+          ))}
+        </div>
+
+        {/* Key input — only shown when a paid provider is selected */}
+        {settings.aiProvider === "openai" ? (
+          <div className="space-y-2">
+            {aiNeedsKey ? (
               <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-2.5">
                 <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                <div className="text-xs font-semibold text-amber-800">AI selected but missing key.</div>
+                <div className="text-xs font-semibold text-amber-800">
+                  Paste your OpenAI key below to enable AI Draft, Fix Grammar, Shorten, Expand, and Tone.
+                </div>
               </div>
-            ) : null}
-
-            <select
-              value={settings.aiProvider}
-              onChange={(e) => onUpdate({ aiProvider: e.target.value })}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
-            >
-              <option value="mock">Built-in (no key needed)</option>
-              <option value="openai">OpenAI (GPT-4)</option>
-              <option value="gemini">Google Gemini</option>
-            </select>
-
-            {settings.aiProvider === "openai" ? (
-              <div>
-                <input value={settings.openaiKey} onChange={(e) => onUpdate({ openaiKey: e.target.value })} placeholder="OpenAI key" type="password" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
-                <AiKeyTestButton provider="openai" apiKey={settings.openaiKey} />
+            ) : (
+              <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-2.5">
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div className="text-xs font-semibold text-emerald-800">OpenAI key saved. AI tools are active.</div>
               </div>
-            ) : null}
-
-            {settings.aiProvider === "gemini" ? (
-              <div>
-                <input value={settings.geminiKey} onChange={(e) => onUpdate({ geminiKey: e.target.value })} placeholder="Gemini key" type="password" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
-                <AiKeyTestButton provider="gemini" apiKey={settings.geminiKey} />
-              </div>
-            ) : null}
-
+            )}
             <input
-              value={settings.ocrEndpoint || ""}
-              onChange={(e) => onUpdate({ ocrEndpoint: e.target.value })}
-              placeholder="OCR endpoint (optional)"
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-200 bg-white"
+              value={settings.openaiKey}
+              onChange={(e) => onUpdate({ openaiKey: e.target.value })}
+              placeholder="sk-…"
+              type="password"
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
             />
+            <AiKeyTestButton provider="openai" apiKey={settings.openaiKey} />
+          </div>
+        ) : null}
+
+        {settings.aiProvider === "gemini" ? (
+          <div className="space-y-2">
+            {aiNeedsKey ? (
+              <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                <div className="text-xs font-semibold text-amber-800">
+                  Paste your Gemini key below to enable AI tools.
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-2.5">
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div className="text-xs font-semibold text-emerald-800">Gemini key saved. AI tools are active.</div>
+              </div>
+            )}
+            <input
+              value={settings.geminiKey}
+              onChange={(e) => onUpdate({ geminiKey: e.target.value })}
+              placeholder="AIza…"
+              type="password"
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
+            />
+            <AiKeyTestButton provider="gemini" apiKey={settings.geminiKey} />
+          </div>
+        ) : null}
+
+        {settings.aiProvider === "mock" ? (
+          <div className="flex items-center gap-2 rounded-xl bg-slate-100 border border-slate-200 p-2.5">
+            <CheckCircle className="w-4 h-4 text-slate-500 shrink-0" />
+            <div className="text-xs font-semibold text-slate-600">
+              Built-in mode active — no key needed. Upgrade to OpenAI or Gemini for smarter suggestions.
+            </div>
           </div>
         ) : null}
       </Card>
@@ -3265,7 +3398,7 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
 
       <Card>
         <SectionLabel>Export & Share</SectionLabel>
-        <div className="text-xs text-slate-500">Pick your primary platforms (used as Compile default).</div>
+        <div className="text-xs text-slate-500">Your active platforms — these appear as options when you're ready to post.</div>
         <div className="mt-2 flex flex-wrap gap-2">
           {platforms.map((p) => (
             <button key={p.id} type="button" onClick={() => togglePlatform(p.id)} className={cn("rounded-full border px-3 py-1.5 text-xs font-extrabold", selectedPlatforms.includes(p.id) ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
