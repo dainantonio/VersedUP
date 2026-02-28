@@ -4417,7 +4417,7 @@ function TikTokExportModal({ devotional, settings, onClose }) {
 /* ---------------- Google OAuth helpers ---------------- */
 
 // Replace with your actual Google OAuth Client ID from console.cloud.google.com
-const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = "1641573548-4p00rv9n7hl9lforkhnve018mun1nnfh.apps.googleusercontent.com";
 
 function loadGoogleScript() {
   return new Promise((resolve) => {
