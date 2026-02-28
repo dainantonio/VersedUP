@@ -14,7 +14,6 @@ import {
   Search,
   Settings,
   Share2,
-  MoreVertical,
   Sparkles,
   ChevronLeft,
   ChevronRight,
@@ -34,7 +33,11 @@ import {
   Sun,
   Eye,
   Pencil,
-  Download
+  Download,
+  Undo2,
+  Redo2,
+  ArrowUpToLine,
+  ArrowDownToLine
 } from "lucide-react";
 
 /* --- Mocks & Global Styles for Preview --- */
@@ -507,7 +510,7 @@ const getVerseOfDay = (date = new Date()) => {
   return VERSE_OF_DAY_LIST[idx];
 };
 
-const VERSE_OF_DAY = getVerseOfDay();
+// VERSE_OF_DAY is now evaluated dynamically at render time via getVerseOfDay()
 
 const MOOD_VERSES = Object.freeze({
   joy: { label: "Joy", verseRef: "Nehemiah 8:10", verseText: "The joy of the LORD is your strength." },
@@ -675,7 +678,23 @@ function createDevotional(settings) {
     tiktokScript: "",
     status: "draft",
     reviewed: false,
+    scriptureSource: "verse_of_day",
   };
+}
+
+function BrandLogo({ className = "h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105" }) {
+  return (
+    <img
+      src={assetUrl("logo.png")}
+      alt="VersedUP"
+      className={className}
+      draggable="false"
+      onError={(e) => {
+        e.currentTarget.onerror = null;
+        e.currentTarget.style.display = "none";
+      }}
+    />
+  );
 }
 
 
@@ -700,6 +719,50 @@ function canFetchDirect(version) {
 function bibleGatewayUrl(passage, version = "KJV") {
   const q = encodeURIComponent(String(passage || "").trim());
   return `https://www.biblegateway.com/passage/?search=${q}&version=${version}`;
+}
+
+function normalizeVerseReferenceInput(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  let txt = raw
+    .replace(/verse/gi, ":")
+    .replace(/v/gi, ":")
+    .replace(/\s*:\s*/g, ":")
+    .replace(/([A-Za-z])(\d)/g, "$1 $2")
+    .replace(/(\d)([A-Za-z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const bookMatch = txt.match(/^([1-3]?\s*[A-Za-z]+(?:\s+[A-Za-z]+)*)\s*(.*)$/);
+  if (!bookMatch) return txt;
+
+  const rawBook = String(bookMatch[1] || "").trim();
+  const rest = String(bookMatch[2] || "").trim();
+  const normalizedBookKey = rawBook.toLowerCase().replace(/\s+/g, "");
+
+  let book = BIBLE_BOOKS.find((b) => b.toLowerCase().replace(/\s+/g, "") === normalizedBookKey)
+    || BIBLE_BOOKS.find((b) => b.toLowerCase().replace(/\s+/g, "").startsWith(normalizedBookKey));
+
+  if (!book) {
+    book = rawBook
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => w[0]?.toUpperCase() + w.slice(1))
+      .join(" ");
+  }
+
+  if (!rest) return book;
+
+  const cv = rest.match(/^(\d{1,3})(?:\s*:\s*(\d{1,3}))?/);
+  if (cv) {
+    const chapter = cv[1];
+    const verse = cv[2];
+    return verse ? `${book} ${chapter}:${verse}` : `${book} ${chapter}`;
+  }
+
+  return `${book} ${rest}`.trim();
 }
 
 async function fetchVerseFromBibleApi(passage, version = "KJV") {
@@ -930,7 +993,7 @@ async function ai(settings, prompt) {
 }
 
 async function aiFixGrammar(settings, { text, mood }) {
-  const prompt = `Fix grammar and spelling. ${buildMoodHint(mood)} Return ONLY corrected text.\n\nTEXT:\n${text}`;
+  const prompt = `Correct grammar and spelling errors. ${buildMoodHint(mood)} Return only the corrected text with no explanation.\n\nTEXT:\n${text}`;
   return ai(settings, prompt);
 }
 
@@ -1012,8 +1075,8 @@ Return JSON exactly:
 async function aiRewriteLength(settings, { text, mood, direction }) {
   const prompt =
     direction === "shorten"
-      ? `Shorten this while keeping meaning. ${buildMoodHint(mood)} Return ONLY text.\n\n${text}`
-      : `Lengthen this with more depth and clarity. ${buildMoodHint(mood)} Return ONLY text.\n\n${text}`;
+      ? `Shorten this while keeping the core meaning. ${buildMoodHint(mood)} Return only the shortened text.\n\n${text}`
+      : `Expand this with more depth and clarity. ${buildMoodHint(mood)} Return only the expanded text.\n\n${text}`;
   return ai(settings, prompt);
 }
 
@@ -1305,10 +1368,94 @@ function StreakCounter({ target }) {
   );
 }
 
-function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, onStartWithVerse, hasActive, streak, displayName, devotionals, onOpen, onOpenReadyToPost, showInstallBanner, onInstall, onDismissInstall }) {
+/* ── Daily Inspiration: AI Image + Reflection Prompt ── */
+
+function getDailyReflectionPrompt(verseRef, verseText) {
+  const prompts = [
+    (ref, text) => `What situation in your life right now does "${text.split(" ").slice(0, 6).join(" ")}…" speak directly into?`,
+    (ref) => `If ${ref} were a personal letter written just to you today, what would God be saying?`,
+    (ref) => `Where have you seen the truth of ${ref} play out in the last 7 days — even in a small way?`,
+    (ref) => `What would change about your day if you believed ${ref} fully — not just intellectually, but in your bones?`,
+    (ref) => `Who in your life most needs to hear the message of ${ref} right now? How could you carry it to them?`,
+    (ref) => `What's one thing you've been holding onto that ${ref} is asking you to release or trust God with?`,
+    (ref) => `How does ${ref} challenge the loudest lie you've believed about yourself recently?`,
+  ];
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+  return prompts[dayOfYear % prompts.length](verseRef, verseText);
+}
+
+function buildImagePrompt(verseRef, verseText) {
+  // Extract key themes from the verse to craft a vivid scene prompt
+  const text = `${verseRef} ${verseText}`.toLowerCase();
+  const themes = [
+    [/shepherd|sheep|pasture|flock/, "a peaceful sunlit shepherd and sheep on rolling green hills at golden hour, cinematic, God rays through clouds"],
+    [/light|darkness|lamp|shine|radiant/, "golden rays of divine light breaking through storm clouds over a misty valley, epic sky, spiritual atmosphere"],
+    [/water|river|stream|well|thirst/, "a crystal clear mountain stream flowing through an ancient mossy forest, ethereal morning light"],
+    [/mountain|rock|fortress|strength/, "a lone figure standing on a mountain summit above the clouds at sunrise, majestic, cinematic"],
+    [/love|heart|grace|mercy/, "a sunrise over a peaceful countryside with wildflowers and soft warm golden light, serene and hopeful"],
+    [/peace|still|rest|quiet/, "a still misty lake at dawn surrounded by ancient trees, perfect mirror reflection, tranquil"],
+    [/seed|grow|fruit|vine|harvest/, "a lush vineyard or orchard at golden hour, sunlight through leaves, abundant life"],
+    [/eagle|fly|soar|wings/, "a majestic eagle soaring above mountain peaks through dramatic clouds at sunrise"],
+    [/fire|flame|burn|refine/, "a warm campfire at night under a breathtaking starry sky, Milky Way, peaceful wilderness"],
+    [/bread|feed|hunger|full/, "golden wheat fields at sunset, rolling hills, warm harvest light"],
+    [/storm|wind|wave|sea/, "a lighthouse standing strong against crashing ocean waves in a dramatic storm, perseverance"],
+    [/desert|wilderness|journey|path/, "a solitary traveler on an ancient dusty path through a vast desert at sunrise, spiritual quest"],
+  ];
+  for (const [pattern, imagePrompt] of themes) {
+    if (pattern.test(text)) return imagePrompt;
+  }
+  return "a breathtaking sunrise over rolling hills and ancient trees, spiritual light, cinematic nature photography, peaceful and hopeful";
+}
+
+function DailyInspirationSection() {
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+  const todayVerse = getVerseOfDay();
+  const prompt = getDailyReflectionPrompt(todayVerse.verseRef, todayVerse.verseText);
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="animate-enter space-y-3">
+      <div className="flex items-center gap-2 px-1">
+        <div className="flex-1 h-px bg-slate-100" />
+        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">Today's Reflection</span>
+        <div className="flex-1 h-px bg-slate-100" />
+      </div>
+
+      {/* Daily Reflection Prompt */}
+      <div className="bg-white rounded-[1.5rem] border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-5 pt-5 pb-5">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center flex-shrink-0">
+              <span className="text-base">💭</span>
+            </div>
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-amber-500">Reflect Today</div>
+              <div className="text-[11px] text-slate-400 font-medium">Tied to today's verse</div>
+            </div>
+          </div>
+
+          <p className={cn("text-sm font-semibold text-slate-800 leading-relaxed", !expanded ? "line-clamp-3" : "")}>
+            {prompt}
+          </p>
+
+          {prompt.length > 120 ? (
+            <button type="button" onClick={() => setExpanded(!expanded)}
+              className="mt-2 text-[11px] font-bold text-amber-500 hover:text-amber-600">
+              {expanded ? "Show less" : "Read more"}
+            </button>
+          ) : null}
+
+          <div className="mt-4 pt-3 border-t border-slate-50 text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+            Refreshes daily · {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, hasActive, streak, displayName, devotionals, onOpen, onOpenReadyToPost, showInstallBanner, onInstall, onDismissInstall }) {
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
-  const [homeVerseRef, setHomeVerseRef] = useState("");
   const moodVerse = MOOD_VERSES[moodVerseKey] || MOOD_VERSES.joy;
 
   const handleSelectMoodVerse = (key) => {
@@ -1317,7 +1464,10 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
     pushToast(`${label} verse ready.`);
   };
 
-  const latest = devotionals[devotionals.length - 1] || null;
+  // Most recently edited entry (not just last in array)
+  const latest = devotionals.length > 0
+    ? [...devotionals].sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0]
+    : null;
   const todaysAction = hasActive
     ? { tone: "bg-emerald-50 border-emerald-200 text-emerald-800", text: "🟢 You're ready to post — 1 entry draft waiting" }
     : latest
@@ -1349,7 +1499,8 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
 
       <div className="bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 overflow-hidden relative scroll-card">
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/60 via-transparent to-sky-50/20 pointer-events-none" />
-        <div className="relative flex items-center justify-between gap-3 flex-wrap">
+        <div className="relative space-y-4">
+          {/* Streak row */}
           <div className="flex items-center gap-3">
             <StreakCounter target={streak.count} />
             <div className="relative w-8 h-8 flex-shrink-0">
@@ -1361,20 +1512,24 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
               <div className="text-[11px] text-slate-500 font-medium leading-tight mt-0.5">God meets you here.</div>
             </div>
           </div>
-          <div className="flex gap-2">
-            <RippleButton
-              onClick={hasActive ? onContinue : onNew}
-              className="flex-shrink-0 px-4 py-3 rounded-2xl bg-slate-900 text-white text-sm font-extrabold shadow-lg hover:bg-slate-800 btn-spring"
-            >
-              {hasActive ? "Continue" : "Start"}
-            </RippleButton>
-            <RippleButton
-              onClick={onQuickPost}
-              className="flex-shrink-0 px-4 py-3 rounded-2xl bg-emerald-600 text-white text-sm font-extrabold shadow-lg hover:bg-emerald-700 btn-spring"
-            >
-              60-Second Post
-            </RippleButton>
-          </div>
+
+          {/* Primary CTA — one clear action */}
+          <RippleButton
+            onClick={hasActive ? onContinue : onNew}
+            className="w-full py-4 rounded-2xl bg-emerald-600 text-white text-base font-extrabold shadow-lg shadow-emerald-200 hover:bg-emerald-700 btn-spring flex items-center justify-center gap-2"
+          >
+            <PenTool className="w-5 h-5" />
+            {hasActive ? "Continue Writing" : "Start Today's Devotional"}
+          </RippleButton>
+
+          {/* Secondary — less prominent */}
+          <button
+            type="button"
+            onClick={onQuickPost}
+            className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-extrabold hover:border-slate-300 hover:bg-slate-50 transition-colors"
+          >
+            ⚡ 60-Second Post — just a verse + one thought
+          </button>
         </div>
       </div>
 
@@ -1408,8 +1563,8 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
           <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
           <span className="text-[10px] font-black uppercase tracking-widest text-emerald-200">Verse of the Day</span>
         </div>
-        <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${VERSE_OF_DAY.verseText}"`}</div>
-        <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{VERSE_OF_DAY.verseRef.toUpperCase()}</div>
+        <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${getVerseOfDay().verseText}"`}</div>
+        <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{getVerseOfDay().verseRef.toUpperCase()}</div>
         <RippleButton onClick={onReflectVerseOfDay} className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md btn-spring flex items-center gap-2 border border-white/10 relative z-10">
           Reflect on this
         </RippleButton>
@@ -1454,24 +1609,13 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
       })() : (
         <div className="bg-gradient-to-br from-sky-50 to-indigo-50 rounded-[1.75rem] border border-sky-100 p-5">
           <div className="text-[10px] font-black uppercase tracking-widest text-sky-400 mb-2">Fresh Start</div>
-          <div className="text-sm text-slate-700 leading-relaxed font-semibold mb-3">What verse is speaking to you today?</div>
-          <div className="flex gap-2">
-            <input
-              value={homeVerseRef}
-              onChange={(e) => setHomeVerseRef(e.target.value)}
-              placeholder="e.g. John 15:5"
-              className="flex-1 rounded-xl border border-sky-200 px-3 py-2.5 text-sm font-semibold outline-none focus:ring-4 focus:ring-sky-100"
-            />
-            <button
-              type="button"
-              onClick={() => onStartWithVerse(homeVerseRef)}
-              className="rounded-xl bg-sky-600 text-white px-3 py-2.5 text-xs font-extrabold"
-            >
-              Start
-            </button>
-          </div>
+          <div className="text-sm text-slate-700 leading-relaxed font-semibold">Verse of the Day is your daily spark.</div>
+          <div className="mt-2 text-xs font-bold text-sky-700">Tap the Write button below to start with your own scripture.</div>
         </div>
       )}
+      {/* ── Daily Reflection Prompt + Scripture Image Card ── */}
+      <DailyInspirationSection />
+
     </div>
   );
 }
@@ -1805,6 +1949,33 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [fetching, setFetching] = useState(false);
   const [toneMenuOpen, setToneMenuOpen] = useState(false);
   const [step, setStep] = useState(1);
+  // Undo/redo history for reflection, prayer, questions
+  const historyRef = React.useRef({ stack: [], index: -1, skipNext: false });
+  const pushHistory = React.useCallback((patch) => {
+    const h = historyRef.current;
+    if (h.skipNext) { h.skipNext = false; return; }
+    // Trim forward history
+    h.stack = h.stack.slice(0, h.index + 1);
+    h.stack.push(patch);
+    if (h.stack.length > 100) h.stack.shift();
+    h.index = h.stack.length - 1;
+  }, []);
+  const canUndo = historyRef.current.index > 0;
+  const canRedo = historyRef.current.index < historyRef.current.stack.length - 1;
+  const doUndo = React.useCallback(() => {
+    const h = historyRef.current;
+    if (h.index <= 0) return;
+    h.index--;
+    h.skipNext = true;
+    onUpdate(h.stack[h.index]);
+  }, [onUpdate]);
+  const doRedo = React.useCallback(() => {
+    const h = historyRef.current;
+    if (h.index >= h.stack.length - 1) return;
+    h.index++;
+    h.skipNext = true;
+    onUpdate(h.stack[h.index]);
+  }, [onUpdate]);
   const [contentTab, setContentTab] = useState("reflection");
   const [platform, setPlatform] = useState(() => (settings.myPlatforms && settings.myPlatforms[0]) || "tiktok");
   const [selectedTopic, setSelectedTopic] = useState(TOPIC_CHIPS[0]?.id || "");
@@ -1819,9 +1990,16 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const autoFetchTimer = useRef(null);
 
   const verseRef = String(devotional.verseRef || "").trim();
+  const normalizedVerseRef = normalizeVerseReferenceInput(verseRef);
   const verseText = String(devotional.verseText || "").trim();
   const verseReminder = (verseText.split(/(?<=[.!?])\s+/)[0] || verseText).trim();
   const version = devotional.bibleVersion || settings.defaultBibleVersion || "KJV";
+  const bookQuery = (devotional.verseRef || "").replace(/\d.*$/, "").trim();
+  const smartBookSuggestions = useMemo(() => {
+    if (!bookQuery) return [];
+    const q = bookQuery.toLowerCase();
+    return BIBLE_BOOKS.filter((b) => b.toLowerCase().startsWith(q) || b.toLowerCase().includes(q)).slice(0, 6);
+  }, [bookQuery]);
   const guidedMode = Boolean(settings.guidedMode);
   const aiNeedsKey =
     (settings.aiProvider === "openai" && !settings.openaiKey) ||
@@ -1847,6 +2025,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     setPostText(compileForPlatform(platform, devotional, settings));
   }, [platform, devotional, settings]);
 
+
   useEffect(() => {
     if (!ttOverlay) return;
     if (ttCountdown <= 0) {
@@ -1861,25 +2040,31 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
 
   useEffect(() => {
     if (step !== 1) return;
-    if (!verseRef) return;
-    const validLike = /\b\d{1,3}:\d{1,3}/.test(verseRef) || /\b\d{1,3}\b/.test(verseRef);
+    if (!normalizedVerseRef) return;
+    const validLike = /\b\d{1,3}:\d{1,3}/.test(normalizedVerseRef) || /\b\d{1,3}\b/.test(normalizedVerseRef);
     if (!validLike) return;
     if (verseText) return;
     if (autoFetchTimer.current) clearTimeout(autoFetchTimer.current);
     autoFetchTimer.current = setTimeout(() => { void doFetch(); }, 500);
     return () => autoFetchTimer.current && clearTimeout(autoFetchTimer.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, verseRef, version]);
+  }, [step, normalizedVerseRef, version]);
+
+  const handleBookSuggestionPick = (book) => {
+    const tail = String(devotional.verseRef || "").replace(/^\s*[^\d]*\s*/, "").trim();
+    const nextRef = tail ? `${book} ${tail}` : `${book} `;
+    onUpdate({ verseRef: nextRef, verseText: "", scriptureSource: "your_verse" });
+  };
 
   const doFetch = async () => {
-    if (!verseRef) return;
+    if (!normalizedVerseRef) return;
     setFetching(true);
     try {
       if (canFetchDirect(version)) {
-        const text = await fetchVerseFromBibleApi(verseRef, version);
-        onUpdate({ verseText: text, verseTextEdited: false });
+        const text = await fetchVerseFromBibleApi(normalizedVerseRef, version);
+        onUpdate({ verseRef: normalizedVerseRef, verseText: text, verseTextEdited: false, scriptureSource: "your_verse" });
       } else {
-        window.open(bibleGatewayUrl(verseRef, version), "_blank", "noopener,noreferrer");
+        window.open(bibleGatewayUrl(normalizedVerseRef, version), "_blank", "noopener,noreferrer");
       }
     } catch (e) {
       pushToast(e?.message || "Fetch failed.");
@@ -1946,7 +2131,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     if (!devotional.reflection?.trim()) return;
     setBusy(true);
     try {
-      const out = await ai(settings, `Rewrite in a ${tone} tone. Keep meaning. Return ONLY text.
+      const out = await ai(settings, `Rewrite this in a ${tone} tone while keeping the same meaning. Return only the rewritten text.
 
 ${devotional.reflection}`);
       onUpdate({ reflection: out });
@@ -1959,29 +2144,37 @@ ${devotional.reflection}`);
   const over = count > limit;
 
   const copyAndOpen = async () => {
+    // Auto-save entry as "shared" immediately so work is never lost
+    onUpdate({ status: "ready", updatedAt: new Date().toISOString() });
     try { await navigator.clipboard.writeText(postText); } catch {}
     if (platform === "tiktok") {
-      setTtOverlay(true); setTtCountdown(2); return;
+      setTtOverlay(true); setTtCountdown(2);
+      setSharedConfirm(true);
+      return;
     }
     if (platform === "instagram") {
       window.location.href = "instagram://camera";
       setTimeout(() => window.open("https://www.instagram.com/create/select/", "_blank", "noopener,noreferrer"), 800);
+      setSharedConfirm(true);
       return;
     }
     if (platform === "twitter") {
       const shareUrl = encodeURIComponent(window.location.href);
       const shareText = encodeURIComponent(postText);
       window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`, "_blank", "noopener,noreferrer");
+      setSharedConfirm(true);
       return;
     }
     if (platform === "facebook") {
       const u = encodeURIComponent(window.location.href);
       window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}`, "_blank", "noopener,noreferrer");
+      setSharedConfirm(true);
       return;
     }
     if (platform === "email") {
       const subject = encodeURIComponent(devotional.title || devotional.verseRef || "Encouragement");
       window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(postText)}`;
+      setSharedConfirm(true);
     }
   };
 
@@ -1997,8 +2190,15 @@ ${devotional.reflection}`);
   };
 
   const stepTitles = ["Scripture", "Your Heart", "Shape It", "Post It"];
-  const progress = (step / 4) * 100;
-  const verseReady = Boolean(verseText);
+  const onboardingStyleSteps = [
+    { label: "Step 1", title: "Scripture", stepNum: 1 },
+    { label: "Step 2", title: "Your Heart", stepNum: 2 },
+    { label: "Step 3", title: "Shape It", stepNum: 3 },
+    { label: "Step 4", title: "Post It", stepNum: 4 },
+  ];
+  const displayStep = step;
+  const progress = (displayStep / 4) * 100;
+  const verseReady = Boolean(normalizedVerseRef);
   const heartReady = Boolean(String(devotional.reflection || "").trim() || String(devotional.prayer || "").trim() || String(devotional.questions || "").trim());
   const canAccessStep = (nextStep) => {
     if (nextStep <= 1) return true;
@@ -2028,24 +2228,45 @@ ${devotional.reflection}`);
           <button
             type="button"
             onClick={() => (step === 1 ? onGoCompile() : setStep((s) => Math.max(1, s - 1)))}
-            className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-bold"
+            className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors active:scale-95"
+            title={step === 1 ? "Exit" : "Back"}
           >
-            {step === 1 ? <X className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            <ChevronLeft className="w-3.5 h-3.5" />
+            {step === 1 ? "Exit" : "Back"}
           </button>
-          <div className="text-xs font-black text-slate-500 uppercase">{step} of 4 · {stepTitles[step - 1]}</div>
-          <div className="ml-auto" />
+          <div className="flex-1 text-center">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Step {displayStep} of 4</span>
+            <span className="mx-2 text-slate-200">·</span>
+            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+              {onboardingStyleSteps[displayStep - 1]?.title || stepTitles[step - 1]}
+            </span>
+          </div>
+          {/* Spacer to balance the back button */}
+          <div className="w-16" />
         </div>
-        <div className="mt-3 grid grid-cols-4 gap-2">
-          {stepTitles.map((title, idx) => {
-            const stepNum = idx + 1;
-            const enabled = canAccessStep(stepNum);
-            const active = stepNum === step;
+
+        {/* Progress bar — thick, prominent */}
+        <div className="px-4 pb-1">
+          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className="h-full bg-emerald-500 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Step bubbles */}
+        <div className="grid grid-cols-4 gap-1.5 px-4 pb-3.5 pt-2">
+          {onboardingStyleSteps.map((item) => {
+            const enabled = canAccessStep(item.stepNum);
+            const isActive = item.stepNum === displayStep;
+            const isDone = item.stepNum < displayStep;
             return (
               <button
-                key={title}
+                key={item.label}
                 type="button"
                 disabled={!enabled}
-                onClick={() => goToStep(stepNum)}
+                onClick={() => goToStep(item.stepNum)}
                 className={cn(
                   "rounded-xl border px-2 py-2 text-[11px] font-black transition",
                   active
@@ -2055,13 +2276,13 @@ ${devotional.reflection}`);
                       : "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
                 )}
               >
-                {stepNum}. {title}
+                <div className={cn("text-[9px] font-black uppercase tracking-wider mb-0.5", isActive ? "text-emerald-200" : isDone ? "text-emerald-500" : "text-slate-400")}>
+                  {isDone ? "✓" : `Step ${item.stepNum}`}
+                </div>
+                <div className="text-[11px] font-extrabold leading-tight">{item.title}</div>
               </button>
             );
           })}
-        </div>
-        <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
-          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
@@ -2086,7 +2307,6 @@ ${devotional.reflection}`);
                 <div className="text-xs font-black uppercase tracking-wide text-emerald-700">{verseRef} ({version})</div>
                 <div className="mt-2 text-lg leading-relaxed font-serif-scripture text-slate-800 whitespace-pre-wrap">{verseText}</div>
               </div>
-            ) : null}
 
             <button type="button" disabled={!verseReady} onClick={() => goToStep(2)} className="w-full rounded-2xl bg-emerald-600 disabled:opacity-40 text-white py-3 font-extrabold">Use this verse</button>
           </div>
@@ -2110,6 +2330,82 @@ ${devotional.reflection}`);
             <div className="flex items-center justify-end">
               <button type="button" onClick={() => goToStep(3)} className="rounded-2xl bg-emerald-600 text-white px-4 py-3 font-extrabold">Shape my writing</button>
             </div>
+
+            {/* Guided writing prompt — only shows when mood is set */}
+            {devotional.mood ? (
+              <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-800 font-medium italic animate-enter">
+                💭 {moodPrompt[devotional.mood] || "What is God showing you in this verse?"}
+              </div>
+            ) : null}
+
+            {/* Content tabs ABOVE textarea */}
+            <div>
+              <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1 mb-3">
+                {[
+                  { k: "reflection", label: "Reflection" },
+                  { k: "prayer", label: "Prayer" },
+                  { k: "questions", label: "Questions" },
+                ].map(({ k, label }) => (
+                  <button key={k} type="button" onClick={() => setContentTab(k)}
+                    className={cn("rounded-xl py-2 text-xs font-extrabold transition-all", contentTab === k ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}>
+                    {label}
+                    {k !== "reflection" && devotional[k]?.trim() ? (
+                      <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 align-middle" />
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+
+              {/* Undo / Redo */}
+              <div className="flex items-center gap-2 mb-2">
+                <button type="button" onClick={doUndo} disabled={!canUndo || busy}
+                  className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
+                  <Undo2 className="w-3.5 h-3.5" /> Undo
+                </button>
+                <button type="button" onClick={doRedo} disabled={!canRedo || busy}
+                  className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
+                  <Redo2 className="w-3.5 h-3.5" /> Redo
+                </button>
+              </div>
+
+              {/* Textarea */}
+              <textarea
+                value={contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions}
+                onChange={(e) => {
+                  const patch = { [contentTab]: e.target.value };
+                  onUpdate(patch);
+                  pushHistory({ reflection: devotional.reflection, prayer: devotional.prayer, questions: devotional.questions, ...patch });
+                }}
+                placeholder={
+                  contentTab === "reflection"
+                    ? (devotional.mood ? "Start writing… there are no rules here." : "Select a mood above, then write freely.")
+                    : contentTab === "prayer"
+                      ? "Write a prayer based on this verse…"
+                      : "Questions this verse raises for you…"
+                }
+                rows={10}
+                spellCheck
+                autoCorrect="on"
+                autoCapitalize="sentences"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none"
+              />
+              <div className="text-right text-[11px] text-slate-400 mt-1">
+                {String(contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions || "").trim().split(/\s+/).filter(Boolean).length} words
+              </div>
+            </div>
+
+            {/* CTA — clear next step name */}
+            <button
+              type="button"
+              onClick={() => goToStep(3)}
+              className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold flex items-center justify-center gap-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              Polish &amp; Preview
+            </button>
+            {!heartReady ? (
+              <div className="text-xs text-center text-slate-400 -mt-2">Add a reflection, prayer, or question to continue.</div>
+            ) : null}
           </div>
         </Card>
       ) : null}
@@ -2117,43 +2413,44 @@ ${devotional.reflection}`);
       {step === 3 ? (
         <Card>
           <div className="space-y-4">
-            <button type="button" onClick={() => setStep(1)} className="text-xs rounded-full border px-3 py-1 font-bold text-emerald-700 border-emerald-200 bg-emerald-50">{verseRef || "No verse"}</button>
-            <input value={devotional.title} onChange={(e) => onUpdate({ title: e.target.value })} placeholder="Give it a title (optional)" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
-
-            <div className="flex gap-2 items-center">
-              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey} title="AI Draft" className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center disabled:opacity-40 hover:bg-emerald-700 tool-spring">
-                <Sparkles className="w-4 h-4" />
-              </button>
-              <button onClick={() => void doFix()} disabled={busy} title="Clean grammar" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 tool-spring">
-                <Check className="w-4 h-4" />
-              </button>
-              <button onClick={() => void doLength("shorten")} disabled={busy} title="Shorten" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 tool-spring">
-                <ChevronLeft className="w-4 h-4 rotate-90" />
-              </button>
-              <button onClick={() => void doLength("lengthen")} disabled={busy} title="Expand" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 tool-spring">
-                <ChevronRight className="w-4 h-4 rotate-90" />
-              </button>
-              <div className="relative ml-auto">
-                <button onClick={() => setToneMenuOpen((o) => !o)} title="Adjust tone" className="w-9 h-9 rounded-full border border-slate-200 text-slate-500 flex items-center justify-center hover:border-slate-400 hover:text-slate-700 tool-spring">
-                  <Wand2 className="w-4 h-4" />
-                </button>
-                {toneMenuOpen ? <div className="absolute bottom-full right-0 mb-1 z-30 w-40 rounded-xl border bg-white shadow-lg overflow-hidden">{["Reverent","Poetic","Direct","Encouraging","Conversational"].map((t)=><button key={t} onClick={() => void doTone(t)} className="w-full text-left px-4 py-2.5 text-sm font-medium hover:bg-slate-50 transition-colors">{t}</button>)}</div> : null}
+            {/* Heading — clearly different from Step 2, shows mood context */}
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-2xl font-black text-slate-900">Polish your writing</div>
+                <div className="text-sm text-slate-500 mt-1 font-medium">Refine with AI, then choose where to post.</div>
               </div>
+              {devotional.mood ? (
+                <span className="shrink-0 mt-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black uppercase tracking-wider px-2.5 py-1">
+                  {MOODS.find(m => m.id === devotional.mood)?.label || devotional.mood}
+                </span>
+              ) : null}
             </div>
 
-            <textarea value={contentTab==="reflection"?devotional.reflection:contentTab==="prayer"?devotional.prayer:devotional.questions} onChange={(e)=>onUpdate({ [contentTab]: e.target.value })} rows={10} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-base leading-relaxed outline-none focus:ring-4 focus:ring-emerald-100 resize-none" />
-            <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1">
-              {["reflection","prayer","questions"].map((k)=><button key={k} type="button" onClick={()=>setContentTab(k)} className={cn("rounded-xl py-2 text-xs font-extrabold", contentTab===k?"bg-white text-slate-900 shadow-sm":"text-slate-500")}>{k[0].toUpperCase()+k.slice(1)}</button>)}
-            </div>
+            {/* Optional title */}
+            <input
+              value={devotional.title}
+              onChange={(e) => onUpdate({ title: e.target.value })}
+              placeholder="Give it a title (optional)"
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
+            />
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-500">For:</span>
-              <select value={platform} onChange={(e)=>setPlatform(e.target.value)} className="rounded-full border border-slate-200 px-3 py-1 text-xs font-extrabold">
-                {(settings.myPlatforms && settings.myPlatforms.length ? settings.myPlatforms : ["tiktok","instagram","twitter","facebook","email"]).map((p)=> <option key={p} value={p}>{{ tiktok: "TikTok", instagram: "Instagram", twitter: "Twitter / X", facebook: "Facebook", email: "Email" }[p] || p[0].toUpperCase() + p.slice(1)}</option>)}
-              </select>
-              <span className={cn("ml-auto text-xs font-extrabold", over ? "text-red-600" : count > limit*0.8 ? "text-amber-600" : "text-emerald-600")}>{count}/{limit}</span>
-              {over ? <button onClick={() => void doLength("shorten")} className="text-xs font-bold underline text-red-600">Auto-Shorten</button> : null}
-            </div>
+            {/* Tabs ABOVE textarea */}
+            <div>
+              <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-1 mb-3">
+                {[
+                  { k: "reflection", label: "Reflection" },
+                  { k: "prayer", label: "Prayer" },
+                  { k: "questions", label: "Questions" },
+                ].map(({ k, label }) => (
+                  <button key={k} type="button" onClick={() => setContentTab(k)}
+                    className={cn("rounded-xl py-2 text-xs font-extrabold transition-all", contentTab === k ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}>
+                    {label}
+                    {k !== "reflection" && devotional[k]?.trim() ? (
+                      <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 align-middle" />
+                    ) : null}
+                  </button>
+                ))}
+              </div>
 
             <button type="button" onClick={() => goToStep(4)} disabled={!heartReady} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold disabled:opacity-40">Preview & Post</button>
             {!heartReady ? <div className="text-xs text-slate-500">Add a reflection, prayer, or question before posting.</div> : null}
@@ -2164,21 +2461,49 @@ ${devotional.reflection}`);
       {step === 4 ? (
         <Card>
           <div className="space-y-4">
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
-              {[
-                { id: "tiktok", label: "TikTok", Icon: TikTokIcon, active: "bg-black text-white border-black", inactive: "bg-white border-slate-200 text-slate-700" },
-                { id: "instagram", label: "Instagram", Icon: InstagramIcon, active: "bg-gradient-to-r from-purple-500 to-pink-500 text-white border-transparent", inactive: "bg-white border-slate-200 text-slate-700" },
-                { id: "twitter", label: "X", Icon: XIcon, active: "bg-black text-white border-black", inactive: "bg-white border-slate-200 text-slate-700" },
-                { id: "facebook", label: "Facebook", Icon: FacebookIcon, active: "bg-blue-600 text-white border-blue-600", inactive: "bg-white border-slate-200 text-slate-700" },
-                { id: "email", label: "Email", Icon: EmailIcon, active: "bg-slate-800 text-white border-slate-800", inactive: "bg-white border-slate-200 text-slate-700" },
-              ].map(({ id, label, Icon, active, inactive }) => (
-                <button key={id} type="button" onClick={() => setPlatform(id)} className={cn("shrink-0 rounded-full px-3 py-2 text-xs font-extrabold border flex items-center gap-1.5 transition-all", platform===id ? active : inactive)}>
-                  <Icon className="w-3.5 h-3.5" />{label}
-                </button>
-              ))}
+            {/* Step 4 heading */}
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-black text-slate-900">Ready to post</div>
+                <div className="text-sm text-slate-500 mt-0.5 font-medium">Review your caption, then share.</div>
+              </div>
             </div>
 
-            {platform === "tiktok" ? <div className="text-xs font-bold text-emerald-700 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">Caption will be in your clipboard when TikTok opens.</div> : null}
+            {/* Platform confirmation — shows what was chosen in Step 3, collapsible change */}
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Posting to</div>
+                  <span className="rounded-full bg-slate-900 text-white text-xs font-extrabold px-3 py-1">
+                    {{ tiktok: "TikTok", instagram: "Instagram", twitter: "Twitter / X", facebook: "Facebook", email: "Email" }[platform] || platform}
+                  </span>
+                </div>
+                <button type="button" onClick={() => setChangingPlatform(v => !v)}
+                  className="text-xs font-bold text-emerald-600 hover:text-emerald-700">
+                  {changingPlatform ? "Done" : "Change"}
+                </button>
+              </div>
+              {changingPlatform ? (
+                <div className="flex flex-wrap gap-2 mt-3 animate-enter">
+                  {[
+                    { id: "tiktok", label: "TikTok", Icon: TikTokIcon },
+                    { id: "instagram", label: "Instagram", Icon: InstagramIcon },
+                    { id: "twitter", label: "X", Icon: XIcon },
+                    { id: "facebook", label: "Facebook", Icon: FacebookIcon },
+                    { id: "email", label: "Email", Icon: EmailIcon },
+                  ].map(({ id, label, Icon }) => (
+                    <button key={id} type="button" onClick={() => { setPlatform(id); setChangingPlatform(false); }}
+                      className={cn("shrink-0 rounded-full px-3 py-1.5 text-xs font-extrabold border flex items-center gap-1.5 transition-all",
+                        platform === id ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600 hover:border-slate-400"
+                      )}>
+                      <Icon className="w-3.5 h-3.5" />{label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            {platform === "tiktok" ? <div className="text-xs font-bold text-emerald-700 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">✓ Caption will be copied to clipboard when TikTok opens.</div> : null}
 
             <SocialPreview platform={platform} devotional={devotional} settings={settings} text={postText} />
 
@@ -2206,13 +2531,51 @@ ${devotional.reflection}`);
               </div>
             ) : null}
 
-            <div className="sticky bottom-20 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-3 shadow">
-              {typeof navigator !== "undefined" && navigator.share ? (
-                <button type="button" onClick={async () => { try { await navigator.share({ title: devotional.title || devotional.verseRef || "Devotional", text: postText }); } catch {} }} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold mb-2">Share via…</button>
-              ) : null}
-              <button type="button" onClick={() => void copyAndOpen()} className="w-full rounded-2xl bg-slate-900 text-white py-3 font-extrabold">Copy & Open {platform[0].toUpperCase()+platform.slice(1)}</button>
-              <div className="grid grid-cols-2 gap-2 mt-2"><SmallButton onClick={() => { const s=encodeURIComponent(devotional.title||devotional.verseRef||"Encouragement"); window.location.href=`mailto:?subject=${s}&body=${encodeURIComponent(postText)}`; }}>Email Draft</SmallButton><SmallButton onClick={() => { window.location.href=`sms:?&body=${encodeURIComponent(postText)}`; }}>Text Draft</SmallButton></div>
-              <SmallButton onClick={() => { onUpdate({ status: "posted", reviewed: true }); pushToast("Another seed planted 🌱"); }} className="w-full mt-2">Mark as Posted</SmallButton>
+            <div className="sticky bottom-20 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-3 shadow space-y-2">
+              {sharedConfirm ? (
+                /* Post-share confirmation state */
+                <>
+                  <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2.5 flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                    <div className="text-xs font-semibold text-emerald-800">
+                      Caption copied &amp; {platform === "email" ? "email opened" : `${platform[0].toUpperCase() + platform.slice(1)} opened`}. Mark this as posted once you publish.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onUpdate({ status: "posted", reviewed: true });
+                      pushToast("Another seed planted 🌱");
+                      setSharedConfirm(false);
+                    }}
+                    className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle className="w-4 h-4" /> Mark as Posted
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void copyAndOpen()}
+                    className="w-full rounded-2xl border border-slate-200 text-slate-700 py-2.5 font-extrabold text-sm hover:bg-slate-50 transition-colors"
+                  >
+                    Copy &amp; open again
+                  </button>
+                </>
+              ) : (
+                /* Pre-share state */
+                <>
+                  {typeof navigator !== "undefined" && navigator.share ? (
+                    <button type="button" onClick={async () => { try { await navigator.share({ title: devotional.title || devotional.verseRef || "Devotional", text: postText }); setSharedConfirm(true); } catch {} }} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold">Share via…</button>
+                  ) : null}
+                  <button type="button" onClick={() => void copyAndOpen()} className="w-full rounded-2xl bg-slate-900 text-white py-3 font-extrabold">
+                    Copy &amp; Open {platform[0].toUpperCase() + platform.slice(1)}
+                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <SmallButton onClick={() => { const s=encodeURIComponent(devotional.title||devotional.verseRef||"Encouragement"); window.location.href=`mailto:?subject=${s}&body=${encodeURIComponent(postText)}`; }}>Email Draft</SmallButton>
+                    <SmallButton onClick={() => { window.location.href=`sms:?&body=${encodeURIComponent(postText)}`; }}>Text Draft</SmallButton>
+                  </div>
+                  <SmallButton onClick={() => { onUpdate({ status: "posted", reviewed: true }); pushToast("Another seed planted 🌱"); }} className="w-full">Already posted? Mark it ✓</SmallButton>
+                </>
+              )}
             </div>
           </div>
         </Card>
@@ -2331,6 +2694,7 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted,
   const [q, setQ] = useState("");
   const [sortOrder, setSortOrder] = useState("newest");
   const [filter, setFilter] = useState("all");
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -2455,12 +2819,39 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted,
                       {!collapsedItems[d.id] ? (
                         <>
                           {d.reflection ? <div className="px-4 pb-3 text-xs text-slate-400 line-clamp-2 leading-relaxed">{d.reflection}</div> : null}
-                          <div className="text-[11px] text-slate-300 px-4 pb-3 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
-                          <div className="border-t border-slate-100 grid grid-cols-4">
-                            <button type="button" onClick={() => onOpen(d.id)} className="flex items-center justify-center gap-1 py-3 text-xs font-extrabold text-emerald-700 hover:bg-emerald-50 transition-colors">Open</button>
-                            <button type="button" onClick={() => onDuplicate(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors">Copy</button>
-                            <button type="button" onClick={() => onMarkPosted(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-slate-500 hover:bg-slate-50 transition-colors">Posted</button>
-                            <button type="button" onClick={() => onDelete(d.id)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-extrabold text-red-500 hover:bg-red-50 transition-colors">Del</button>
+                          <div className="text-[11px] text-slate-300 px-4 pb-2 font-medium">{new Date(d.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
+                          {/* Action buttons — clear labels, no abbreviations */}
+                          <div className="px-3 pb-3 space-y-2">
+                            <button
+                              type="button"
+                              onClick={() => onOpen(d.id)}
+                              className="w-full rounded-xl bg-emerald-600 text-white py-2.5 text-xs font-extrabold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5"
+                            >
+                              <PenTool className="w-3.5 h-3.5" /> Open &amp; Edit
+                            </button>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => onDuplicate(d.id)}
+                                className="rounded-xl border border-slate-200 py-2 text-xs font-extrabold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
+                              >
+                                <Copy className="w-3.5 h-3.5" /> Duplicate
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onMarkPosted(d.id)}
+                                className="rounded-xl border border-slate-200 py-2 text-xs font-extrabold text-slate-500 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
+                              >
+                                <CheckCircle className="w-3.5 h-3.5" /> Mark Posted
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(d.id)}
+                              className="w-full rounded-xl border border-red-100 bg-red-50 py-2 text-xs font-extrabold text-red-500 hover:bg-red-100 hover:border-red-200 transition-colors flex items-center justify-center gap-1.5"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Delete entry
+                            </button>
                           </div>
                         </>
                       ) : null}
@@ -2480,6 +2871,43 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted,
           </div>
         ) : null}
       </div>
+
+      {/* ── Delete confirmation modal ── */}
+      {confirmDeleteId ? (() => {
+        const entry = devotionals.find(d => d.id === confirmDeleteId);
+        const title = entry?.title || entry?.verseRef || "this entry";
+        return (
+          <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-end justify-center p-4">
+            <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl space-y-4 animate-enter">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5 text-red-500" />
+                </div>
+                <div>
+                  <div className="text-base font-black text-slate-900">Delete entry?</div>
+                  <div className="text-sm text-slate-500 mt-0.5 font-medium">
+                    "<span className="text-slate-700 font-semibold">{title}</span>" will be permanently removed. This cannot be undone.
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { onDelete(confirmDeleteId); setConfirmDeleteId(null); }}
+                className="w-full rounded-2xl bg-red-500 hover:bg-red-600 text-white py-3.5 font-extrabold transition-colors"
+              >
+                Yes, delete entry
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(null)}
+                className="w-full rounded-2xl border border-slate-200 text-slate-700 py-3 font-extrabold hover:bg-slate-50 transition-colors"
+              >
+                Keep it
+              </button>
+            </div>
+          </div>
+        );
+      })() : null}
     </div>
   );
 }
@@ -2609,51 +3037,137 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
       </Card>
 
       <Card>
-        <SectionLabel>AI Provider + Keys</SectionLabel>
-        <button type="button" onClick={() => setAiOpen((v) => !v)} className="w-full flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700">
-          <span>{aiSummary}</span>
-          <ChevronDown className={cn("w-4 h-4 transition-transform", aiOpen ? "rotate-180" : "")} />
-        </button>
+        <SectionLabel>AI Writing Assistant</SectionLabel>
 
-        {aiOpen ? (
-          <div className="mt-3 space-y-3">
-            {aiNeedsKey && settings.aiProvider !== "mock" ? (
+        {/* Mode explainer — always visible */}
+        <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4 space-y-3 mb-3">
+          {[
+            {
+              id: "mock",
+              label: "Built-in",
+              badge: "Free · No setup",
+              badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+              desc: "Template-based suggestions. Works immediately, no account needed. Great for getting started.",
+            },
+            {
+              id: "openai",
+              label: "OpenAI GPT-4",
+              badge: "Paid · Best quality",
+              badgeColor: "bg-sky-50 text-sky-700 border-sky-200",
+              desc: "Highest quality AI writing. Requires an OpenAI API key (~$0.01–0.05 per session).",
+              link: "https://platform.openai.com/api-keys",
+              linkLabel: "Get a key at platform.openai.com →",
+            },
+            {
+              id: "gemini",
+              label: "Google Gemini",
+              badge: "Free tier available",
+              badgeColor: "bg-violet-50 text-violet-700 border-violet-200",
+              desc: "Google's AI model. Generous free tier. Requires a Google AI Studio API key.",
+              link: "https://aistudio.google.com/app/apikey",
+              linkLabel: "Get a key at aistudio.google.com →",
+            },
+          ].map((mode) => (
+            <button
+              key={mode.id}
+              type="button"
+              onClick={() => onUpdate({ aiProvider: mode.id })}
+              className={cn(
+                "w-full text-left rounded-2xl border p-3.5 transition-all",
+                settings.aiProvider === mode.id
+                  ? "border-emerald-400 bg-white shadow-sm ring-2 ring-emerald-100"
+                  : "border-slate-200 bg-white hover:border-slate-300"
+              )}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <div className={cn(
+                  "w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0",
+                  settings.aiProvider === mode.id ? "border-emerald-500" : "border-slate-300"
+                )}>
+                  {settings.aiProvider === mode.id && (
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  )}
+                </div>
+                <span className="text-sm font-extrabold text-slate-900">{mode.label}</span>
+                <span className={cn("ml-auto rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide", mode.badgeColor)}>
+                  {mode.badge}
+                </span>
+              </div>
+              <div className="text-xs text-slate-500 leading-relaxed ml-6">{mode.desc}</div>
+              {mode.link && settings.aiProvider === mode.id ? (
+                <a
+                  href={mode.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="mt-2 ml-6 inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-700 underline"
+                >
+                  {mode.linkLabel}
+                </a>
+              ) : null}
+            </button>
+          ))}
+        </div>
+
+        {/* Key input — only shown when a paid provider is selected */}
+        {settings.aiProvider === "openai" ? (
+          <div className="space-y-2">
+            {aiNeedsKey ? (
               <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-2.5">
                 <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                <div className="text-xs font-semibold text-amber-800">AI selected but missing key.</div>
+                <div className="text-xs font-semibold text-amber-800">
+                  Paste your OpenAI key below to enable AI Draft, Fix Grammar, Shorten, Expand, and Tone.
+                </div>
               </div>
-            ) : null}
-
-            <select
-              value={settings.aiProvider}
-              onChange={(e) => onUpdate({ aiProvider: e.target.value })}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold bg-white outline-none focus:ring-4 focus:ring-emerald-100"
-            >
-              <option value="mock">Built-in (no key needed)</option>
-              <option value="openai">OpenAI (GPT-4)</option>
-              <option value="gemini">Google Gemini</option>
-            </select>
-
-            {settings.aiProvider === "openai" ? (
-              <div>
-                <input value={settings.openaiKey} onChange={(e) => onUpdate({ openaiKey: e.target.value })} placeholder="OpenAI key" type="password" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
-                <AiKeyTestButton provider="openai" apiKey={settings.openaiKey} />
+            ) : (
+              <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-2.5">
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div className="text-xs font-semibold text-emerald-800">OpenAI key saved. AI tools are active.</div>
               </div>
-            ) : null}
-
-            {settings.aiProvider === "gemini" ? (
-              <div>
-                <input value={settings.geminiKey} onChange={(e) => onUpdate({ geminiKey: e.target.value })} placeholder="Gemini key" type="password" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100" />
-                <AiKeyTestButton provider="gemini" apiKey={settings.geminiKey} />
-              </div>
-            ) : null}
-
+            )}
             <input
-              value={settings.ocrEndpoint || ""}
-              onChange={(e) => onUpdate({ ocrEndpoint: e.target.value })}
-              placeholder="OCR endpoint (optional)"
-              className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-200 bg-white"
+              value={settings.openaiKey}
+              onChange={(e) => onUpdate({ openaiKey: e.target.value })}
+              placeholder="sk-…"
+              type="password"
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
             />
+            <AiKeyTestButton provider="openai" apiKey={settings.openaiKey} />
+          </div>
+        ) : null}
+
+        {settings.aiProvider === "gemini" ? (
+          <div className="space-y-2">
+            {aiNeedsKey ? (
+              <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                <div className="text-xs font-semibold text-amber-800">
+                  Paste your Gemini key below to enable AI tools.
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-2.5">
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div className="text-xs font-semibold text-emerald-800">Gemini key saved. AI tools are active.</div>
+              </div>
+            )}
+            <input
+              value={settings.geminiKey}
+              onChange={(e) => onUpdate({ geminiKey: e.target.value })}
+              placeholder="AIza…"
+              type="password"
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
+            />
+            <AiKeyTestButton provider="gemini" apiKey={settings.geminiKey} />
+          </div>
+        ) : null}
+
+        {settings.aiProvider === "mock" ? (
+          <div className="flex items-center gap-2 rounded-xl bg-slate-100 border border-slate-200 p-2.5">
+            <CheckCircle className="w-4 h-4 text-slate-500 shrink-0" />
+            <div className="text-xs font-semibold text-slate-600">
+              Built-in mode active — no key needed. Upgrade to OpenAI or Gemini for smarter suggestions.
+            </div>
           </div>
         ) : null}
       </Card>
@@ -2677,7 +3191,7 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
 
       <Card>
         <SectionLabel>Export & Share</SectionLabel>
-        <div className="text-xs text-slate-500">Pick your primary platforms (used as Compile default).</div>
+        <div className="text-xs text-slate-500">Your active platforms — these appear as options when you're ready to post.</div>
         <div className="mt-2 flex flex-wrap gap-2">
           {platforms.map((p) => (
             <button key={p.id} type="button" onClick={() => togglePlatform(p.id)} className={cn("rounded-full border px-3 py-1.5 text-xs font-extrabold", selectedPlatforms.includes(p.id) ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200")}>
@@ -2715,41 +3229,6 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
             </button>
           ))}
         </div>
-        <button type="button" onClick={handleExport} className="mt-3 w-full flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98]">
-          <Download className="w-4 h-4" /> Export all entries as JSON
-        </button>
-      </Card>
-
-      <Card>
-        <SectionLabel>Appearance / Theme</SectionLabel>
-        <div className="grid grid-cols-4 gap-2">
-          {THEME_OPTIONS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onUpdate({ theme: t.id })}
-              className={cn(
-                "flex flex-col items-center gap-1.5 rounded-2xl py-2.5 px-1 border transition-all active:scale-95",
-                settings.theme === t.id
-                  ? "border-slate-900 shadow-md scale-[1.04]"
-                  : "border-slate-200 hover:border-slate-300"
-              )}
-            >
-              <div
-                className="w-8 h-8 rounded-xl shadow-sm border border-white/80"
-                style={{ background: `linear-gradient(135deg, ${t.swatch[0]} 0%, ${t.swatch[1]} 50%, ${t.swatch[2]} 100%)` }}
-              />
-              <span className={cn("text-[10px] font-bold leading-none", settings.theme === t.id ? "text-slate-900" : "text-slate-500")}>
-                {t.label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </Card>
-
-      <Card>
-        <SectionLabel>Data & Privacy</SectionLabel>
-        <div className="text-xs text-slate-500">All data stays on this device except AI calls you explicitly trigger.</div>
       </Card>
 
       <Card>
@@ -3132,35 +3611,7 @@ function SocialPreview({ platform, devotional, settings, text }) {
         </div>
       );
 
-  if (platform === "facebook") {
-    return (
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50">
-          <div className="text-sm font-extrabold text-slate-900">Facebook Preview</div>
-          <div className="text-xs text-slate-500">Link post style preview</div>
-        </div>
-        <div className="p-4">
-          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (platform === "twitter") {
-    return (
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50">
-          <div className="text-sm font-extrabold text-slate-900">Twitter / X Preview</div>
-          <div className="text-xs text-slate-500">Short-form feed post</div>
-        </div>
-        <div className="p-4">
-          <div className="text-sm whitespace-pre-wrap text-slate-800 leading-relaxed">{text}</div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
+  default: return (
     <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       <div className="p-4 flex items-center justify-between border-b border-slate-200 bg-slate-50">
         <div>
@@ -3169,18 +3620,17 @@ function SocialPreview({ platform, devotional, settings, text }) {
         </div>
         <div className="text-xs font-extrabold text-emerald-700 uppercase tracking-wider">{devotional.mood ? `Mood: ${devotional.mood}` : "No mood"}</div>
       </div>
-
-          <div className="p-4">
-            <div className="rounded-3xl bg-gradient-to-b from-black/5 to-black/0 p-5 border border-slate-200">
-              <div className="text-sm whitespace-pre-wrap text-slate-900 leading-relaxed">{text}</div>
-              <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-                <span>{settings.username || "@yourname"}</span>
-                <span>❤️  •  💬  •  🔖</span>
-              </div>
-            </div>
+      <div className="p-4">
+        <div className="rounded-3xl bg-gradient-to-b from-black/5 to-black/0 p-5 border border-slate-200">
+          <div className="text-sm whitespace-pre-wrap text-slate-900 leading-relaxed">{text}</div>
+          <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+            <span>{settings.username || "@yourname"}</span>
+            <span>❤️  •  💬  •  🔖</span>
           </div>
         </div>
-      );
+      </div>
+    </div>
+  );
   }
 }
 
@@ -3373,39 +3823,118 @@ function TikTokExportModal({ devotional, settings, onClose }) {
   );
 }
 
+/* ---------------- Google OAuth helpers ---------------- */
+
+// Replace with your actual Google OAuth Client ID from console.cloud.google.com
+const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+
+function loadGoogleScript() {
+  return new Promise((resolve) => {
+    if (window.google) { resolve(); return; }
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.async = true;
+    s.defer = true;
+    s.onload = resolve;
+    s.onerror = resolve;
+    document.head.appendChild(s);
+  });
+}
+
+function parseJwt(token) {
+  try {
+    const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(base64));
+  } catch {
+    return null;
+  }
+}
+
+function GoogleSignInButton({ onSuccess, onError }) {
+  const btnRef = React.useRef(null);
+  const [ready, setReady] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    loadGoogleScript().then(() => {
+      if (cancelled || !window.google?.accounts?.id) {
+        if (!cancelled) setReady(false);
+        return;
+      }
+      try {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: (response) => {
+            const payload = parseJwt(response.credential);
+            if (payload) {
+              onSuccess({ name: payload.name || payload.email, email: payload.email, picture: payload.picture, sub: payload.sub });
+            } else {
+              onError("Sign-in failed. Please try again.");
+            }
+          },
+          ux_mode: "popup",
+        });
+        if (btnRef.current) {
+          window.google.accounts.id.renderButton(btnRef.current, {
+            type: "standard",
+            shape: "pill",
+            theme: "outline",
+            size: "large",
+            text: "continue_with",
+            logo_alignment: "left",
+            width: Math.min(btnRef.current.offsetWidth || 320, 400),
+          });
+        }
+        setReady(true);
+      } catch {
+        setReady(false);
+        onError("Google Sign-In could not be loaded.");
+      }
+    });
+    return () => { cancelled = true; };
+  }, [onSuccess, onError]);
+
+  return (
+    <div className="w-full flex flex-col items-center gap-2">
+      <div ref={btnRef} className="w-full min-h-[44px] flex justify-center" />
+      {!ready && (
+        <div className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 flex items-center justify-center gap-3 text-sm font-semibold text-slate-500 opacity-70 cursor-not-allowed select-none">
+          <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+          Continue with Google
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------------- Entry flow ---------------- */
 
-function LandingView({ onGetStarted, onViewDemo }) {
+function LandingView({ onGetStarted, onViewDemo, onGoogleSuccess }) {
+  const [googleError, setGoogleError] = React.useState("");
+  const handleGoogleSuccess = React.useCallback((profile) => { onGoogleSuccess(profile); }, [onGoogleSuccess]);
+  const handleGoogleError = React.useCallback((msg) => { setGoogleError(msg); }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-sky-50 px-4 py-10 animate-enter flex flex-col justify-center">
       <div className="max-w-md mx-auto w-full">
         <div className="rounded-[2.5rem] border border-slate-100 bg-white/80 backdrop-blur-xl p-10 shadow-2xl">
-          <img
-            src={assetUrl("logo.png")}
-            alt="VersedUP"
-            className="h-36 sm:h-40 w-auto mx-auto drop-shadow-md mb-6"
-            draggable="false"
-            onError={(e) => {
-              e.currentTarget.onerror = null;
-              // Fallback to text if logo fails
-              e.currentTarget.style.display = 'none';
-            }}
-          />
+          <BrandLogo className="h-36 sm:h-40 w-auto mx-auto drop-shadow-md mb-6" />
           <h1 className="mt-4 text-3xl font-black text-slate-900 text-center tracking-tight leading-tight">Rooted in Christ,<br/>growing in His fruit.</h1>
-          <p className="mt-4 text-base text-slate-600 text-center leading-relaxed font-medium">Create devotionals, polish your reflection, and prepare share-ready content.</p>
+          <p className="mt-4 text-base text-slate-600 text-center leading-relaxed font-medium">Create devotionals, polish your reflection, and share your faith.</p>
 
-          <div className="mt-8 grid gap-4">
-            <PrimaryButton onClick={onGetStarted} icon={LogIn}>
-              Get Started
-            </PrimaryButton>
-            <button
-              onClick={onViewDemo}
-              className="rounded-2xl border-2 border-slate-100 bg-white px-4 py-4 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-colors"
-              type="button"
-            >
-              View Demo
+          <div className="mt-8 space-y-3">
+            <GoogleSignInButton onSuccess={handleGoogleSuccess} onError={handleGoogleError} />
+            {googleError ? <p className="text-xs text-red-500 font-bold text-center">{googleError}</p> : null}
+            <div className="flex items-center gap-3 py-1">
+              <div className="flex-1 h-px bg-slate-100" />
+              <span className="text-xs font-bold text-slate-300">or</span>
+              <div className="flex-1 h-px bg-slate-100" />
+            </div>
+            <button onClick={onViewDemo} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-extrabold text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors" type="button">
+              Continue as Guest
             </button>
           </div>
+          <p className="mt-6 text-center text-[11px] text-slate-300 leading-relaxed">Your data stays on your device.</p>
         </div>
       </div>
     </div>
@@ -3414,45 +3943,21 @@ function LandingView({ onGetStarted, onViewDemo }) {
 
 function AuthView({ onBack, onContinue }) {
   const [name, setName] = useState("");
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-emerald-50 px-4 py-8 animate-enter">
       <div className="max-w-md mx-auto space-y-6">
         <button type="button" onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors">
           <ChevronLeft className="w-5 h-5" />
         </button>
-
         <Card>
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Welcome</div>
-          <h2 className="mt-2 text-2xl font-black text-slate-900 tracking-tight">Sign in or continue as guest</h2>
-
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">One more thing</div>
+          <h2 className="mt-2 text-2xl font-black text-slate-900 tracking-tight">What should we call you?</h2>
           <div className="mt-6">
-            <label className="text-xs font-extrabold text-slate-500 uppercase tracking-wide">DISPLAY NAME</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
-              className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-4 text-lg font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-all"
-            />
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" autoFocus
+              className="w-full rounded-2xl border border-slate-200 px-4 py-4 text-lg font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-all" />
           </div>
-
-          <div className="mt-6 grid gap-3">
-            <PrimaryButton onClick={() => onContinue({ mode: "signed-in", name: name.trim() || "Friend" })} icon={User}>
-              Continue
-            </PrimaryButton>
-            <button
-              type="button"
-              onClick={() => onContinue({ mode: "guest", name: "Guest" })}
-              className="rounded-2xl border-2 border-slate-100 bg-white px-4 py-4 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              Continue as Guest
-            </button>
-          </div>
-
-          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 leading-relaxed">
-            <div className="font-extrabold mb-1">One key detail (so you’re not surprised)</div>
-            On GitHub Pages, auth is UI + local session (secure-feeling, not bank-secure). Later, we can swap to real auth
-            (Supabase/Clerk/Firebase) without changing the screens.
+          <div className="mt-6">
+            <PrimaryButton onClick={() => onContinue({ mode: "signed-in", name: name.trim() || "Friend" })} icon={User}>Continue</PrimaryButton>
           </div>
         </Card>
       </div>
@@ -3621,26 +4126,25 @@ function OnboardingWizard({ authDraft, onFinish }) {
                   : <span className="text-slate-400 italic">Your reflection will appear here…</span>
                 }
               </div>
-              {/* AI toolbar strip — icon-only, matches real app */}
-              <div className="flex gap-2 items-center">
+              {/* AI toolbar — labeled buttons matching the real app */}
+              <div className="flex flex-wrap gap-1.5 items-center">
                 <button
                   type="button"
                   onClick={() => setDemoDrafted(true)}
-                  title="Draft for me"
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                    demoDrafted ? "bg-emerald-100 text-emerald-600 border border-emerald-200" : "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:shadow-md"
+                  className={`flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-extrabold transition-all ${
+                    demoDrafted ? "bg-emerald-100 text-emerald-700 border border-emerald-200" : "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
                   }`}
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <Sparkles className="w-3 h-3" /> AI Draft
                 </button>
                 {[
-                  { icon: Check, title: "Fix grammar" },
-                  { icon: ChevronUp, title: "Shorten" },
-                  { icon: ChevronDown, title: "Expand" },
-                  { icon: Wand2, title: "Tone" },
-                ].map(({ icon: Icon, title }) => (
-                  <button key={title} type="button" title={title} className="w-9 h-9 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-500 hover:bg-slate-50 transition-colors">
-                    <Icon className="w-4 h-4" />
+                  { icon: Check, label: "Fix Grammar" },
+                  { icon: ArrowUpToLine, label: "Shorten" },
+                  { icon: ArrowDownToLine, label: "Expand" },
+                  { icon: Wand2, label: "Tone" },
+                ].map(({ icon: Icon, label }) => (
+                  <button key={label} type="button" className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                    <Icon className="w-3 h-3" /> {label}
                   </button>
                 ))}
               </div>
@@ -3777,7 +4281,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
 
 /* ---------------- App shell ---------------- */
 
-function BottomNav({ view, onHome, onNew, onLibrary }) {
+function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, onContinueWrite, showWriteHint, onSettings, hasActiveDraft }) {
   const [bouncing, setBouncing] = React.useState(null);
   const [fabPulse, setFabPulse] = React.useState(false);
   const handleNav = (target, fn) => {
@@ -3785,34 +4289,99 @@ function BottomNav({ view, onHome, onNew, onLibrary }) {
     setTimeout(() => setBouncing(null), 500);
     fn();
   };
+  const [fabChoiceOpen, setFabChoiceOpen] = React.useState(false);
+
   const handleFab = () => {
     setFabPulse(true);
     setTimeout(() => setFabPulse(false), 600);
-    onNew();
+    if (view === "write") {
+      // Already writing — just go back there
+      onContinueWrite();
+    } else if (hasActiveDraft && view !== "write") {
+      // Has in-progress draft but not currently on write view — show choice
+      setFabChoiceOpen(true);
+    } else {
+      onWriteFromYourVerse();
+    }
   };
+
+  const isWriting = view === "write";
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-12 pt-3 pb-7 bg-white/90 backdrop-blur-xl border-t border-slate-100">
+    <>
+    {/* Draft-in-progress choice modal */}
+    {fabChoiceOpen ? (
+      <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-end justify-center p-4">
+        <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl space-y-3 animate-enter">
+          <div className="text-lg font-black text-slate-900">You have a draft in progress</div>
+          <div className="text-sm text-slate-500 font-medium">Continue where you left off, or start fresh?</div>
+          <button type="button" onClick={() => { setFabChoiceOpen(false); onContinueWrite(); }}
+            className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold flex items-center justify-center gap-2">
+            <PenTool className="w-4 h-4" /> Continue writing
+          </button>
+          <button type="button" onClick={() => { setFabChoiceOpen(false); onWriteFromYourVerse(); }}
+            className="w-full rounded-2xl border border-slate-200 text-slate-700 py-3 font-extrabold hover:bg-slate-50 transition-colors">
+            Start a new entry
+          </button>
+          <button type="button" onClick={() => setFabChoiceOpen(false)}
+            className="w-full text-sm font-bold text-slate-400 py-1 hover:text-slate-600 transition-colors">
+            Cancel
+          </button>
+        </div>
+      </div>
+    ) : null}
+    <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-6 pt-3 pb-7 bg-white/90 backdrop-blur-xl border-t border-slate-100">
+      {/* Home */}
       <button type="button" onClick={() => handleNav("home", onHome)}
-        className={cn("flex flex-col items-center gap-1 transition-colors", view === "home" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
+        className={cn("flex flex-col items-center gap-1 transition-colors min-w-[48px]", view === "home" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
         title="Home">
         <BookOpen className={cn("w-6 h-6", bouncing === "home" ? "nav-bounce" : "")} />
-        <div className={cn("w-1 h-1 rounded-full transition-all duration-300", view === "home" ? "bg-emerald-500 scale-125" : "bg-transparent")} />
+        <span className="text-[9px] font-black uppercase tracking-wider">Home</span>
       </button>
-      <div className="relative flex items-center justify-center">
+
+      {/* Write FAB */}
+      <div className="relative flex flex-col items-center justify-center">
+        {showWriteHint && view === "home" ? (
+          <div className="absolute -top-7 text-[10px] font-black uppercase tracking-widest text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+            Your Verse
+          </div>
+        ) : null}
+        {isWriting ? (
+          <div className="absolute -top-7 text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+            Writing
+          </div>
+        ) : null}
         {fabPulse && <span className="absolute inset-0 rounded-full bg-slate-900 pointer-events-none" style={{ animation: "fabRing 0.6s ease-out forwards" }} />}
         <button type="button" onClick={handleFab}
-          className="w-14 h-14 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.18)] btn-spring relative z-10"
-          title="New Entry">
-          <Pencil className="w-6 h-6" />
+          className={cn(
+            "w-14 h-14 rounded-full flex items-center justify-center shadow-[0_8px_32px_rgba(0,0,0,0.18)] btn-spring relative z-10",
+            isWriting ? "bg-emerald-600 text-white" : "bg-slate-900 text-white"
+          )}
+          title={isWriting ? "Back to writing" : "Write"}>
+          {isWriting ? <PenTool className="w-6 h-6" /> : <Pencil className="w-6 h-6" />}
         </button>
+        <span className={cn("text-[9px] font-black uppercase tracking-wider mt-1", isWriting ? "text-emerald-600" : "text-slate-400")}>
+          {isWriting ? "Writing" : "Write"}
+        </span>
       </div>
+
+      {/* Library */}
       <button type="button" onClick={() => handleNav("library", onLibrary)}
-        className={cn("flex flex-col items-center gap-1 transition-colors", view === "library" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
+        className={cn("flex flex-col items-center gap-1 transition-colors min-w-[48px]", view === "library" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
         title="Library">
         <Library className={cn("w-6 h-6", bouncing === "library" ? "nav-bounce" : "")} />
-        <div className={cn("w-1 h-1 rounded-full transition-all duration-300", view === "library" ? "bg-emerald-500 scale-125" : "bg-transparent")} />
+        <span className="text-[9px] font-black uppercase tracking-wider">Library</span>
+      </button>
+
+      {/* Settings — now a real nav item, no more hunting in 3-dot menu */}
+      <button type="button" onClick={() => handleNav("settings", onSettings)}
+        className={cn("flex flex-col items-center gap-1 transition-colors min-w-[48px]", view === "settings" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
+        title="Settings">
+        <Settings className={cn("w-6 h-6", bouncing === "settings" ? "nav-bounce" : "")} />
+        <span className="text-[9px] font-black uppercase tracking-wider">Settings</span>
       </button>
     </div>
+    </>
   );
 }
 
@@ -3862,6 +4431,9 @@ function AppInner({ session, starterMood, onLogout }) {
   const [lastNonSettingsView, setLastNonSettingsView] = useState(() => String(localStorage.getItem(`${STORAGE_VIEW}_last`) || "home"));
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [customVerseRef, setCustomVerseRef] = useState("");
+  const [customVerseText, setCustomVerseText] = useState("");
+  const [hasUsedWriteFab, setHasUsedWriteFab] = useState(false);
 
   useEffect(() => {
     const handler = (e) => {
@@ -3890,7 +4462,7 @@ function AppInner({ session, starterMood, onLogout }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   
- // home | write | polish | compile | library | settings
+ // home | write | library | settings
 
   useEffect(() => {
     if (view !== "settings") setLastNonSettingsView(view);
@@ -3940,12 +4512,12 @@ function AppInner({ session, starterMood, onLogout }) {
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
 
   useEffect(() => {
-    const allowed = new Set(["home", "write", "polish", "compile", "library", "settings"]);
+    const allowed = new Set(["home", "write", "library", "settings"]);
     if (!allowed.has(view)) {
       setView("home");
       return;
     }
-    if ((view === "write" || view === "polish" || view === "compile") && !active) {
+    if (view === "write" && !active) {
       setView(safeDevotionals.length ? "library" : "home");
     }
   }, [view, active, safeDevotionals.length]);
@@ -3973,8 +4545,19 @@ function AppInner({ session, starterMood, onLogout }) {
 
   const updateDevotional = (patch) => {
     if (!active) return;
+    const safePatch = { ...patch };
+    if (Object.prototype.hasOwnProperty.call(safePatch, "verseRef")) {
+      // Only auto-derive scriptureSource if the patch doesn't already set it explicitly
+      if (!Object.prototype.hasOwnProperty.call(safePatch, "scriptureSource")) {
+        safePatch.scriptureSource = String(safePatch.verseRef || "").trim() ? "your_verse" : (active.scriptureSource || "verse_of_day");
+      }
+      setCustomVerseRef(String(safePatch.verseRef || "").trim());
+    }
+    if (Object.prototype.hasOwnProperty.call(safePatch, "verseText")) {
+      setCustomVerseText(String(safePatch.verseText || "").trim());
+    }
     setDevotionals((list) =>
-      (Array.isArray(list) ? list : []).map((d) => (d.id === active.id ? { ...d, ...patch, updatedAt: nowIso() } : d))
+      (Array.isArray(list) ? list : []).map((d) => (d.id === active.id ? { ...d, ...safePatch, updatedAt: nowIso() } : d))
     );
   };
 
@@ -3994,15 +4577,12 @@ function AppInner({ session, starterMood, onLogout }) {
     setView("write");
   };
 
-  const startWithVerse = (verseRef) => {
-    const cleaned = String(verseRef || "").trim();
-    if (!cleaned) {
-      pushToast("Add a verse reference to start.");
-      return;
-    }
+  const writeFromYourVerse = () => {
+    setHasUsedWriteFab(true);
     const d = createDevotional(settings);
-    d.verseRef = cleaned;
-    d.reflection = `Today I’m reflecting on ${cleaned}.`;
+    d.scriptureSource = "your_verse";
+    d.verseRef = customVerseRef;
+    d.verseText = customVerseText;
     setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
     setActiveId(d.id);
     setView("write");
@@ -4015,6 +4595,7 @@ function AppInner({ session, starterMood, onLogout }) {
     d.verseText = _votd.verseText;
     d.title = _votd.suggestedTitle;
     d.reflection = `Today I reflect on ${_votd.verseRef}. Lord, help me trust Your shepherding in every step.`;
+    d.scriptureSource = "verse_of_day";
     setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
     setActiveId(d.id);
     setView("write");
@@ -4078,41 +4659,15 @@ const onSaved = () => {
 
       <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/50 px-4 py-3.5 transition-all duration-300">
         <div className="max-w-md mx-auto flex items-center gap-4">
-          <img
-            src={assetUrl("logo.png")}
-            alt="VersedUP"
-            className="h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105"
-            draggable="false"
-            onError={(e) => {
-              e.currentTarget.onerror = null;
-              e.currentTarget.style.display = 'none';
-            }}
-          />
+          <BrandLogo className="h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105" />
           <div className="min-w-0 leading-tight flex-1">
-            <div className="text-[15px] font-extrabold text-slate-900 tracking-tight">Rooted in Christ</div>
+            {view === "write" && active ? (
+              <div className="text-[13px] font-bold text-slate-500 truncate">{active.verseRef || "New Entry"}</div>
+            ) : (
+              <div className="text-[13px] font-semibold text-slate-400">{getTimeGreeting(getDisplayName(session, settings))}</div>
+            )}
           </div>
-<div className="relative" ref={menuRef}>
-            <button
-              type="button"
-              onClick={() => setMenuOpen((v) => !v)}
-              className="text-slate-400 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-slate-100"
-              aria-label="More"
-              title="More"
-            >
-              <MoreVertical className="w-5 h-5" />
-            </button>
-            {menuOpen ? (
-              <div className="absolute right-0 top-11 w-40 rounded-xl border border-slate-200 bg-white shadow-lg p-1 z-50">
-                <button
-                  type="button"
-                  onClick={openSettings}
-                  className="w-full text-left px-3 py-2 text-sm font-bold rounded-lg hover:bg-slate-50"
-                >
-                  <Settings className="w-4 h-4 inline-block mr-1.5 align-middle -mt-px" />Settings
-                </button>
-              </div>
-            ) : null}
-          </div>
+          {/* Settings moved to bottom nav — header stays clean */}
         </div>
       </div>
 
@@ -4125,13 +4680,12 @@ const onSaved = () => {
             onContinue={() => setView(active ? "write" : "home")}
             onReflectVerseOfDay={reflectVerseOfDay}
             onQuickPost={quickPost}
-            onStartWithVerse={startWithVerse}
             hasActive={Boolean(active)}
             streak={streak}
             displayName={getDisplayName(session, settings)}
             devotionals={safeDevotionals}
             onOpen={openEntry}
-            onOpenReadyToPost={(id) => openEntry(id, "compile")}
+            onOpenReadyToPost={(id) => { openEntry(id, "write"); localStorage.setItem(`${APP_ID}_wizard_step_${id}`, "4"); }}
             showInstallBanner={showInstallBanner}
             onInstall={doInstall}
             onDismissInstall={dismissInstall}
@@ -4143,13 +4697,13 @@ const onSaved = () => {
             devotional={active}
             settings={settings}
             onUpdate={updateDevotional}
-            onGoCompile={() => setView("compile")}
-            onGoPolish={() => setView("polish")}
+            onGoCompile={() => {}}
+            onGoPolish={() => {}}
             onSaved={onSaved}
           />
         ) : null}
 
-                {view === "compile" && active ? <CompileView devotional={active} settings={settings} onUpdate={updateDevotional} onBackToWrite={() => setView("write")} /> : null}
+                {/* CompileView removed — sharing unified into WriteView Step 4 */}
 
         {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} onDuplicate={duplicateEntry} onMarkPosted={markPosted} onBack={() => setView("home")} /> : null}
 
@@ -4158,7 +4712,7 @@ const onSaved = () => {
       </main>
 
       {/* ── Bottom Nav Bar ── */}
-      <BottomNav view={view} onHome={() => setView("home")} onNew={() => newEntry()} onLibrary={() => setView("library")} />
+      <BottomNav view={view} onHome={() => setView("home")} onWriteFromYourVerse={writeFromYourVerse} onContinueWrite={() => setView(active ? "write" : "home")} onLibrary={() => setView("library")} onSettings={() => setView("settings")} showWriteHint={!hasUsedWriteFab && !customVerseRef} hasActiveDraft={Boolean(active)} />
     </div>
     </ToastContext.Provider>
   );
@@ -4170,9 +4724,14 @@ export default function App() {
   const [session, setSession] = useState(() => loadSession());
   const [starterMood, setStarterMood] = useState("");
 
-  const startDemo = () => {
-    const draft = { mode: "guest", name: "Guest" };
+  // Google OAuth success — skip onboarding name step, go straight to onboarding slides
+  const handleGoogleSuccess = (profile) => {
+    const draft = { mode: "google", name: profile.name, email: profile.email, picture: profile.picture, sub: profile.sub };
     setAuthDraft(draft);
+    setStage("onboarding");
+  };
+
+  const startDemo = () => {
     const existing = safeParseJson(localStorage.getItem(STORAGE_SETTINGS), {});
     const patched = { ...DEFAULT_SETTINGS, ...(existing || {}), onboardingComplete: true, username: "Guest" };
     localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(patched));
@@ -4203,12 +4762,14 @@ export default function App() {
     setSession(null);
     setAuthDraft(null);
     setStarterMood("");
+    // Sign out of Google silently so next visit shows the picker again
+    try { if (window.google?.accounts?.id) window.google.accounts.id.disableAutoSelect(); } catch {}
     setStage("landing");
   };
 
   return (
     <ErrorBoundary>
-      {stage === "landing" ? <LandingView onGetStarted={() => setStage("auth")} onViewDemo={startDemo} /> : null}
+      {stage === "landing" ? <LandingView onGetStarted={() => setStage("auth")} onViewDemo={startDemo} onGoogleSuccess={handleGoogleSuccess} /> : null}
       {stage === "auth" ? <AuthView onBack={() => setStage("landing")} onContinue={handleAuthContinue} /> : null}
       {stage === "onboarding" ? <OnboardingWizard authDraft={authDraft} onFinish={handleFinishOnboarding} /> : null}
       {stage === "app" ? <AppInner session={session} starterMood={starterMood} onLogout={logout} /> : null}
