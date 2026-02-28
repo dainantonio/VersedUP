@@ -20,6 +20,36 @@
     <meta property="og:type" content="website" />
 
     <link rel="icon" type="image/png" href="%BASE_URL%logo.png" />
+
+    <script>
+      (async function clearStaleVersedCaches() {
+        try {
+          const key = 'versedup_preboot_cache_clear_v1';
+          const already = sessionStorage.getItem(key) === '1';
+          let touched = false;
+
+          if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            if (regs.length) touched = true;
+            await Promise.all(regs.map((r) => r.unregister()));
+          }
+
+          if ('caches' in window && window.caches?.keys) {
+            const keys = await caches.keys();
+            const stale = keys.filter((k) => k.startsWith('versed-up-'));
+            if (stale.length) touched = true;
+            await Promise.all(stale.map((k) => caches.delete(k)));
+          }
+
+          if (touched && !already) {
+            sessionStorage.setItem(key, '1');
+            location.reload();
+          }
+        } catch (e) {
+          console.warn('[VersedUP] preboot cache cleanup failed:', e);
+        }
+      })();
+    </script>
     <title>VersedUP</title>
   </head>
   <body>
