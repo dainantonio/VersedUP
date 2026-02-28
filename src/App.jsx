@@ -54,7 +54,7 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "209958052615",
   appId: "1:209958052615:web:49eb475c6b7c41fd551ba2",
 };
-const FCM_VAPID_KEY = ""; // TODO: paste your Web Push VAPID key from Firebase Console → Project Settings → Cloud Messaging
+const FCM_VAPID_KEY = "BNJ8ogsK_fGl09mvXA0rF_OHkRiXK5cSg814xL3vS7-DIwIAaiKv8NO290VU3uV8VBfeVCGzEtpeMA-BEcr5wG8"; // TODO: paste your Web Push VAPID key from Firebase Console → Project Settings → Cloud Messaging
 
 let _firebaseApp = null;
 let _messaging = null;
