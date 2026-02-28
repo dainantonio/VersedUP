@@ -980,9 +980,7 @@ async function ai(settings, prompt) {
   const lower = prompt.toLowerCase();
   if (lower.startsWith("correct grammar") || lower.startsWith("shorten this") || lower.startsWith("expand this") || lower.startsWith("rewrite this") || lower.startsWith("change the tone")) {
     // Edit operation: return the user's text unchanged (last paragraph of prompt)
-    const idx = prompt.lastIndexOf("
-
-");
+    const idx = prompt.lastIndexOf("\n\n");
     return idx >= 0 ? prompt.slice(idx + 2).trim() : prompt.trim();
   }
   // Fallback: return a minimal stub so fields don't get prompt text
