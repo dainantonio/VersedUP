@@ -2021,6 +2021,7 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [sharedConfirm, setSharedConfirm] = useState(false);
   const [showTikTokScriptModal, setShowTikTokScriptModal] = useState(false);
   const [showTikTokExportModal, setShowTikTokExportModal] = useState(false);
+  const [showOcrModal, setShowOcrModal] = useState(false);
 
   const igCardRef = useRef(null);
   const autoFetchTimer = useRef(null);
@@ -2344,7 +2345,19 @@ ${devotional.reflection}`);
         return (
           <Card>
             <div className="space-y-4">
-              <div className="text-2xl font-black text-slate-900">What verse is speaking to you today?</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-2xl font-black text-slate-900 leading-tight">What verse is speaking to you today?</div>
+                {settings.ocrEndpoint?.trim() ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowOcrModal(true)}
+                    className="shrink-0 flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:border-slate-300 hover:bg-white transition-colors"
+                    title="Scan a Bible page with camera"
+                  >
+                    <ScanLine className="w-3.5 h-3.5" /> Scan
+                  </button>
+                ) : null}
+              </div>
 
               {/* Segmented source selector */}
               <div className="grid grid-cols-2 gap-1.5 p-1.5 bg-slate-100 rounded-2xl">
@@ -2861,6 +2874,16 @@ ${devotional.reflection}`);
           </div>
         </Card>
       ) : null}
+      {/* OCR Scan Modal */}
+      {showOcrModal ? (
+        <OcrScanModal
+          settings={settings}
+          mood={devotional.mood}
+          onClose={() => setShowOcrModal(false)}
+          onApplyToDevotional={(patch) => { onUpdate(patch); setShowOcrModal(false); }}
+        />
+      ) : null}
+
       {/* TikTok Script Modal */}
       {showTikTokScriptModal ? (
         <TikTokScriptModal
@@ -3471,6 +3494,25 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
             </div>
           </div>
         ) : null}
+
+        {/* OCR endpoint — advanced, tucked at the bottom */}
+        <div className="pt-3 mt-1 border-t border-slate-100">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">
+            Bible Scan endpoint <span className="normal-case font-medium text-slate-300">— optional</span>
+          </label>
+          <input
+            value={settings.ocrEndpoint || ""}
+            onChange={(e) => onUpdate({ ocrEndpoint: e.target.value })}
+            placeholder="https://your-app.vercel.app/api/ocr"
+            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-emerald-200 bg-white"
+          />
+          <div className="mt-1.5 text-[11px] leading-relaxed">
+            {settings.ocrEndpoint?.trim()
+              ? <span className="text-emerald-600 font-semibold">&#10003; Scan active — a Scan button appears in Step 1 of the write flow.</span>
+              : <span className="text-slate-400">Add a Vercel OCR endpoint to snap a photo of your Bible and auto-fill the verse.</span>
+            }
+          </div>
+        </div>
       </Card>
 
       <Card>
@@ -3500,9 +3542,46 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
             </button>
           ))}
         </div>
-        <button type="button" onClick={handleExport} className="mt-3 w-full flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98]">
-          <Download className="w-4 h-4" /> Export all entries as JSON
-        </button>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button type="button" onClick={handleExport} className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98]">
+            <Download className="w-4 h-4" /> Export JSON
+          </button>
+          <label className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-700 hover:bg-slate-50 transition-all active:scale-[0.98] cursor-pointer">
+            <ArrowUpToLine className="w-4 h-4" /> Import JSON
+            <input
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  try {
+                    const parsed = JSON.parse(String(ev.target.result || ""));
+                    const incoming = Array.isArray(parsed)
+                      ? parsed
+                      : Array.isArray(parsed?.entries) ? parsed.entries : null;
+                    if (!incoming) { pushToast("Invalid backup file — expected { entries: [...] }"); return; }
+                    const valid = incoming.filter(d => d && typeof d === "object" && d.id);
+                    if (!valid.length) { pushToast("No valid entries found in file."); return; }
+                    if (!window.confirm(`Import ${valid.length} entr${valid.length === 1 ? "y" : "ies"}? Existing entries with the same ID will be updated.`)) return;
+                    // Merge: keep existing entries not in file, then add/update from file
+                    onUpdate({ _importEntries: valid });
+                    pushToast(`Imported ${valid.length} entr${valid.length === 1 ? "y" : "ies"} ✓`);
+                  } catch {
+                    pushToast("Could not read file — make sure it is a valid VersedUP JSON backup.");
+                  }
+                };
+                reader.readAsText(file);
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </div>
+        <div className="mt-2 text-[11px] text-slate-400 leading-relaxed">
+          Export saves all entries as a JSON backup. Import merges entries from a previous backup without deleting existing work.
+        </div>
       </Card>
 
       <Card>
@@ -4842,7 +4921,25 @@ function AppInner({ session, starterMood, onLogout }) {
     localStorage.setItem(STORAGE_DEVOTIONALS, JSON.stringify(safeDevotionals));
   }, [safeDevotionals]);
 
-  const updateSettings = (patch) => setSettings((s) => ({ ...s, ...patch }));
+  const updateSettings = (patch) => {
+    // Special key: _importEntries — merge backup entries into devotionals list
+    if (patch._importEntries) {
+      const incoming = patch._importEntries;
+      setDevotionals((list) => {
+        const current = Array.isArray(list) ? list : [];
+        const existingIds = new Set(current.map((d) => d.id));
+        // Update existing entries in-place, prepend new ones
+        const updated = current.map((d) => {
+          const match = incoming.find((i) => i.id === d.id);
+          return match ? { ...d, ...match } : d;
+        });
+        const added = incoming.filter((i) => !existingIds.has(i.id));
+        return [...added, ...updated];
+      });
+      return;
+    }
+    setSettings((s) => ({ ...s, ...patch }));
+  };
 
   const updateDevotional = (patch) => {
     if (!active) return;
