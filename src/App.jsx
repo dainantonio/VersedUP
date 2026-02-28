@@ -37,8 +37,70 @@ import {
   Undo2,
   Redo2,
   ArrowUpToLine,
-  ArrowDownToLine
+  ArrowDownToLine,
+  Bell,
+  BellOff
 } from "lucide-react";
+
+/* ── Firebase + FCM ─────────────────────────────────── */
+import { initializeApp } from "firebase/app";
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDqBDUeZ-HtNpIiZK0Q9jRMU6vGfNYyEWI",
+  authDomain: "versedup-f246f.firebaseapp.com",
+  projectId: "versedup-f246f",
+  storageBucket: "versedup-f246f.firebasestorage.app",
+  messagingSenderId: "209958052615",
+  appId: "1:209958052615:web:49eb475c6b7c41fd551ba2",
+};
+const FCM_VAPID_KEY = ""; // TODO: paste your Web Push VAPID key from Firebase Console → Project Settings → Cloud Messaging
+
+let _firebaseApp = null;
+let _messaging = null;
+
+function getFirebaseApp() {
+  if (!_firebaseApp) _firebaseApp = initializeApp(FIREBASE_CONFIG);
+  return _firebaseApp;
+}
+
+function getFirebaseMessaging() {
+  if (!_messaging) {
+    try { _messaging = getMessaging(getFirebaseApp()); } catch {}
+  }
+  return _messaging;
+}
+
+async function requestNotificationPermission() {
+  if (!("Notification" in window)) return { status: "unsupported" };
+  if (Notification.permission === "granted") return { status: "granted" };
+  if (Notification.permission === "denied") return { status: "denied" };
+  const result = await Notification.requestPermission();
+  return { status: result };
+}
+
+async function getFCMToken() {
+  if (!FCM_VAPID_KEY) return null;
+  try {
+    const messaging = getFirebaseMessaging();
+    if (!messaging) return null;
+    const token = await getToken(messaging, { vapidKey: FCM_VAPID_KEY });
+    return token || null;
+  } catch (e) {
+    console.warn("FCM getToken failed:", e);
+    return null;
+  }
+}
+
+const STORAGE_FCM_TOKEN = `${typeof APP_ID !== "undefined" ? APP_ID : "versed_up"}_fcm_token`;
+const STORAGE_NOTIF_PREF = `${typeof APP_ID !== "undefined" ? APP_ID : "versed_up"}_notif_pref`;
+
+function loadNotifPref() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_NOTIF_PREF) || "null"); } catch { return null; }
+}
+function saveNotifPref(pref) {
+  localStorage.setItem(STORAGE_NOTIF_PREF, JSON.stringify(pref));
+}
 
 /* --- Mocks & Global Styles for Preview --- */
 
@@ -385,6 +447,8 @@ const STORAGE_ACTIVE_ID = `${APP_ID}_active_id`;
 const PLATFORM_LIMITS = {
   tiktok: 2200,
   instagram: 2200,
+  twitter: 280,
+  facebook: 63206,
   youtube: 5000,
   email: 50000,
   generic: 50000,
@@ -3304,6 +3368,87 @@ function AiKeyTestButton({ provider, apiKey }) {
   );
 }
 
+function NotificationSettingsCard() {
+  const { pushToast } = useToast();
+  const [status, setStatus] = useState(() => {
+    if (typeof Notification === "undefined") return "unsupported";
+    if (Notification.permission === "granted") return "granted";
+    if (Notification.permission === "denied") return "denied";
+    const p = loadNotifPref();
+    return p?.enabled ? "granted" : "idle";
+  });
+  const [time, setTime] = useState(() => loadNotifPref()?.time || "08:00");
+  const [busy, setBusy] = useState(false);
+
+  const handleEnable = async () => {
+    setBusy(true);
+    try {
+      const { status: s } = await requestNotificationPermission();
+      if (s === "granted") {
+        const token = await getFCMToken();
+        saveNotifPref({ enabled: true, time, token });
+        if (token) localStorage.setItem(STORAGE_FCM_TOKEN, token);
+        pushToast("Reminders on ✓");
+        setStatus("granted");
+      } else {
+        setStatus(s);
+        if (s === "denied") pushToast("Notifications blocked — enable in browser settings.");
+      }
+    } finally { setBusy(false); }
+  };
+
+  const handleDisable = () => {
+    saveNotifPref({ enabled: false });
+    pushToast("Reminders turned off");
+    setStatus("idle");
+  };
+
+  if (status === "unsupported") {
+    return <div className="text-xs text-slate-400 font-medium">Push notifications are not supported on this browser.</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {status === "granted" ? (
+        <>
+          <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 p-3">
+            <Bell className="w-4 h-4 text-emerald-600 shrink-0" />
+            <div className="flex-1 text-xs font-semibold text-emerald-800">Daily reminder is on</div>
+          </div>
+          <div>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Reminder time</label>
+            <input type="time" value={time}
+              onChange={(e) => { setTime(e.target.value); const p = loadNotifPref(); saveNotifPref({ ...p, time: e.target.value }); }}
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-extrabold bg-white outline-none focus:ring-2 focus:ring-emerald-200" />
+          </div>
+          <button type="button" onClick={handleDisable}
+            className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors">
+            <BellOff className="w-3.5 h-3.5" /> Turn off reminders
+          </button>
+        </>
+      ) : status === "denied" ? (
+        <div className="text-xs text-amber-700 font-semibold rounded-xl bg-amber-50 border border-amber-200 p-3">
+          Notifications are blocked. Open your browser's site settings to allow them.
+        </div>
+      ) : (
+        <>
+          <div className="text-xs text-slate-500 leading-relaxed">Get a daily nudge to write, reflect, and post your faith.</div>
+          <div>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Preferred time</label>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)}
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-extrabold bg-white outline-none focus:ring-2 focus:ring-emerald-200" />
+          </div>
+          <button type="button" onClick={handleEnable} disabled={busy}
+            className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold text-sm flex items-center justify-center gap-2 disabled:opacity-60 hover:bg-emerald-700 transition-colors">
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
+            {busy ? "Requesting…" : "Turn on daily reminders"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBack }) {
   const { pushToast } = useToast();
   const [aiOpen, setAiOpen] = useState(false);
@@ -3642,6 +3787,12 @@ function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBa
         <div className="mt-2 text-[11px] text-slate-400">All data stays on this device. AI calls are the only external requests.</div>
       </Card>
 
+      {/* ── SECTION 5b: Notifications ── */}
+      <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest px-1 pt-1">Notifications</div>
+      <Card>
+        <NotificationSettingsCard />
+      </Card>
+
       {/* ── SECTION 6: Account ── */}
       <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest px-1 pt-1">Account</div>
       <Card>
@@ -3669,38 +3820,53 @@ const PLATFORM_HASHTAGS = {
 };
 
 function compileForPlatform(platform, d, settings) {
-  const verseLine = d.verseRef ? `"${d.verseText || ""}"
-— ${d.verseRef}
-
-` : "";
-  const titleLine = d.title ? `${d.title}
-
-` : "";
+  const nl = "\n";
+  const verseLine = d.verseRef ? `"${d.verseText || ""}"${nl}— ${d.verseRef}${nl}${nl}` : "";
+  const titleLine = d.title ? `${d.title}${nl}${nl}` : "";
   const body = d.reflection || "";
-  const prayer = d.prayer ? `
-
-Prayer:
-${d.prayer}` : "";
-  const questions = d.questions ? `
-
-Questions:
-${d.questions}` : "";
+  const prayer = d.prayer ? `${nl}${nl}Prayer:${nl}${d.prayer}` : "";
+  const questions = d.questions ? `${nl}${nl}Questions:${nl}${d.questions}` : "";
   const allUserText = body + (d.prayer || "") + (d.questions || "");
   const userHasTags = /#\w+/.test(allUserText);
-  const tags = (!userHasTags && PLATFORM_HASHTAGS[platform]) ? "\n\n" + PLATFORM_HASHTAGS[platform] : "";
+  const tags = (!userHasTags && PLATFORM_HASHTAGS[platform]) ? nl + nl + PLATFORM_HASHTAGS[platform] : "";
+
+  // Smart truncation helper — fits text into limit, always preserving tags
+  const fitToLimit = (parts, limit) => {
+    if (!limit) return parts.join("").trim();
+    const tagStr = tags;
+    const tagLen = tagStr.length;
+    const available = limit - tagLen;
+    let result = "";
+    for (const part of parts) {
+      if ((result + part).length <= available) result += part;
+      else if (result.length < available) {
+        // Truncate this part to fit, break at word boundary
+        const room = available - result.length - 1;
+        const trimmed = part.slice(0, room).replace(/\s+\S*$/, "");
+        result += trimmed + "…";
+        break;
+      } else break;
+    }
+    return (result + (result.trim() ? tagStr : "")).trim();
+  };
 
   if (platform === "tiktok") {
-    const base = d.tiktokScript || `POV: You needed this today ✨\n\n${d.verseRef || ""}\n\n${body}\n\nSave this for later ❤️`;
+    const base = d.tiktokScript || `POV: You needed this today ✨${nl}${nl}${d.verseRef || ""}${nl}${nl}${body}${nl}${nl}Save this for later ❤️`;
     const baseTags = /#\w+/.test(base) ? "" : tags;
-    return (base + baseTags).trim();
+    const full = (base + baseTags).trim();
+    return full.length <= 2200 ? full : full.slice(0, 2197) + "…";
   }
   if (platform === "instagram") {
-    return `${titleLine}${verseLine}${body}${questions}${prayer}${tags}`.trim();
+    return fitToLimit([titleLine, verseLine, body, questions, prayer], 2200);
+  }
+  if (platform === "twitter") {
+    return fitToLimit([body, questions ? nl + nl + "Q: " + d.questions.split(nl)[0] : ""], 280);
   }
   if (platform === "email") {
-    return `Subject: ${d.verseRef || "Encouragement"}\n\nHi friend,\n\n${verseLine}${body}${prayer}\n\nBlessings,\n${settings.username || ""}`.trim();
+    return `Subject: ${d.verseRef || "Encouragement"}${nl}${nl}Hi friend,${nl}${nl}${verseLine}${body}${prayer}${nl}${nl}Blessings,${nl}${settings.username || ""}`.trim();
   }
-  return `${titleLine}${verseLine}${body}${questions}${prayer}${tags}`.trim();
+  // facebook, generic — generous limit
+  return fitToLimit([titleLine, verseLine, body, questions, prayer], PLATFORM_LIMITS[platform] || 0);
 }
 
 function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
@@ -4394,15 +4560,50 @@ function AuthView({ onBack, onContinue }) {
 }
 
 function OnboardingWizard({ authDraft, onFinish }) {
-  // Demo slides: 0=Welcome, 1=Verse+Heart, 2=Write+AI, 3=Share, 4=Setup
   const [slide, setSlide] = useState(0);
-  const [demoMood, setDemoMood] = useState(null);
-  const [demoDrafted, setDemoDrafted] = useState(false);
-  const [demoPlatform, setDemoPlatform] = useState(null);
   const [name, setName] = useState(authDraft?.name || "");
   const [version, setVersion] = useState("KJV");
-  const [guidedMode, setGuidedMode] = useState(true);
+  const [platforms, setPlatforms] = useState(["instagram", "tiktok"]);
+  const [notifStatus, setNotifStatus] = useState(() => {
+    const p = loadNotifPref();
+    if (Notification?.permission === "granted") return "granted";
+    if (Notification?.permission === "denied") return "denied";
+    return p?.enabled ? "granted" : "idle";
+  });
+  const [notifTime, setNotifTime] = useState("08:00");
+  const [notifBusy, setNotifBusy] = useState(false);
   const totalSlides = 5;
+
+  const DEMO_PLATFORMS = [
+    { id: "tiktok", label: "TikTok", emoji: "🎵" },
+    { id: "instagram", label: "Instagram", emoji: "📸" },
+    { id: "twitter", label: "X / Twitter", emoji: "🐦" },
+    { id: "facebook", label: "Facebook", emoji: "👥" },
+    { id: "email", label: "Email / Newsletter", emoji: "✉️" },
+  ];
+
+  const togglePlatform = (id) => {
+    setPlatforms(prev =>
+      prev.includes(id) ? (prev.length > 1 ? prev.filter(p => p !== id) : prev) : [...prev, id]
+    );
+  };
+
+  const handleRequestNotif = async () => {
+    setNotifBusy(true);
+    try {
+      const { status } = await requestNotificationPermission();
+      if (status === "granted") {
+        const token = await getFCMToken();
+        saveNotifPref({ enabled: true, time: notifTime, token });
+        if (token) localStorage.setItem(STORAGE_FCM_TOKEN, token);
+        setNotifStatus("granted");
+      } else {
+        setNotifStatus(status);
+      }
+    } finally {
+      setNotifBusy(false);
+    }
+  };
 
   const finish = () => {
     onFinish({
@@ -4411,290 +4612,213 @@ function OnboardingWizard({ authDraft, onFinish }) {
       settingsPatch: {
         username: name.trim(),
         defaultBibleVersion: version,
-        guidedMode,
+        myPlatforms: platforms,
         onboardingComplete: true,
       },
-      starterMood: demoMood || "hopeful",
+      starterMood: "hopeful",
     });
   };
 
-  const DEMO_MOODS = [
-    { id: "peaceful", label: "😌 Peaceful" },
-    { id: "grateful", label: "🙏 Grateful" },
-    { id: "hopeful", label: "💪 Hopeful" },
-    { id: "inspired", label: "✨ Inspired" },
-  ];
-
-  const DEMO_PLATFORMS = [
-    { id: "instagram", label: "Instagram", color: "from-purple-500 to-pink-500", emoji: "📸" },
-    { id: "tiktok", label: "TikTok", color: "from-black to-slate-700", emoji: "🎵" },
-    { id: "twitter", label: "Twitter / X", color: "from-sky-400 to-blue-500", emoji: "🐦" },
-    { id: "facebook", label: "Facebook", color: "from-blue-600 to-blue-700", emoji: "👥" },
-  ];
+  const next = () => setSlide(s => Math.min(s + 1, totalSlides - 1));
+  const back = () => setSlide(s => Math.max(s - 1, 0));
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-emerald-50 via-sky-50 to-white px-4 py-8 animate-enter">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-emerald-50 via-white to-sky-50 px-4 py-8 animate-enter">
       <div className="max-w-md mx-auto w-full flex flex-col flex-1">
 
         {/* Progress dots */}
-        <div className="flex justify-center gap-2 mb-8">
-          {Array.from({ length: totalSlides }).map((_, i) => (
-            <div
-              key={i}
-              className={`transition-all duration-300 rounded-full ${
-                i === slide ? "w-6 h-2 bg-emerald-500" : i < slide ? "w-2 h-2 bg-emerald-300" : "w-2 h-2 bg-slate-200"
-              }`}
-            />
-          ))}
-        </div>
+        {slide > 0 ? (
+          <div className="flex justify-center gap-2 mb-8">
+            {Array.from({ length: totalSlides }).map((_, i) => (
+              <div key={i} className={`transition-all duration-300 rounded-full ${
+                i === slide ? "w-6 h-2 bg-emerald-500" : i < slide ? "w-2 h-2 bg-emerald-400" : "w-2 h-2 bg-slate-200"
+              }`} />
+            ))}
+          </div>
+        ) : <div className="mb-8" />}
 
         {/* ── SLIDE 0: Welcome ── */}
         {slide === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center animate-enter space-y-6">
-            <div className="w-24 h-24 rounded-[2rem] bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-2xl shadow-emerald-200">
-              <BookOpen className="w-12 h-12 text-white" />
-            </div>
+          <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6 animate-enter">
+            <BrandLogo className="h-32 w-auto object-contain drop-shadow-xl" />
             <div>
               <div className="text-4xl font-black text-slate-900 tracking-tight">VersedUP</div>
               <div className="text-lg font-bold text-emerald-600 mt-1">Write. Reflect. Share.</div>
             </div>
             <div className="text-base text-slate-500 font-medium max-w-xs leading-relaxed">
-              A spiritual companion for capturing God's word, writing your heart, and sharing your faith — in one flowing motion.
+              A daily space to capture God's word, write your heart, and share your faith — in one flowing motion.
             </div>
-            <div className="w-full pt-4">
-              <button
-                type="button"
-                onClick={() => setSlide(1)}
-                className="w-full rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold text-base py-4 shadow-lg shadow-emerald-200 hover:shadow-xl hover:scale-[1.01] transition-all active:scale-[0.99]"
-              >
-                See how it works
+            <div className="w-full pt-4 space-y-3">
+              <button type="button" onClick={next}
+                className="w-full rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold text-base py-4 shadow-lg shadow-emerald-200 hover:shadow-xl hover:scale-[1.01] transition-all active:scale-[0.99]">
+                Get started
               </button>
-              <button
-                type="button"
-                onClick={() => setSlide(4)}
-                className="mt-3 w-full text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                Skip intro
+              <button type="button" onClick={() => setSlide(4)}
+                className="w-full text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors py-1">
+                Skip setup
               </button>
             </div>
           </div>
         ) : null}
 
-        {/* ── SLIDE 1: Verse + Heart demo ── */}
+        {/* ── SLIDE 1: Name ── */}
         {slide === 1 ? (
-          <div className="flex-1 flex flex-col animate-enter space-y-5">
+          <div className="flex-1 flex flex-col animate-enter space-y-6">
             <div>
-              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 1 · Scripture & Heart</div>
-              <h2 className="text-2xl font-black text-slate-900 mt-1">Capture your verse & heart</h2>
-              <p className="text-sm text-slate-500 mt-1.5 font-medium">Start with the scripture that's speaking to you. Then pick where your heart is today.</p>
+              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 1 of 4</div>
+              <h2 className="text-3xl font-black text-slate-900 mt-2 leading-tight">What should<br/>we call you?</h2>
             </div>
-
-            {/* Mini verse card demo */}
-            <div className="rounded-[1.75rem] border-2 border-emerald-100 bg-white p-5 shadow-sm space-y-3">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TODAY'S VERSE</div>
-              <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">
-                <div className="text-xs font-bold text-emerald-700 flex-1">John 3:16</div>
-                <div className="text-[10px] font-extrabold text-emerald-500 bg-emerald-100 rounded-lg px-2 py-1">Load Verse ↓</div>
-              </div>
-              <div className="text-xs text-slate-600 font-serif leading-relaxed px-1 italic">
-                "For God so loved the world, that he gave his only begotten Son…"
-              </div>
-            </div>
-
-            {/* Interactive mood picker */}
-            <div className="rounded-[1.75rem] border-2 border-slate-100 bg-white p-5 shadow-sm">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">WHERE IS YOUR HEART? <span className="text-emerald-500 normal-case font-bold ml-1">← tap one</span></div>
-              <div className="flex flex-wrap gap-2">
-                {DEMO_MOODS.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setDemoMood(m.id)}
-                    className={`rounded-2xl border px-3 py-2 text-sm font-extrabold transition-all ${
-                      demoMood === m.id
-                        ? "bg-emerald-500 border-emerald-500 text-white scale-105 shadow-md shadow-emerald-200"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200 hover:bg-emerald-50"
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-              {demoMood ? (
-                <div className="mt-3 text-xs font-bold text-emerald-600 flex items-center gap-1 animate-enter">
-                  <CheckCircle className="w-3.5 h-3.5" /> Perfect. Your heart is set.
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button type="button" onClick={() => setSlide(0)} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"><ChevronLeft className="w-4 h-4" /> Back</button>
-              <button type="button" onClick={() => setSlide(2)} className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3 shadow-md hover:shadow-lg transition-all">
-                Next
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name or @handle"
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && next()}
+              className="w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg font-semibold outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-300 bg-white transition-all"
+            />
+            <div className="text-sm text-slate-400 font-medium">This appears on your shares and in the app greeting.</div>
+            <div className="flex-1" />
+            <div className="flex gap-3">
+              <button type="button" onClick={back} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">
+                <ChevronLeft className="w-4 h-4" /> Back
+              </button>
+              <button type="button" onClick={next}
+                className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3.5 shadow-md hover:shadow-lg transition-all">
+                {name.trim() ? "Continue" : "Skip for now"} →
               </button>
             </div>
           </div>
         ) : null}
 
-        {/* ── SLIDE 2: Write + AI demo ── */}
+        {/* ── SLIDE 2: Platforms ── */}
         {slide === 2 ? (
           <div className="flex-1 flex flex-col animate-enter space-y-5">
             <div>
-              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 2 · Write & Refine</div>
-              <h2 className="text-2xl font-black text-slate-900 mt-1">Write with AI at your side</h2>
-              <p className="text-sm text-slate-500 mt-1.5 font-medium">Reflect freely, or let AI draft a caption in your chosen tone. Refine it with one icon tap.</p>
+              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 2 of 4</div>
+              <h2 className="text-3xl font-black text-slate-900 mt-2 leading-tight">Where do you<br/>share your faith?</h2>
+              <p className="text-sm text-slate-500 mt-2 font-medium">Pick all that apply. We'll optimize your caption for each platform.</p>
             </div>
-
-            {/* Mini write card demo */}
-            <div className="rounded-[1.75rem] border-2 border-slate-100 bg-white p-5 shadow-sm space-y-3">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">YOUR REFLECTION</div>
-              <div className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-3 min-h-[72px] text-xs text-slate-600 leading-relaxed font-medium">
-                {demoDrafted
-                  ? '"God\'s love isn\'t a reward — it\'s a gift. Today I\'m reminded that I don\'t have to earn what\'s already been freely given. 🙏 #Faith #John316"'
-                  : <span className="text-slate-400 italic">Your reflection will appear here…</span>
-                }
-              </div>
-              {/* AI toolbar — labeled buttons matching the real app */}
-              <div className="flex flex-wrap gap-1.5 items-center">
-                <button
-                  type="button"
-                  onClick={() => setDemoDrafted(true)}
-                  className={`flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-extrabold transition-all ${
-                    demoDrafted ? "bg-emerald-100 text-emerald-700 border border-emerald-200" : "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
-                  }`}
-                >
-                  <Sparkles className="w-3 h-3" /> AI Draft
-                </button>
-                {[
-                  { icon: Check, label: "Fix Grammar" },
-                  { icon: ArrowUpToLine, label: "Shorten" },
-                  { icon: ArrowDownToLine, label: "Expand" },
-                  { icon: Wand2, label: "Tone" },
-                ].map(({ icon: Icon, label }) => (
-                  <button key={label} type="button" className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-colors">
-                    <Icon className="w-3 h-3" /> {label}
+            <div className="space-y-2">
+              {DEMO_PLATFORMS.map((p) => {
+                const selected = platforms.includes(p.id);
+                return (
+                  <button key={p.id} type="button" onClick={() => togglePlatform(p.id)}
+                    className={`w-full flex items-center gap-4 rounded-2xl border px-4 py-3.5 text-left transition-all ${
+                      selected ? "border-emerald-400 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}>
+                    <span className="text-2xl">{p.emoji}</span>
+                    <span className={`text-sm font-extrabold flex-1 ${selected ? "text-emerald-800" : "text-slate-700"}`}>{p.label}</span>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                      selected ? "border-emerald-500 bg-emerald-500" : "border-slate-300"
+                    }`}>
+                      {selected ? <Check className="w-3 h-3 text-white" /> : null}
+                    </div>
                   </button>
-                ))}
-              </div>
-              {demoDrafted ? (
-                <div className="text-xs font-bold text-emerald-600 flex items-center gap-1 animate-enter">
-                  <CheckCircle className="w-3.5 h-3.5" /> Caption drafted in Poetic tone. Edit or post as-is.
-                </div>
-              ) : <div className="text-[11px] text-slate-400 font-medium">← Tap Draft for Me to see AI in action</div>}
+                );
+              })}
             </div>
-
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={() => setSlide(1)} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"><ChevronLeft className="w-4 h-4" /> Back</button>
-              <button type="button" onClick={() => setSlide(3)} className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3 shadow-md hover:shadow-lg transition-all">
-                Next
+              <button type="button" onClick={back} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">
+                <ChevronLeft className="w-4 h-4" /> Back
+              </button>
+              <button type="button" onClick={next}
+                className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3.5 shadow-md hover:shadow-lg transition-all">
+                Continue →
               </button>
             </div>
           </div>
         ) : null}
 
-        {/* ── SLIDE 3: Share demo ── */}
+        {/* ── SLIDE 3: Notifications ── */}
         {slide === 3 ? (
           <div className="flex-1 flex flex-col animate-enter space-y-5">
             <div>
-              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 3 · Share</div>
-              <h2 className="text-2xl font-black text-slate-900 mt-1">Share to any platform</h2>
-              <p className="text-sm text-slate-500 mt-1.5 font-medium">Format your post for Instagram, TikTok, Twitter, or Facebook. One tap copies the optimized caption.</p>
+              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 3 of 4</div>
+              <h2 className="text-3xl font-black text-slate-900 mt-2 leading-tight">Daily reminders<br/>keep you rooted.</h2>
+              <p className="text-sm text-slate-500 mt-2 font-medium">Get a gentle nudge each morning to write and share your faith.</p>
             </div>
 
-            {/* Platform picker demo */}
-            <div className="rounded-[1.75rem] border-2 border-slate-100 bg-white p-5 shadow-sm space-y-4">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">CHOOSE A PLATFORM <span className="text-emerald-500 normal-case font-bold ml-1">← tap one</span></div>
-              <div className="grid grid-cols-2 gap-2">
-                {DEMO_PLATFORMS.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setDemoPlatform(p.id)}
-                    className={`rounded-2xl px-3 py-3 text-sm font-extrabold text-left transition-all flex items-center gap-2 ${
-                      demoPlatform === p.id
-                        ? `bg-gradient-to-r ${p.color} text-white shadow-lg scale-[1.02]`
-                        : "border border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300"
-                    }`}
-                  >
-                    <span className="text-lg">{p.emoji}</span>
-                    <span>{p.label}</span>
-                  </button>
-                ))}
-              </div>
-              {demoPlatform ? (
-                <div className="rounded-xl bg-slate-50 border border-slate-100 p-3 animate-enter">
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">PREVIEW — {demoPlatform.toUpperCase()}</div>
-                  <div className="text-xs text-slate-700 leading-relaxed font-medium">
-                    "God's love isn't a reward — it's a gift. Today I'm reminded that I don't have to earn what's already been freely given. 🙏 #Faith #John316"
-                  </div>
-                  <div className="mt-2 flex items-center justify-between">
-                    <div className={`text-[10px] font-bold ${demoPlatform === "twitter" ? "text-amber-600" : "text-emerald-600"}`}>
-                      {demoPlatform === "instagram" ? "142 / 2,200 chars ✓" : demoPlatform === "tiktok" ? "142 / 2,200 chars ✓" : demoPlatform === "twitter" ? "142 / 280 chars ✓" : "142 / 63,206 chars ✓"}
-                    </div>
-                    <div className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 rounded-lg px-2 py-1">Copy & Open</div>
+            <div className="rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm space-y-4">
+              {notifStatus === "granted" ? (
+                <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 border border-emerald-200 p-4">
+                  <Bell className="w-6 h-6 text-emerald-600 shrink-0" />
+                  <div>
+                    <div className="text-sm font-extrabold text-emerald-800">Reminders are on ✓</div>
+                    <div className="text-xs text-emerald-600 mt-0.5">We'll notify you at {notifTime} each day.</div>
                   </div>
                 </div>
-              ) : null}
+              ) : notifStatus === "denied" ? (
+                <div className="flex items-center gap-3 rounded-2xl bg-amber-50 border border-amber-200 p-4">
+                  <BellOff className="w-6 h-6 text-amber-600 shrink-0" />
+                  <div>
+                    <div className="text-sm font-extrabold text-amber-800">Notifications blocked</div>
+                    <div className="text-xs text-amber-600 mt-0.5">You can enable them anytime in your browser settings.</div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0">
+                      <Bell className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-extrabold text-slate-900">Morning devotional reminder</div>
+                      <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">A gentle push each day to write, reflect, and share. No spam — just one nudge.</div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Preferred time</label>
+                    <input type="time" value={notifTime} onChange={(e) => setNotifTime(e.target.value)}
+                      className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-extrabold bg-white outline-none focus:ring-2 focus:ring-emerald-200" />
+                  </div>
+                  <button type="button" onClick={handleRequestNotif} disabled={notifBusy}
+                    className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold flex items-center justify-center gap-2 disabled:opacity-60 hover:bg-emerald-700 transition-colors">
+                    {notifBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
+                    {notifBusy ? "Requesting…" : "Turn on reminders"}
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={() => setSlide(2)} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"><ChevronLeft className="w-4 h-4" /> Back</button>
-              <button type="button" onClick={() => setSlide(4)} className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3 shadow-md hover:shadow-lg transition-all">
-                Let's set you up
+              <button type="button" onClick={back} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">
+                <ChevronLeft className="w-4 h-4" /> Back
+              </button>
+              <button type="button" onClick={next}
+                className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3.5 shadow-md hover:shadow-lg transition-all">
+                {notifStatus === "granted" ? "Continue →" : "Skip for now →"}
               </button>
             </div>
           </div>
         ) : null}
 
-        {/* ── SLIDE 4: Setup ── */}
+        {/* ── SLIDE 4: Bible version + Finish ── */}
         {slide === 4 ? (
           <div className="flex-1 flex flex-col animate-enter space-y-5">
             <div>
-              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Almost there</div>
-              <h2 className="text-2xl font-black text-slate-900 mt-1">One last thing</h2>
-              <p className="text-sm text-slate-500 mt-1.5 font-medium">Personalize your experience. You can change these any time in Settings.</p>
+              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Last step</div>
+              <h2 className="text-3xl font-black text-slate-900 mt-2 leading-tight">Choose your<br/>Bible version.</h2>
+              <p className="text-sm text-slate-500 mt-2 font-medium">Used when we look up your verse automatically. Change anytime in Settings.</p>
             </div>
 
-            <div className="rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm space-y-5">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">YOUR NAME</label>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="What should we call you?"
-                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3.5 text-base font-semibold outline-none focus:ring-4 focus:ring-emerald-100 transition-all bg-slate-50 focus:bg-white focus:border-emerald-300"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DEFAULT BIBLE VERSION</label>
-                <select
-                  value={version}
-                  onChange={(e) => setVersion(e.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3.5 text-base font-extrabold bg-slate-50 outline-none focus:ring-4 focus:ring-emerald-100 focus:bg-white focus:border-emerald-300 transition-all"
-                >
-                  {BIBLE_VERSIONS.map((v) => (
-                    <option key={v} value={v}>{v}</option>
-                  ))}
-                </select>
-              </div>
-              <label className="flex items-center justify-between cursor-pointer">
-                <div>
-                  <div className="text-sm font-extrabold text-slate-900">Guided writing hints</div>
-                  <div className="text-xs text-slate-500 mt-0.5">Structure prompts and helper text while you write.</div>
-                </div>
-                <input type="checkbox" checked={guidedMode} onChange={(e) => setGuidedMode(e.target.checked)} className="w-5 h-5 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
-              </label>
+            <div className="space-y-2">
+              {BIBLE_VERSIONS.map((v) => (
+                <button key={v} type="button" onClick={() => setVersion(v)}
+                  className={`w-full flex items-center justify-between rounded-2xl border px-5 py-3.5 text-left transition-all ${
+                    version === v ? "border-emerald-400 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300"
+                  }`}>
+                  <span className={`text-sm font-extrabold ${version === v ? "text-emerald-800" : "text-slate-700"}`}>{v}</span>
+                  {version === v ? <Check className="w-4 h-4 text-emerald-600" /> : null}
+                </button>
+              ))}
             </div>
 
             <div className="flex gap-3 pt-2">
-              {slide > 0 ? (
-                <button type="button" onClick={() => setSlide(3)} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"><ChevronLeft className="w-4 h-4" /> Back</button>
-              ) : <div />}
-              <button
-                type="button"
-                onClick={finish}
-                className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold text-base py-4 shadow-lg shadow-emerald-200 hover:shadow-xl hover:scale-[1.01] transition-all active:scale-[0.99]"
-              >
+              <button type="button" onClick={back} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">
+                <ChevronLeft className="w-4 h-4" /> Back
+              </button>
+              <button type="button" onClick={finish}
+                className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold text-base py-4 shadow-lg shadow-emerald-200 hover:shadow-xl hover:scale-[1.01] transition-all active:scale-[0.99]">
                 🙏 Start Writing
               </button>
             </div>
@@ -4801,13 +4925,7 @@ function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, onContinueWr
         <span className="text-[9px] font-black uppercase tracking-wider">Library</span>
       </button>
 
-      {/* Settings — now a real nav item, no more hunting in 3-dot menu */}
-      <button type="button" onClick={() => handleNav("settings", onSettings)}
-        className={cn("flex flex-col items-center gap-1 transition-colors min-w-[48px]", view === "settings" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
-        title="Settings">
-        <Settings className={cn("w-6 h-6", bouncing === "settings" ? "nav-bounce" : "")} />
-        <span className="text-[9px] font-black uppercase tracking-wider">Settings</span>
-      </button>
+
     </div>
     </>
   );
@@ -5016,8 +5134,7 @@ function AppInner({ session, starterMood, onLogout }) {
 
   const quickPost = () => {
     const d = createDevotional(settings);
-    d.title = "60-Second Faith Post";
-    d.reflection = "Jesus, give me one clear truth to share today.";
+    // Start blank — no pre-filled title or reflection
     setDevotionals((list) => [d, ...(Array.isArray(list) ? list : [])]);
     setActiveId(d.id);
     setView("write");
@@ -5113,7 +5230,17 @@ function AppInner({ session, starterMood, onLogout }) {
               <div className="text-[13px] font-semibold text-slate-400">{getTimeGreeting(getDisplayName(session, settings))}</div>
             )}
           </div>
-          {/* Settings moved to bottom nav — header stays clean */}
+          <button
+            type="button"
+            onClick={() => setView(v => v === "settings" ? (lastNonSettingsView || "home") : "settings")}
+            className={cn(
+              "w-9 h-9 rounded-full flex items-center justify-center transition-all shrink-0",
+              view === "settings" ? "bg-emerald-100 text-emerald-700" : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            )}
+            title="Settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
