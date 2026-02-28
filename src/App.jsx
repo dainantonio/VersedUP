@@ -976,21 +976,17 @@ async function ai(settings, prompt) {
   // Mock mode: return the input text unchanged for edit operations,
   // or a minimal stub for generation operations.
   await new Promise((r) => setTimeout(r, 650));
-  // Detect operation type from prompt keywords and extract user text
+  // Mock mode: return input text for edit ops, stub for generation ops
   const lower = prompt.toLowerCase();
   if (lower.startsWith("correct grammar") || lower.startsWith("shorten this") || lower.startsWith("expand this") || lower.startsWith("rewrite this") || lower.startsWith("change the tone")) {
-    // Edit operation: return only the user text (last block after double newline)
-    const parts = prompt.split(/\n\n+/);
-    const userText = parts[parts.length - 1]?.trim() || "";
-    return userText || prompt.slice(0, 500);
+    // Edit operation: return the user's text unchanged (last paragraph of prompt)
+    const idx = prompt.lastIndexOf("
+
+");
+    return idx >= 0 ? prompt.slice(idx + 2).trim() : prompt.trim();
   }
-  // Generation operation (AI Draft, TikTok script, etc.) — return a useful stub
-  if (lower.includes("tiktok script") || lower.includes("write a tiktok")) {
-    return "POV: This verse stopped me today.\n\nRead it slowly.\n\n[Paste your reflection here]\n\nSave this if it spoke to you. \uD83D\uDE4F\n#Faith #Devotional #Jesus";
-  }
-  // Fallback for any other generation: return first 300 chars of user content from prompt
-  const parts = prompt.split(/\n\n+/);
-  return parts[parts.length - 1]?.trim().slice(0, 300) || "Your reflection will appear here once AI is configured.";
+  // Fallback: return a minimal stub so fields don't get prompt text
+  return "Your reflection will appear here. Add an OpenAI or Gemini key in Settings for real AI suggestions.";
 }
 
 async function aiFixGrammar(settings, { text, mood }) {
@@ -1990,6 +1986,32 @@ function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
   );
 }
 
+function VersePill({ verseRef, verseText }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!verseRef) return null;
+  const sentences = verseText ? verseText.split(/(?<=[.!?])\s+/) : [];
+  const firstSentence = sentences[0] || "";
+  const hasMore = verseText && firstSentence.length < verseText.length;
+  return (
+    <button
+      type="button"
+      onClick={() => setExpanded(v => !v)}
+      className="w-full text-left rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 flex items-start gap-2.5 transition-all hover:bg-emerald-50"
+    >
+      <BookOpen className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+      <div className="min-w-0 flex-1">
+        <span className="text-xs font-black text-emerald-700">{verseRef}</span>
+        {firstSentence ? (
+          <p className={cn("text-xs text-slate-600 font-serif-scripture leading-snug mt-0.5", expanded ? "" : "line-clamp-1")}>
+            {expanded ? verseText : `"${firstSentence}${hasMore ? "…" : ""}"`}
+          </p>
+        ) : null}
+      </div>
+      <span className="text-slate-300 text-[10px] shrink-0 mt-0.5">{expanded ? "▲" : "▼"}</span>
+    </button>
+  );
+}
+
 function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved }) {
   const verseOfDay = React.useMemo(() => getVerseOfDay(), []);
   const { pushToast } = useToast();
@@ -2251,32 +2273,6 @@ ${devotional.reflection}`);
 
   const stepTitles = ["Scripture", "Your Heart", "Shape It", "Post It"];
 
-  // ── Verse reminder pill — shown in Steps 2, 3, 4 ──────────────────────────
-  const VersePill = () => {
-    const [expanded, setExpanded] = React.useState(false);
-    const ref = devotional.verseRef || verseOfDay.verseRef || "";
-    const text = devotional.verseText || (devotional.scriptureSource !== "your_verse" ? verseOfDay.verseText : "");
-    if (!ref) return null;
-    const firstSentence = text ? text.split(/(?<=[.!?])\s+/)[0] : "";
-    return (
-      <button
-        type="button"
-        onClick={() => setExpanded(v => !v)}
-        className="w-full text-left rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 flex items-start gap-2.5 transition-all hover:bg-emerald-50"
-      >
-        <BookOpen className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-        <div className="min-w-0 flex-1">
-          <span className="text-xs font-black text-emerald-700">{ref}</span>
-          {firstSentence ? (
-            <p className={cn("text-xs text-slate-600 font-serif-scripture leading-snug mt-0.5", expanded ? "" : "line-clamp-1")}>
-              {expanded ? text : `"${firstSentence}${firstSentence.length < text.length ? "…" : ""}"`}
-            </p>
-          ) : null}
-        </div>
-        <span className="text-slate-300 text-[10px] shrink-0 mt-0.5">{expanded ? "▲" : "▼"}</span>
-      </button>
-    );
-  };
   const onboardingStyleSteps = [
     { label: "Step 1", title: "Scripture", stepNum: 1 },
     { label: "Step 2", title: "Your Heart", stepNum: 2 },
@@ -2521,7 +2517,7 @@ ${devotional.reflection}`);
             </div>
 
             {/* Verse reminder — collapsed pill so user never loses their scripture */}
-            <VersePill />
+            <VersePill verseRef={devotional.verseRef || verseOfDay.verseRef} verseText={devotional.verseText || (devotional.scriptureSource !== "your_verse" ? verseOfDay.verseText : "")} />
 
             {/* Guided writing prompt — only shows when mood is set */}
             {devotional.mood ? (
@@ -2690,7 +2686,7 @@ ${devotional.reflection}`);
               </div>
 
               {/* Verse context pill */}
-              <VersePill />
+              <VersePill verseRef={devotional.verseRef || verseOfDay.verseRef} verseText={devotional.verseText || (devotional.scriptureSource !== "your_verse" ? verseOfDay.verseText : "")} />
 
               {/* Empty state guidance */}
               {!devotional.reflection && !devotional.prayer && !devotional.questions && contentTab === "reflection" ? (
@@ -2769,7 +2765,7 @@ ${devotional.reflection}`);
             </div>
 
             {/* Verse reminder */}
-            <VersePill />
+            <VersePill verseRef={devotional.verseRef || verseOfDay.verseRef} verseText={devotional.verseText || (devotional.scriptureSource !== "your_verse" ? verseOfDay.verseText : "")} />
 
             {/* Platform confirmation — shows what was chosen in Step 3, collapsible change */}
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
