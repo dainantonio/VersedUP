@@ -2081,7 +2081,7 @@ function VersePill({ verseRef, verseText }) {
   );
 }
 
-function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved }) {
+function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onFullscreenChange }) {
   const verseOfDay = React.useMemo(() => getVerseOfDay(), []);
   const { pushToast } = useToast();
   const [busy, setBusy] = useState(false);
@@ -2195,6 +2195,12 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
       document.body.style.overflow = prev;
     };
   }, [canvasFullscreen, step]);
+
+  useEffect(() => {
+    if (!onFullscreenChange) return;
+    onFullscreenChange(canvasFullscreen && step >= 2 && step <= 4);
+    return () => onFullscreenChange(false);
+  }, [canvasFullscreen, step, onFullscreenChange]);
 
 
   useEffect(() => {
@@ -5289,6 +5295,7 @@ function AppInner({ session, starterMood, onLogout }) {
   const [lastNonSettingsView, setLastNonSettingsView] = useState(() => String(localStorage.getItem(`${STORAGE_VIEW}_last`) || "home"));
   const [installPrompt, setInstallPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [writeFullscreenActive, setWriteFullscreenActive] = useState(false);
   const [customVerseRef, setCustomVerseRef] = useState("");
   const [customVerseText, setCustomVerseText] = useState("");
   const [hasUsedWriteFab, setHasUsedWriteFab] = useState(false);
@@ -5532,7 +5539,7 @@ function AppInner({ session, starterMood, onLogout }) {
         <div className="fixed inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] pointer-events-none mix-blend-multiply"></div>
       <ToastTicker toast={toast} />
 
-      <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/50 px-4 py-3.5 transition-all duration-300">
+      {!writeFullscreenActive ? <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/50 px-4 py-3.5 transition-all duration-300">
         <div className="max-w-md mx-auto flex items-center gap-4">
           <BrandLogo className="h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105" />
           <div className="min-w-0 leading-tight flex-1">
@@ -5554,9 +5561,9 @@ function AppInner({ session, starterMood, onLogout }) {
             <Settings className="w-5 h-5" />
           </button>
         </div>
-      </div>
+      </div> : null}
 
-      <main className="max-w-md mx-auto w-full px-3 pt-5 pb-32 sm:px-4 sm:pt-8 relative z-10">
+      <main className={cn("max-w-md mx-auto w-full relative z-10", writeFullscreenActive ? "px-0 pt-0 pb-0" : "px-3 pt-5 pb-32 sm:px-4 sm:pt-8")}>
         <PageTransition key={view}>
         {view === "home" ? (
           <HomeView
@@ -5585,6 +5592,7 @@ function AppInner({ session, starterMood, onLogout }) {
             onGoCompile={() => {}}
             onGoPolish={() => {}}
             onSaved={onSaved}
+            onFullscreenChange={setWriteFullscreenActive}
           />
         ) : null}
 
@@ -5597,7 +5605,7 @@ function AppInner({ session, starterMood, onLogout }) {
       </main>
 
       {/* ── Bottom Nav Bar ── */}
-      <BottomNav view={view} onHome={() => setView("home")} onWriteFromYourVerse={writeFromYourVerse} onContinueWrite={() => setView(active ? "write" : "home")} onLibrary={() => setView("library")} onSettings={() => setView("settings")} showWriteHint={!hasUsedWriteFab && !customVerseRef} hasActiveDraft={Boolean(active)} />
+      {!writeFullscreenActive ? <BottomNav view={view} onHome={() => setView("home")} onWriteFromYourVerse={writeFromYourVerse} onContinueWrite={() => setView(active ? "write" : "home")} onLibrary={() => setView("library")} onSettings={() => setView("settings")} showWriteHint={!hasUsedWriteFab && !customVerseRef} hasActiveDraft={Boolean(active)} /> : null}
     </div>
     </ToastContext.Provider>
   );
