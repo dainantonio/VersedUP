@@ -2545,13 +2545,7 @@ Current questions: ${devotional.questions || ""}`;
             {step === 1 ? "Exit" : "Back"}
           </button>
           <div className="flex-1 text-center">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Step {displayStep} of 4</span>
-            {!isFocusStep ? <span className="mx-2 text-slate-200">·</span> : null}
-            {!compactMode ? (
-              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">
-                {onboardingStyleSteps[displayStep - 1]?.title || stepTitles[step - 1]}
-              </span>
-            ) : null}
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Progress</span>
           </div>
           {step >= 2 && step <= 4 ? (
             <button
@@ -2841,7 +2835,7 @@ Current questions: ${devotional.questions || ""}`;
             {compactMode && !isFullscreenCanvas ? (
               <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey}
                 className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 disabled:opacity-50">
-                <Sparkles className="w-3.5 h-3.5" /> AI Draft
+                Draft
               </button>
             ) : null}
 
@@ -2849,10 +2843,9 @@ Current questions: ${devotional.questions || ""}`;
             {!compactMode ? <button
               type="button"
               onClick={() => goToStep(3)}
-              className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold flex items-center justify-center gap-2"
+              className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold"
             >
-              <Sparkles className="w-4 h-4" />
-              Polish &amp; Preview
+              Continue
             </button> : null}
             {!heartReady ? (
               <div className="text-xs text-center text-slate-400 -mt-2">Add a reflection, prayer, or question to continue.</div>
@@ -2877,9 +2870,7 @@ Current questions: ${devotional.questions || ""}`;
                 </span>
               ) : null}
             </div>
-            ) : (
-              <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Step 3 · Focus canvas</div>
-            )}
+            ) : null}
 
             {/* Optional title */}
             {!compactMode ? <input
@@ -2975,7 +2966,7 @@ Current questions: ${devotional.questions || ""}`;
               {!compactMode ? <div className="flex flex-wrap gap-2 mb-3">
                 <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey}
                   className="flex items-center gap-1.5 rounded-full bg-emerald-600 text-white px-3 py-1.5 text-xs font-extrabold disabled:opacity-40 hover:bg-emerald-700 transition-all tool-spring">
-                  <Sparkles className="w-3.5 h-3.5" /> AI Draft
+                  Draft
                 </button>
                 <button onClick={() => void doFix()} disabled={busy}
                   className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
@@ -2987,7 +2978,7 @@ Current questions: ${devotional.questions || ""}`;
                 </button>
                 <button onClick={() => void doLength("lengthen")} disabled={busy}
                   className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
-                  <ArrowDownToLine className="w-3.5 h-3.5" /> Lengthen (safe)
+                  Lengthen
                 </button>
                 <div className="relative">
                   <button onClick={() => setToneMenuOpen((o) => !o)}
@@ -3007,7 +2998,7 @@ Current questions: ${devotional.questions || ""}`;
               {compactMode && !isFullscreenCanvas ? (
                 <button onClick={() => void doLength("lengthen")} disabled={busy}
                   className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 disabled:opacity-50">
-                  <ArrowDownToLine className="w-3.5 h-3.5" /> Lengthen (safe)
+                  Lengthen
                 </button>
               ) : null}
 
@@ -3072,8 +3063,8 @@ Current questions: ${devotional.questions || ""}`;
 
             {/* Preview & Post CTA */}
             {!compactMode ? <button type="button" onClick={() => goToStep(4)} disabled={!heartReady}
-              className="w-full rounded-2xl bg-slate-900 text-white py-3.5 font-extrabold disabled:opacity-40 flex items-center justify-center gap-2">
-              <Eye className="w-4 h-4" /> Preview &amp; Post
+              className="w-full rounded-2xl bg-slate-900 text-white py-3.5 font-extrabold disabled:opacity-40">
+              Continue
             </button> : null}
           </div>
         )
@@ -3197,7 +3188,7 @@ Current questions: ${devotional.questions || ""}`;
                       pushToast("Another seed planted 🌱");
                       setSharedConfirm(false);
                     }}
-                    className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold flex items-center justify-center gap-2"
+                    className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold"
                   >
                     <CheckCircle className="w-4 h-4" /> Mark as Posted
                   </button>
@@ -5235,7 +5226,7 @@ function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, onContinueWr
           <div className="text-lg font-black text-slate-900">You have a draft in progress</div>
           <div className="text-sm text-slate-500 font-medium">Continue where you left off, or start fresh?</div>
           <button type="button" onClick={() => { setFabChoiceOpen(false); onContinueWrite(); }}
-            className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold flex items-center justify-center gap-2">
+            className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold">
             <PenTool className="w-4 h-4" /> Continue writing
           </button>
           <button type="button" onClick={() => { setFabChoiceOpen(false); onWriteFromYourVerse(); }}
