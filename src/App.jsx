@@ -1122,12 +1122,28 @@ Return JSON exactly:
   };
 }
 
-async function aiRewriteLength(settings, { text, mood, direction }) {
+function trimToCharLimit(text, limit) {
+  const src = String(text || "");
+  if (!Number.isFinite(limit) || limit <= 0 || src.length <= limit) return src;
+  const clipped = src.slice(0, limit).replace(/\s+\S*$/, "").trimEnd();
+  return clipped || src.slice(0, limit).trimEnd();
+}
+
+async function aiRewriteLength(settings, { text, mood, direction, limit, targetLength }) {
+  const boundedTarget = Number.isFinite(targetLength)
+    ? Math.min(Number(limit) || Number.MAX_SAFE_INTEGER, Math.max(1, Math.floor(targetLength)))
+    : null;
+
   const prompt =
     direction === "shorten"
       ? `Shorten this while keeping the core meaning. ${buildMoodHint(mood)} Return only the shortened text.\n\n${text}`
-      : `Expand this with more depth and clarity. ${buildMoodHint(mood)} Return only the expanded text.\n\n${text}`;
-  return ai(settings, prompt, text);
+      : `Expand this with more depth and clarity. ${buildMoodHint(mood)} ${boundedTarget ? `Aim for about ${boundedTarget} characters and never exceed ${Number(limit)} characters.` : ""} Return only the expanded text.\n\n${text}`;
+
+  const rewritten = await ai(settings, prompt, text);
+  if (direction === "lengthen" && Number.isFinite(limit)) {
+    return trimToCharLimit(rewritten, Number(limit));
+  }
+  return rewritten;
 }
 
 async function aiTikTokScript(settings, { verseRef, verseText, reflection, mood, baseScript, mode }) {
@@ -2252,9 +2268,18 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     const key = contentTab;
     const txt = String(devotional[key] || "");
     if (!txt.trim()) return;
+    const currentLength = txt.length;
+    const expansionStep = Math.max(1, Math.round(currentLength * 0.2));
+    const targetLength = Math.min(limit, currentLength + expansionStep);
     setBusy(true);
     try {
-      const out = await aiRewriteLength(settings, { text: txt, mood: devotional.mood, direction });
+      const out = await aiRewriteLength(settings, {
+        text: txt,
+        mood: devotional.mood,
+        direction,
+        limit,
+        targetLength: direction === "lengthen" ? targetLength : undefined,
+      });
       onUpdate({ [key]: out });
     } catch (e) {
       pushToast(e?.message || "AI failed.");
@@ -2721,7 +2746,7 @@ ${devotional.reflection}`, txt);
                 </button>
                 <button onClick={() => void doLength("lengthen")} disabled={busy}
                   className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40 hover:border-slate-400 transition-all tool-spring">
-                  <ArrowDownToLine className="w-3.5 h-3.5" /> Expand
+                  <ArrowDownToLine className="w-3.5 h-3.5" /> Lengthen (safe)
                 </button>
                 <div className="relative">
                   <button onClick={() => setToneMenuOpen((o) => !o)}
