@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertTriangle,
   ArrowUpDown,
@@ -2410,6 +2411,18 @@ ${devotional.reflection}`, txt);
   const isFullscreenCanvas = canvasFullscreen && step >= 2 && step <= 4;
   const compactMode = isFocusStep || isFullscreenCanvas;
 
+  const renderStepSurface = (children) => {
+    if (isFullscreenCanvas && typeof document !== "undefined") {
+      return createPortal(
+        <div className="fixed inset-0 z-[70] bg-white p-3 pt-14 overflow-y-auto">
+          {children}
+        </div>,
+        document.body
+      );
+    }
+    return <Card>{children}</Card>;
+  };
+
   const createVersionSnapshot = (label = "Manual snapshot") => {
     const snapshot = {
       id: `v_${Date.now()}`,
@@ -2702,7 +2715,7 @@ Current questions: ${devotional.questions || ""}`;
       })() : null}
 
       {step === 2 ? (
-        <Card className={cn(isFullscreenCanvas ? "fixed inset-0 z-[70] rounded-none border-0 bg-white p-3 pt-14 overflow-y-auto shadow-none hover:shadow-none backdrop-blur-0" : "") }>
+        renderStepSurface(
           <div className="space-y-4">
             {/* Heading + mood row */}
             {!compactMode ? (
@@ -2809,11 +2822,11 @@ Current questions: ${devotional.questions || ""}`;
               <div className="text-xs text-center text-slate-400 -mt-2">Add a reflection, prayer, or question to continue.</div>
             ) : null}
           </div>
-        </Card>
+        )
       ) : null}
 
       {step === 3 ? (
-        <Card className={cn(isFullscreenCanvas ? "fixed inset-0 z-[70] rounded-none border-0 bg-white p-3 pt-14 overflow-y-auto shadow-none hover:shadow-none backdrop-blur-0" : "") }>
+        renderStepSurface(
           <div className="space-y-4">
             {/* Heading — clearly different from Step 2, shows mood context */}
             {!compactMode ? (
@@ -3027,11 +3040,11 @@ Current questions: ${devotional.questions || ""}`;
               <Eye className="w-4 h-4" /> Preview &amp; Post
             </button> : null}
           </div>
-        </Card>
+        )
       ) : null}
 
       {step === 4 ? (
-        <Card className={cn(isFullscreenCanvas ? "fixed inset-0 z-[70] rounded-none border-0 bg-white p-3 pt-14 overflow-y-auto shadow-none hover:shadow-none backdrop-blur-0" : "") }>
+        renderStepSurface(
           <div className="space-y-4">
             {/* Step 4 heading */}
             {!compactMode ? <div className="flex items-center justify-between">
@@ -3178,7 +3191,7 @@ Current questions: ${devotional.questions || ""}`;
               )}
             </div> : null}
           </div>
-        </Card>
+        )
       ) : null}
 
       {compactMode && !isFullscreenCanvas ? (
