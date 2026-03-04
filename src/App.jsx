@@ -2183,6 +2183,19 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     if (step < 2 || step > 4) setCanvasFullscreen(false);
   }, [step]);
 
+  useEffect(() => {
+    if (canvasFullscreen && step >= 2 && step <= 4) setShowMoreTools(false);
+  }, [canvasFullscreen, step]);
+
+  useEffect(() => {
+    if (!(canvasFullscreen && step >= 2 && step <= 4)) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [canvasFullscreen, step]);
+
 
   useEffect(() => {
     if (!ttOverlay) return;
@@ -2466,7 +2479,7 @@ Current questions: ${devotional.questions || ""}`;
         <button
           type="button"
           onClick={() => setCanvasFullscreen((v) => !v)}
-          className="fixed right-3 top-3 z-40 rounded-full border border-slate-300 bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-600 shadow"
+          className="fixed right-3 top-3 z-[80] rounded-full border border-slate-300 bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-600 shadow"
         >
           {isFullscreenCanvas ? "Exit full" : "Full screen"}
         </button>
@@ -2683,7 +2696,7 @@ Current questions: ${devotional.questions || ""}`;
       })() : null}
 
       {step === 2 ? (
-        <Card className={cn(isFullscreenCanvas ? "fixed inset-0 z-30 rounded-none border-0 p-3 pt-14 overflow-y-auto" : "") }>
+        <Card className={cn(isFullscreenCanvas ? "fixed inset-0 z-[70] rounded-none border-0 bg-white p-3 pt-14 overflow-y-auto shadow-none hover:shadow-none backdrop-blur-0" : "") }>
           <div className="space-y-4">
             {/* Heading + mood row */}
             {!compactMode ? (
@@ -2794,7 +2807,7 @@ Current questions: ${devotional.questions || ""}`;
       ) : null}
 
       {step === 3 ? (
-        <Card className={cn(isFullscreenCanvas ? "fixed inset-0 z-30 rounded-none border-0 p-3 pt-14 overflow-y-auto" : "") }>
+        <Card className={cn(isFullscreenCanvas ? "fixed inset-0 z-[70] rounded-none border-0 bg-white p-3 pt-14 overflow-y-auto shadow-none hover:shadow-none backdrop-blur-0" : "") }>
           <div className="space-y-4">
             {/* Heading — clearly different from Step 2, shows mood context */}
             {!compactMode ? (
@@ -3012,7 +3025,7 @@ Current questions: ${devotional.questions || ""}`;
       ) : null}
 
       {step === 4 ? (
-        <Card className={cn(isFullscreenCanvas ? "fixed inset-0 z-30 rounded-none border-0 p-3 pt-14 overflow-y-auto" : "") }>
+        <Card className={cn(isFullscreenCanvas ? "fixed inset-0 z-[70] rounded-none border-0 bg-white p-3 pt-14 overflow-y-auto shadow-none hover:shadow-none backdrop-blur-0" : "") }>
           <div className="space-y-4">
             {/* Step 4 heading */}
             {!compactMode ? <div className="flex items-center justify-between">
@@ -3206,7 +3219,7 @@ Current questions: ${devotional.questions || ""}`;
         </div>
       ) : null}
 
-      {compactMode && showMoreTools ? (
+      {compactMode && !isFullscreenCanvas && showMoreTools ? (
         <div className="fixed inset-0 z-40 bg-black/40 flex items-end" onClick={() => setShowMoreTools(false)}>
           <div className="w-full rounded-t-3xl bg-white p-4 max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
