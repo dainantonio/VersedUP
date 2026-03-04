@@ -2198,6 +2198,15 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   }, [canvasFullscreen, step]);
 
   useEffect(() => {
+    if (!(canvasFullscreen && step >= 2 && step <= 4)) return;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setCanvasFullscreen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [canvasFullscreen, step]);
+
+  useEffect(() => {
     if (!onFullscreenChange) return;
     onFullscreenChange(canvasFullscreen && step >= 2 && step <= 4);
     return () => onFullscreenChange(false);
@@ -2414,8 +2423,20 @@ ${devotional.reflection}`, txt);
   const renderStepSurface = (children) => {
     if (isFullscreenCanvas && typeof document !== "undefined") {
       return createPortal(
-        <div className="fixed inset-0 z-[70] bg-white p-3 pt-14 overflow-y-auto">
-          {children}
+        <div className="fixed inset-0 z-[70] bg-white overflow-y-auto">
+          <div className="sticky top-0 z-[75] bg-white/95 backdrop-blur border-b border-slate-200 px-3 py-2.5 flex items-center justify-between">
+            <div className="text-[11px] font-black uppercase tracking-widest text-slate-500">Fullscreen editor</div>
+            <button
+              type="button"
+              onClick={() => setCanvasFullscreen(false)}
+              className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-600"
+            >
+              Exit full
+            </button>
+          </div>
+          <div className="p-3">
+            {children}
+          </div>
         </div>,
         document.body
       );
