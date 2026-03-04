@@ -2444,6 +2444,12 @@ ${devotional.reflection}`, txt);
     return <Card>{children}</Card>;
   };
 
+  const agentThread = [
+    { id: 1, text: `I found your verse${devotional.verseRef ? ` (${devotional.verseRef}).` : "."}` },
+    { id: 2, text: "I drafted your reflection. Want it more bold, shorter, or more personal?" },
+    { id: 3, text: "I prepared platform-ready options. Ready to post?" },
+  ];
+
   const createVersionSnapshot = (label = "Manual snapshot") => {
     const snapshot = {
       id: `v_${Date.now()}`,
@@ -2570,9 +2576,8 @@ Current questions: ${devotional.questions || ""}`;
           </div>
         </div>
 
-        {/* Step bubbles */}
-        {!compactMode ? (
-        <div className="grid grid-cols-4 gap-1.5 px-4 pb-3.5 pt-2">
+        {/* Tiny step chips */}
+        <div className="flex items-center gap-1.5 px-4 pb-3 pt-2">
           {onboardingStyleSteps.map((item) => {
             const enabled = canAccessStep(item.stepNum);
             const isActive = item.stepNum === displayStep;
@@ -2584,26 +2589,36 @@ Current questions: ${devotional.questions || ""}`;
                 disabled={!enabled}
                 onClick={() => goToStep(item.stepNum)}
                 className={cn(
-                  "rounded-xl py-2 px-1 text-center transition-all duration-200",
-                  isActive
-                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-200"
-                    : isDone
-                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                      : enabled
-                        ? "bg-slate-50 border border-slate-200 text-slate-600 hover:border-slate-300"
-                        : "bg-slate-50 border border-slate-100 text-slate-300 cursor-not-allowed"
+                  "h-2.5 flex-1 rounded-full transition-all",
+                  isActive ? "bg-emerald-600" : isDone ? "bg-emerald-300" : "bg-slate-200",
+                  !enabled ? "opacity-40 cursor-not-allowed" : ""
                 )}
-              >
-                <div className={cn("text-[9px] font-black uppercase tracking-wider mb-0.5", isActive ? "text-emerald-200" : isDone ? "text-emerald-500" : "text-slate-400")}>
-                  {isDone ? "✓" : `Step ${item.stepNum}`}
-                </div>
-                <div className="text-[11px] font-extrabold leading-tight">{item.title}</div>
-              </button>
+                title={`${item.label} ${item.title}`}
+              />
             );
           })}
         </div>
-        ) : null}
       </div> : null}
+
+      {step >= 2 && !isFullscreenCanvas ? (
+        <Card className="border-emerald-100 bg-emerald-50/40">
+          <div className="space-y-2">
+            <div className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Agent Actions</div>
+            {agentThread.map((item) => (
+              <div key={item.id} className="flex items-start gap-2">
+                <div className={cn("mt-1 w-2 h-2 rounded-full", displayStep >= item.id + 1 ? "bg-emerald-500" : "bg-slate-300")} />
+                <div className="text-xs text-slate-700 font-medium">{item.text}</div>
+              </div>
+            ))}
+            <div className="flex flex-wrap gap-2 pt-1">
+              <SmallButton onClick={() => goToStep(2)}>Write</SmallButton>
+              <SmallButton onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey}>Draft</SmallButton>
+              <SmallButton onClick={() => void doLength("shorten")} disabled={busy}>Shorter</SmallButton>
+              <SmallButton onClick={() => goToStep(4)} disabled={!heartReady}>Ready to Post</SmallButton>
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {step === 1 ? (() => {
         const isVotd = (devotional.scriptureSource || "verse_of_day") === "verse_of_day";
