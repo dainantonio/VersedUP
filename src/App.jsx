@@ -2129,6 +2129,8 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [showTikTokScriptModal, setShowTikTokScriptModal] = useState(false);
   const [showTikTokExportModal, setShowTikTokExportModal] = useState(false);
   const [showOcrModal, setShowOcrModal] = useState(false);
+  const [focusMode, setFocusMode] = useState(() => (typeof window !== "undefined" ? window.innerWidth < 768 : false));
+  const [showMoreTools, setShowMoreTools] = useState(false);
 
   const igCardRef = useRef(null);
   const autoFetchTimer = useRef(null);
@@ -2167,6 +2169,10 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   useEffect(() => {
     setPostText(compileForPlatform(platform, devotional, settings));
   }, [platform, devotional, settings]);
+
+  useEffect(() => {
+    if (step < 2 || step > 4) setShowMoreTools(false);
+  }, [step]);
 
 
   useEffect(() => {
@@ -2372,8 +2378,10 @@ ${devotional.reflection}`, txt);
     if (canAccessStep(nextStep)) setStep(nextStep);
   };
 
+  const isFocusStep = focusMode && step >= 2 && step <= 4;
+
   return (
-    <div className="space-y-3 pb-20 animate-enter relative">
+    <div className={cn("space-y-3 animate-enter relative", isFocusStep ? "pb-36" : "pb-20")}>
       {ttOverlay ? (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
@@ -2385,9 +2393,9 @@ ${devotional.reflection}`, txt);
       ) : null}
 
       {/* ── Step Progress Header ── */}
-      <div className="rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden">
+      <div className={cn("rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden", isFocusStep ? "py-2" : "") }>
         {/* Top row: back + step label */}
-        <div className="flex items-center gap-3 px-4 pt-3.5 pb-1">
+        <div className={cn("flex items-center gap-3 px-4", isFocusStep ? "py-1" : "pt-3.5 pb-1")}>
           <button
             type="button"
             onClick={() => (step === 1 ? onGoCompile() : setStep((s) => Math.max(1, s - 1)))}
@@ -2399,17 +2407,28 @@ ${devotional.reflection}`, txt);
           </button>
           <div className="flex-1 text-center">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Step {displayStep} of 4</span>
-            <span className="mx-2 text-slate-200">·</span>
-            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">
-              {onboardingStyleSteps[displayStep - 1]?.title || stepTitles[step - 1]}
-            </span>
+            {!isFocusStep ? <span className="mx-2 text-slate-200">·</span> : null}
+            {!isFocusStep ? (
+              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                {onboardingStyleSteps[displayStep - 1]?.title || stepTitles[step - 1]}
+              </span>
+            ) : null}
           </div>
-          {/* Spacer to balance the back button */}
-          <div className="w-16" />
+          {step >= 2 && step <= 4 ? (
+            <button
+              type="button"
+              onClick={() => setFocusMode((v) => !v)}
+              className="rounded-full border border-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 hover:border-slate-300"
+            >
+              {focusMode ? "Focus off" : "Focus on"}
+            </button>
+          ) : (
+            <div className="w-16" />
+          )}
         </div>
 
         {/* Progress bar — thick, prominent */}
-        <div className="px-4 pb-1">
+        <div className={cn("px-4", isFocusStep ? "pb-0" : "pb-1")}>
           <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
             <div
               className="h-full bg-emerald-500 rounded-full transition-all duration-500 ease-out"
@@ -2419,6 +2438,7 @@ ${devotional.reflection}`, txt);
         </div>
 
         {/* Step bubbles */}
+        {!isFocusStep ? (
         <div className="grid grid-cols-4 gap-1.5 px-4 pb-3.5 pt-2">
           {onboardingStyleSteps.map((item) => {
             const enabled = canAccessStep(item.stepNum);
@@ -2449,6 +2469,7 @@ ${devotional.reflection}`, txt);
             );
           })}
         </div>
+        ) : null}
       </div>
 
       {step === 1 ? (() => {
@@ -2585,6 +2606,7 @@ ${devotional.reflection}`, txt);
         <Card>
           <div className="space-y-4">
             {/* Heading + mood row */}
+            {!isFocusStep ? (
             <div className="flex items-start justify-between gap-3">
               <div className="text-2xl font-black text-slate-900 leading-tight">Write your reflection</div>
               {devotional.mood ? (
@@ -2593,12 +2615,15 @@ ${devotional.reflection}`, txt);
                 </span>
               ) : null}
             </div>
+            ) : (
+              <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Step 2 · Focus canvas</div>
+            )}
 
             {/* Verse reminder — collapsed pill so user never loses their scripture */}
-            <VersePill verseRef={devotional.verseRef || verseOfDay.verseRef} verseText={devotional.verseText || (devotional.scriptureSource !== "your_verse" ? verseOfDay.verseText : "")} />
+            {!isFocusStep ? <VersePill verseRef={devotional.verseRef || verseOfDay.verseRef} verseText={devotional.verseText || (devotional.scriptureSource !== "your_verse" ? verseOfDay.verseText : "")} /> : null}
 
             {/* Guided writing prompt — only shows when mood is set */}
-            {devotional.mood ? (
+            {devotional.mood && !isFocusStep ? (
               <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-800 font-medium italic animate-enter">
                 💭 {moodPrompt[devotional.mood] || "What is God showing you in this verse?"}
               </div>
@@ -2623,7 +2648,7 @@ ${devotional.reflection}`, txt);
               </div>
 
               {/* Undo / Redo */}
-              <div className="flex items-center gap-2 mb-2">
+              {!isFocusStep ? <div className="flex items-center gap-2 mb-2">
                 <button type="button" onClick={doUndo} disabled={!canUndo || busy}
                   className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
                   <Undo2 className="w-3.5 h-3.5" /> Undo
@@ -2632,7 +2657,7 @@ ${devotional.reflection}`, txt);
                   className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
                   <Redo2 className="w-3.5 h-3.5" /> Redo
                 </button>
-              </div>
+              </div> : null}
 
               {/* Textarea */}
               <textarea
@@ -2658,17 +2683,29 @@ ${devotional.reflection}`, txt);
               <div className="text-right text-[11px] text-slate-400 mt-1">
                 {String(contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions || "").trim().split(/\s+/).filter(Boolean).length} words
               </div>
+              {isFocusStep ? (
+                <div className="text-[11px] font-bold text-slate-500 mt-1">
+                  {count}/{limit} characters
+                </div>
+              ) : null}
             </div>
 
+            {isFocusStep ? (
+              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 disabled:opacity-50">
+                <Sparkles className="w-3.5 h-3.5" /> AI Draft
+              </button>
+            ) : null}
+
             {/* CTA — clear next step name */}
-            <button
+            {!isFocusStep ? <button
               type="button"
               onClick={() => goToStep(3)}
               className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold flex items-center justify-center gap-2"
             >
               <Sparkles className="w-4 h-4" />
               Polish &amp; Preview
-            </button>
+            </button> : null}
             {!heartReady ? (
               <div className="text-xs text-center text-slate-400 -mt-2">Add a reflection, prayer, or question to continue.</div>
             ) : null}
@@ -2680,6 +2717,7 @@ ${devotional.reflection}`, txt);
         <Card>
           <div className="space-y-4">
             {/* Heading — clearly different from Step 2, shows mood context */}
+            {!isFocusStep ? (
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-2xl font-black text-slate-900">Polish your writing</div>
@@ -2691,14 +2729,17 @@ ${devotional.reflection}`, txt);
                 </span>
               ) : null}
             </div>
+            ) : (
+              <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Step 3 · Focus canvas</div>
+            )}
 
             {/* Optional title */}
-            <input
+            {!isFocusStep ? <input
               value={devotional.title}
               onChange={(e) => onUpdate({ title: e.target.value })}
               placeholder="Give it a title (optional)"
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-lg font-serif-scripture font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
-            />
+            /> : null}
 
             {/* Tabs ABOVE textarea */}
             <div>
@@ -2719,7 +2760,7 @@ ${devotional.reflection}`, txt);
               </div>
 
               {/* Undo / Redo */}
-              <div className="flex items-center gap-2 mb-2">
+              {!isFocusStep ? <div className="flex items-center gap-2 mb-2">
                 <button type="button" onClick={doUndo} disabled={!canUndo || busy}
                   className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
                   <Undo2 className="w-3.5 h-3.5" /> Undo
@@ -2728,10 +2769,10 @@ ${devotional.reflection}`, txt);
                   className="flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500 disabled:opacity-30 hover:border-slate-400 hover:text-slate-700 transition-all">
                   <Redo2 className="w-3.5 h-3.5" /> Redo
                 </button>
-              </div>
+              </div> : null}
 
               {/* AI toolbar */}
-              <div className="flex flex-wrap gap-2 mb-3">
+              {!isFocusStep ? <div className="flex flex-wrap gap-2 mb-3">
                 <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey}
                   className="flex items-center gap-1.5 rounded-full bg-emerald-600 text-white px-3 py-1.5 text-xs font-extrabold disabled:opacity-40 hover:bg-emerald-700 transition-all tool-spring">
                   <Sparkles className="w-3.5 h-3.5" /> AI Draft
@@ -2761,13 +2802,20 @@ ${devotional.reflection}`, txt);
                     </div>
                   ) : null}
                 </div>
-              </div>
+              </div> : null}
+
+              {isFocusStep ? (
+                <button onClick={() => void doLength("lengthen")} disabled={busy}
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 disabled:opacity-50">
+                  <ArrowDownToLine className="w-3.5 h-3.5" /> Lengthen (safe)
+                </button>
+              ) : null}
 
               {/* Verse context pill */}
-              <VersePill verseRef={devotional.verseRef || verseOfDay.verseRef} verseText={devotional.verseText || (devotional.scriptureSource !== "your_verse" ? verseOfDay.verseText : "")} />
+              {!isFocusStep ? <VersePill verseRef={devotional.verseRef || verseOfDay.verseRef} verseText={devotional.verseText || (devotional.scriptureSource !== "your_verse" ? verseOfDay.verseText : "")} /> : null}
 
               {/* Empty state guidance */}
-              {!devotional.reflection && !devotional.prayer && !devotional.questions && contentTab === "reflection" ? (
+              {!isFocusStep && !devotional.reflection && !devotional.prayer && !devotional.questions && contentTab === "reflection" ? (
                 <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-700 font-medium animate-enter">
                   💡 No reflection yet — go back to Step 2 to write, or use <strong>AI Draft</strong> above to generate a starting point.
                 </div>
@@ -2805,7 +2853,7 @@ ${devotional.reflection}`, txt);
             </div>
 
             {/* Platform selector — clearly labeled, prominent */}
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-2">
+            {!isFocusStep ? <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-2">
               <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Where are you posting?</div>
               <div className="flex flex-wrap gap-2">
                 {(settings.myPlatforms && settings.myPlatforms.length ? settings.myPlatforms : ["tiktok","instagram","twitter","facebook","email"]).map((p) => {
@@ -2820,13 +2868,13 @@ ${devotional.reflection}`, txt);
                   );
                 })}
               </div>
-            </div>
+            </div> : null}
 
             {/* Preview & Post CTA */}
-            <button type="button" onClick={() => goToStep(4)} disabled={!heartReady}
+            {!isFocusStep ? <button type="button" onClick={() => goToStep(4)} disabled={!heartReady}
               className="w-full rounded-2xl bg-slate-900 text-white py-3.5 font-extrabold disabled:opacity-40 flex items-center justify-center gap-2">
               <Eye className="w-4 h-4" /> Preview &amp; Post
-            </button>
+            </button> : null}
           </div>
         </Card>
       ) : null}
@@ -2835,18 +2883,18 @@ ${devotional.reflection}`, txt);
         <Card>
           <div className="space-y-4">
             {/* Step 4 heading */}
-            <div className="flex items-center justify-between">
+            {!isFocusStep ? <div className="flex items-center justify-between">
               <div>
                 <div className="text-2xl font-black text-slate-900">Ready to post</div>
                 <div className="text-sm text-slate-500 mt-0.5 font-medium">Review your caption, then share.</div>
               </div>
-            </div>
+            </div> : <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Step 4 · Focus canvas</div>}
 
             {/* Verse reminder */}
-            <VersePill verseRef={devotional.verseRef || verseOfDay.verseRef} verseText={devotional.verseText || (devotional.scriptureSource !== "your_verse" ? verseOfDay.verseText : "")} />
+            {!isFocusStep ? <VersePill verseRef={devotional.verseRef || verseOfDay.verseRef} verseText={devotional.verseText || (devotional.scriptureSource !== "your_verse" ? verseOfDay.verseText : "")} /> : null}
 
             {/* Platform confirmation — shows what was chosen in Step 3, collapsible change */}
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+            {!isFocusStep ? <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Posting to</div>
@@ -2877,9 +2925,9 @@ ${devotional.reflection}`, txt);
                   ))}
                 </div>
               ) : null}
-            </div>
+            </div> : null}
 
-            {platform === "tiktok" ? (
+            {!isFocusStep && platform === "tiktok" ? (
               <div className="space-y-2">
                 <div className="text-xs font-bold text-emerald-700 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">✓ Caption will be copied to clipboard when TikTok opens.</div>
                 {/* TikTok power tools — script + visual export */}
@@ -2913,7 +2961,7 @@ ${devotional.reflection}`, txt);
               <div className="text-xs mt-1 text-slate-500">{postText.length} / {limit}</div>
             </div>
 
-            {platform === "instagram" ? (
+            {!isFocusStep && platform === "instagram" ? (
               <div className="space-y-2">
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setIgMode("caption")} className={cn("rounded-full px-3 py-1 text-xs font-bold border", igMode==="caption"?"bg-slate-900 text-white border-slate-900":"border-slate-200 text-slate-600")}>Text caption</button>
@@ -2932,7 +2980,7 @@ ${devotional.reflection}`, txt);
               </div>
             ) : null}
 
-            <div className="sticky bottom-20 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-3 shadow space-y-2">
+            {!isFocusStep ? <div className="sticky bottom-20 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-3 shadow space-y-2">
               {sharedConfirm ? (
                 /* Post-share confirmation state */
                 <>
@@ -2977,10 +3025,113 @@ ${devotional.reflection}`, txt);
                   <SmallButton onClick={() => { onUpdate({ status: "posted", reviewed: true }); pushToast("Another seed planted 🌱"); }} className="w-full">Already posted? Mark it ✓</SmallButton>
                 </>
               )}
-            </div>
+            </div> : null}
           </div>
         </Card>
       ) : null}
+
+      {isFocusStep ? (
+        <div className="fixed bottom-4 left-1/2 z-30 w-[min(680px,calc(100%-1rem))] -translate-x-1/2 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur p-2.5 shadow-xl">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowMoreTools(true)}
+              className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-extrabold text-slate-600"
+            >
+              More tools
+            </button>
+            <div className="flex-1" />
+            {step === 2 ? (
+              <button
+                type="button"
+                onClick={() => goToStep(3)}
+                disabled={!heartReady}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-extrabold text-white disabled:opacity-40"
+              >
+                Polish & Preview
+              </button>
+            ) : null}
+            {step === 3 ? (
+              <button
+                type="button"
+                onClick={() => goToStep(4)}
+                disabled={!heartReady}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-extrabold text-white disabled:opacity-40"
+              >
+                Preview & Post
+              </button>
+            ) : null}
+            {step === 4 ? (
+              <button
+                type="button"
+                onClick={() => void copyAndOpen()}
+                className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-extrabold text-white"
+              >
+                Copy & Open
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {isFocusStep && showMoreTools ? (
+        <div className="fixed inset-0 z-40 bg-black/40 flex items-end" onClick={() => setShowMoreTools(false)}>
+          <div className="w-full rounded-t-3xl bg-white p-4 max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-black text-slate-900">More tools</div>
+              <button type="button" onClick={() => setShowMoreTools(false)} className="rounded-full border border-slate-200 p-1.5"><X className="w-4 h-4" /></button>
+            </div>
+            {step === 2 ? (
+              <div className="space-y-3">
+                <VersePill verseRef={devotional.verseRef || verseOfDay.verseRef} verseText={devotional.verseText || (devotional.scriptureSource !== "your_verse" ? verseOfDay.verseText : "")} />
+                <div className="flex gap-2">
+                  <SmallButton onClick={doUndo} disabled={!canUndo || busy}>Undo</SmallButton>
+                  <SmallButton onClick={doRedo} disabled={!canRedo || busy}>Redo</SmallButton>
+                </div>
+              </div>
+            ) : null}
+            {step === 3 ? (
+              <div className="space-y-3">
+                <input
+                  value={devotional.title}
+                  onChange={(e) => onUpdate({ title: e.target.value })}
+                  placeholder="Give it a title (optional)"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:ring-4 focus:ring-emerald-100"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <SmallButton onClick={() => void doFix()} disabled={busy}>Fix Grammar</SmallButton>
+                  <SmallButton onClick={() => void doLength("shorten")} disabled={busy}>Shorten</SmallButton>
+                  <SmallButton onClick={() => void doLength("lengthen")} disabled={busy}>Lengthen (safe)</SmallButton>
+                  <SmallButton onClick={() => setToneMenuOpen((o) => !o)}>Tone</SmallButton>
+                </div>
+              </div>
+            ) : null}
+            {step === 4 ? (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: "tiktok", label: "TikTok", Icon: TikTokIcon },
+                    { id: "instagram", label: "Instagram", Icon: InstagramIcon },
+                    { id: "twitter", label: "X", Icon: XIcon },
+                    { id: "facebook", label: "Facebook", Icon: FacebookIcon },
+                    { id: "email", label: "Email", Icon: EmailIcon },
+                  ].map(({ id, label, Icon }) => (
+                    <button key={id} type="button" onClick={() => setPlatform(id)}
+                      className={cn("shrink-0 rounded-full px-3 py-1.5 text-xs font-extrabold border flex items-center gap-1.5 transition-all", platform === id ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600") }>
+                      <Icon className="w-3.5 h-3.5" />{label}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <SmallButton onClick={() => { const s=encodeURIComponent(devotional.title||devotional.verseRef||"Encouragement"); window.location.href=`mailto:?subject=${s}&body=${encodeURIComponent(postText)}`; }}>Email Draft</SmallButton>
+                  <SmallButton onClick={() => { window.location.href=`sms:?&body=${encodeURIComponent(postText)}`; }}>Text Draft</SmallButton>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       {/* OCR Scan Modal */}
       {showOcrModal ? (
         <OcrScanModal
