@@ -1469,62 +1469,19 @@ function buildImagePrompt(verseRef, verseText) {
   return "a breathtaking sunrise over rolling hills and ancient trees, spiritual light, cinematic nature photography, peaceful and hopeful";
 }
 
-function DailyInspirationSection() {
-  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
-  const todayVerse = getVerseOfDay();
-  const prompt = getDailyReflectionPrompt(todayVerse.verseRef, todayVerse.verseText);
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div className="animate-enter space-y-3">
-      <div className="flex items-center gap-2 px-1">
-        <div className="flex-1 h-px bg-slate-100" />
-        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">Today's Reflection</span>
-        <div className="flex-1 h-px bg-slate-100" />
-      </div>
-
-      {/* Daily Reflection Prompt */}
-      <div className="bg-white rounded-[1.5rem] border border-slate-100 shadow-sm overflow-hidden">
-        <div className="px-5 pt-5 pb-5">
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center flex-shrink-0">
-              <span className="text-base">💭</span>
-            </div>
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-widest text-amber-500">Reflect Today</div>
-              <div className="text-[11px] text-slate-400 font-medium">Tied to today's verse</div>
-            </div>
-          </div>
-
-          <p className={cn("text-sm font-semibold text-slate-800 leading-relaxed", !expanded ? "line-clamp-3" : "")}>
-            {prompt}
-          </p>
-
-          {prompt.length > 120 ? (
-            <button type="button" onClick={() => setExpanded(!expanded)}
-              className="mt-2 text-[11px] font-bold text-amber-500 hover:text-amber-600">
-              {expanded ? "Show less" : "Read more"}
-            </button>
-          ) : null}
-
-          <div className="mt-4 pt-3 border-t border-slate-50 text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-            Refreshes daily · {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, hasActive, streak, displayName, devotionals, onOpen, onOpenReadyToPost, showInstallBanner, onInstall, onDismissInstall }) {
   const { pushToast } = useToast();
-  const [moodVerseKey, setMoodVerseKey] = useState("joy");
-  const moodVerse = MOOD_VERSES[moodVerseKey] || MOOD_VERSES.joy;
+  useEffect(() => {
+    const today = todayKey(new Date());
+    if (localStorage.getItem(STORAGE_HOME_STREAK_TOAST_DAY) === today) return;
+    localStorage.setItem(STORAGE_HOME_STREAK_TOAST_DAY, today);
+    if (streak?.count > 0) {
+      pushToast(`🔥 ${streak.count}-day streak — welcome back.`);
+    }
+  }, [streak?.count, pushToast]);
 
-  const handleSelectMoodVerse = (key) => {
-    setMoodVerseKey(key);
-    const label = (MOOD_VERSES[key] || {}).label || "Verse";
-    pushToast(`${label} verse ready.`);
-  };
+  const todayVerse = getVerseOfDay();
+  const dailyPrompt = getDailyReflectionPrompt(todayVerse.verseRef, todayVerse.verseText);
 
   useEffect(() => {
     const today = todayKey(new Date());
@@ -1591,8 +1548,8 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
           <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
           <span className="text-[10px] font-black uppercase tracking-widest text-emerald-200">Verse of the Day</span>
         </div>
-        <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${getVerseOfDay().verseText}"`}</div>
-        <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{getVerseOfDay().verseRef.toUpperCase()}</div>
+        <div className="text-xl leading-relaxed font-serif-scripture relative z-10">{`"${todayVerse.verseText}"`}</div>
+        <div className="mt-3 text-[10px] font-black tracking-widest opacity-70 relative z-10">{todayVerse.verseRef.toUpperCase()}</div>
         <RippleButton onClick={onReflectVerseOfDay} className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md btn-spring flex items-center gap-2 border border-white/10 relative z-10">
           Reflect on this
         </RippleButton>
@@ -1643,29 +1600,6 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
         </div>
       </Card>
 
-      <div className="rounded-[1.5rem] border border-emerald-100 bg-white p-4 shadow-sm space-y-3">
-        <div className="text-[10px] font-black uppercase tracking-widest text-emerald-500">How's your heart?</div>
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          {Object.entries(MOOD_VERSES).map(([k, mv]) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => handleSelectMoodVerse(k)}
-              className={cn(
-                "shrink-0 rounded-full border px-3 py-1.5 text-xs font-extrabold chip-spring",
-                moodVerseKey === k ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-600 border-slate-200"
-              )}
-            >
-              {mv.label}
-            </button>
-          ))}
-        </div>
-        <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
-          <div className="text-xs font-black text-emerald-700">{moodVerse.verseRef}</div>
-          <div className="mt-1 text-sm text-slate-700 font-serif-scripture">{moodVerse.verseText}</div>
-        </div>
-      </div>
-
       {devotionals.length > 0 ? (() => {
         const last = devotionals[devotionals.length - 1];
         const preview = (last.reflection || last.aiDraft || "").slice(0, 120).trim();
@@ -1709,8 +1643,11 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
           <div className="mt-2 text-xs font-bold text-sky-700">Tap the Write button below to start with your own scripture.</div>
         </div>
       )}
-      {/* ── Daily Reflection Prompt + Scripture Image Card ── */}
-      <DailyInspirationSection />
+      <div className="rounded-[1.5rem] border border-amber-100 bg-amber-50/60 p-4 shadow-sm">
+        <div className="text-[10px] font-black uppercase tracking-widest text-amber-600">Reflect today</div>
+        <div className="mt-2 text-sm font-semibold text-slate-800 leading-relaxed line-clamp-2">{dailyPrompt}</div>
+        <button type="button" onClick={onReflectVerseOfDay} className="mt-3 rounded-xl bg-white border border-amber-200 px-3 py-2 text-xs font-extrabold text-amber-700">Open guided reflection</button>
+      </div>
 
     </div>
   );
