@@ -444,6 +444,7 @@ const STORAGE_SESSION = `${APP_ID}_session`;
 const STORAGE_VIEW = `${APP_ID}_view`;
 const STORAGE_ACTIVE_ID = `${APP_ID}_active_id`;
 const STORAGE_WRITE_FULLSCREEN_PREF = `${APP_ID}_write_fullscreen_pref`;
+const STORAGE_HOME_STREAK_TOAST_DAY = `${APP_ID}_home_streak_toast_day`;
 
 const PLATFORM_LIMITS = {
   tiktok: 2200,
@@ -1429,15 +1430,6 @@ function bumpStreakOnSave() {
 
 /* ---------------- Views ---------------- */
 
-function StreakCounter({ target }) {
-  const val = useCountUp(target, 900);
-  return (
-    <div className="text-5xl font-black text-slate-900 tabular-nums leading-none transition-all">
-      {val}
-    </div>
-  );
-}
-
 /* ── Daily Inspiration: AI Image + Reflection Prompt ── */
 
 function getDailyReflectionPrompt(verseRef, verseText) {
@@ -1524,7 +1516,6 @@ function DailyInspirationSection() {
 }
 
 function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, hasActive, streak, displayName, devotionals, onOpen, onOpenReadyToPost, showInstallBanner, onInstall, onDismissInstall }) {
-  const [streakInfoOpen, setStreakInfoOpen] = useState(false);
   const { pushToast } = useToast();
   const [moodVerseKey, setMoodVerseKey] = useState("joy");
   const moodVerse = MOOD_VERSES[moodVerseKey] || MOOD_VERSES.joy;
@@ -1534,6 +1525,15 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
     const label = (MOOD_VERSES[key] || {}).label || "Verse";
     pushToast(`${label} verse ready.`);
   };
+
+  useEffect(() => {
+    const today = getDayKey(new Date());
+    if (localStorage.getItem(STORAGE_HOME_STREAK_TOAST_DAY) === today) return;
+    localStorage.setItem(STORAGE_HOME_STREAK_TOAST_DAY, today);
+    if (streak?.count > 0) {
+      pushToast(`🔥 ${streak.count}-day streak — welcome back.`);
+    }
+  }, [streak?.count, pushToast]);
 
   // Most recently edited entry (not just last in array)
   const latest = devotionals.length > 0
@@ -1549,20 +1549,20 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
       tone: "bg-emerald-50 border-emerald-200 text-emerald-800",
       text: "🟢 Ready to post",
       subtext: "Your latest entry is in strong shape. Open preview and share.",
-      ctaLabel: "Open ready-to-post draft"
+      ctaLabel: "Continue"
     }
     : latest
       ? {
         tone: "bg-amber-50 border-amber-200 text-amber-800",
         text: "🟡 In progress",
         subtext: "Pick up where you left off with your most recent draft.",
-        ctaLabel: "Resume latest draft"
+        ctaLabel: "Continue"
       }
       : {
         tone: "bg-sky-50 border-sky-200 text-sky-800",
         text: "🔵 Fresh start",
         subtext: "Start from scratch or use today's verse to get moving fast.",
-        ctaLabel: "Start writing now"
+        ctaLabel: "Start"
       };
 
   return (
@@ -1629,72 +1629,8 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
         </div>
       </Card>
 
-      <div className="bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 overflow-hidden relative scroll-card">
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/60 via-transparent to-sky-50/20 pointer-events-none" />
-        <div className="relative space-y-4">
-          {/* Streak row — tappable for explanation */}
-          <button
-            type="button"
-            onClick={() => setStreakInfoOpen(true)}
-            className="flex items-center gap-3 w-full text-left group"
-          >
-            <StreakCounter target={streak.count} />
-            <div className="relative w-8 h-8 flex-shrink-0">
-              <Flame className="w-8 h-8 text-orange-500 drop-shadow-sm animate-pulse-slow absolute inset-0" fill="currentColor" />
-              <Flame className="w-8 h-8 text-yellow-400 absolute inset-0 mix-blend-overlay" fill="currentColor" />
-            </div>
-            <div className="flex flex-col justify-center flex-1 min-w-0">
-              <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">Day Streak</div>
-              <div className="text-[11px] text-slate-500 font-medium leading-tight mt-0.5">
-                {streak.count > 0 ? `${streak.count} day${streak.count === 1 ? "" : "s"} in a row` : "Start your first day"}
-              </div>
-            </div>
-            <span className="text-slate-300 text-xs group-hover:text-slate-400 transition-colors shrink-0">ⓘ</span>
-          </button>
-
-          {/* Streak info sheet */}
-          {streakInfoOpen ? (
-            <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-end justify-center p-4" onClick={() => setStreakInfoOpen(false)}>
-              <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl space-y-4 animate-enter" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center gap-3">
-                  <div className="relative w-10 h-10 flex-shrink-0">
-                    <Flame className="w-10 h-10 text-orange-500 absolute inset-0" fill="currentColor" />
-                    <Flame className="w-10 h-10 text-yellow-400 absolute inset-0 mix-blend-overlay" fill="currentColor" />
-                  </div>
-                  <div>
-                    <div className="text-xl font-black text-slate-900">{streak.count}-Day Streak</div>
-                    <div className="text-sm text-slate-500 font-medium">Daily devotional consistency</div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 text-sm text-slate-600 leading-relaxed">
-                  <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4 space-y-2">
-                    <div className="font-extrabold text-slate-800 text-[13px]">How it works</div>
-                    <div>✍️ <strong>Write or save</strong> any devotional entry to count today.</div>
-                    <div>🔥 <strong>Consecutive days</strong> keep your streak alive — even a short reflection counts.</div>
-                    <div>💤 <strong>Miss a day?</strong> Your streak resets to 1, but your entries are never lost.</div>
-                  </div>
-                  <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-4">
-                    <div className="font-extrabold text-emerald-800 text-[13px] mb-1">A word of grace</div>
-                    <div className="text-emerald-700 italic">"His mercies are new every morning." A missed day is a fresh start, not a failure. Come back — He's here.</div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setStreakInfoOpen(false)}
-                  className="w-full rounded-2xl bg-slate-900 text-white py-3.5 font-extrabold"
-                >
-                  Got it
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="rounded-xl border border-slate-200 bg-white/70 px-3 py-2">
-            <div className="text-[11px] font-bold text-slate-500">Tip: keep your streak alive with even a short reflection.</div>
-          </div>
-        </div>
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="text-[11px] font-bold text-slate-600">Small progress counts. Save even a short reflection to keep momentum today.</div>
       </div>
 
       <div className="rounded-[1.5rem] border border-emerald-100 bg-white p-4 shadow-sm space-y-3">
