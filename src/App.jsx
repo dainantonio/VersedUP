@@ -2448,6 +2448,14 @@ Mood: ${devotional.mood || "hopeful"}`);
     onUpdate({ versionHistory: [snapshot, ...history].slice(0, 25) });
   };
 
+  const stepTwoReadyNudgeRef = useRef("");
+  useEffect(() => {
+    if (step !== 2 || !heartReady) return;
+    if (stepTwoReadyNudgeRef.current === devotional.id) return;
+    stepTwoReadyNudgeRef.current = devotional.id;
+    pushToast("Great progress — you can jump straight to Post It now.", 1400);
+  }, [step, heartReady, devotional.id, pushToast]);
+
   const runAgentAssist = async () => {
     setAgentBusy(true);
     try {
@@ -2512,8 +2520,10 @@ Mood: ${devotional.mood || "hopeful"}`);
       if (repairedCount > 0) pushToast(`Agent fixed ${repairedCount} issue${repairedCount === 1 ? "" : "s"} automatically.`);
       pushToast(`Ready to post for ${targets.join(" + ")}.`);
       if (!targets.includes("email")) pushToast("I can also format this for email if you want.");
+      return true;
     } catch (e) {
       pushToast(e?.message || "Agent assist failed.");
+      return false;
     } finally {
       setAgentBusy(false);
     }
@@ -2832,14 +2842,55 @@ Mood: ${devotional.mood || "hopeful"}`);
               </button>
             ) : null}
 
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-2">
+              <div className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Agent Orchestrator</div>
+              <div className="text-xs text-emerald-800 font-medium">One tap: draft polish + validate + prep for posting.</div>
+              <button
+                type="button"
+                onClick={async () => {
+                  const ok = await runAgentAssist();
+                  if (ok) goToStep(4);
+                }}
+                disabled={busy || agentBusy || !verseReady}
+                className="w-full rounded-xl bg-emerald-600 text-white py-2.5 text-xs font-extrabold disabled:opacity-50"
+              >
+                {agentBusy ? "Preparing…" : "Prepare and jump to Post It"}
+              </button>
+            </div>
+
+            {compactMode && !isFullscreenCanvas ? (
+              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey}
+                className="w-full rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 disabled:opacity-50">
+                Draft
+              </button>
+            ) : null}
+
+            {contentTab === "reflection" ? (
+              <button type="button" onClick={() => void doAgentStarterLine()} disabled={busy}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 disabled:opacity-50">
+                Start reflection with AI
+              </button>
+            ) : null}
+
             {/* CTA — clear next step name */}
-            {!compactMode ? <button
-              type="button"
-              onClick={() => goToStep(3)}
-              className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold"
-            >
-              Continue
-            </button> : null}
+            {!compactMode ? <div className="grid grid-cols-1 gap-2">
+              <button
+                type="button"
+                onClick={() => goToStep(3)}
+                className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold"
+              >
+                Continue
+              </button>
+              {heartReady ? (
+                <button
+                  type="button"
+                  onClick={() => goToStep(4)}
+                  className="w-full rounded-2xl border border-slate-200 bg-white py-3 text-xs font-extrabold text-slate-700"
+                >
+                  Skip ahead to Post It
+                </button>
+              ) : null}
+            </div> : null}
             {!heartReady ? (
               <div className="text-xs text-center text-slate-400 -mt-2">Add a reflection, prayer, or question to continue.</div>
             ) : null}
