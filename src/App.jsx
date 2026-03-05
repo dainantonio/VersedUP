@@ -2064,6 +2064,17 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   }, [step, stepStorageKey]);
 
   useEffect(() => {
+    const onStepNav = (event) => {
+      const detail = event?.detail || {};
+      if (detail.id !== devotional.id) return;
+      const nextStep = Number(detail.step || 0);
+      if ([1, 2, 3, 4].includes(nextStep)) setStep(nextStep);
+    };
+    window.addEventListener("versed:navigate-step", onStepNav);
+    return () => window.removeEventListener("versed:navigate-step", onStepNav);
+  }, [devotional.id]);
+
+  useEffect(() => {
     onSaved();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [devotional.verseRef, devotional.verseText, devotional.title, devotional.reflection, devotional.prayer, devotional.questions, devotional.tiktokScript, devotional.mood]);
@@ -5344,6 +5355,18 @@ function AppInner({ session, starterMood, onLogout }) {
         return;
       }
 
+      if (view === "write" && active) {
+        const stepKey = `${APP_ID}_wizard_step_${active.id}`;
+        const currentStep = Number(localStorage.getItem(stepKey) || "1");
+        if (currentStep > 1) {
+          const nextStep = currentStep - 1;
+          localStorage.setItem(stepKey, String(nextStep));
+          window.dispatchEvent(new CustomEvent("versed:navigate-step", { detail: { id: active.id, step: nextStep } }));
+          window.history.pushState({ __versed: true, view: "write", fullscreen: false }, "");
+          return;
+        }
+      }
+
       if (view !== "home") {
         setView(view === "settings" ? (lastNonSettingsView || "home") : "home");
         return;
@@ -5359,7 +5382,7 @@ function AppInner({ session, starterMood, onLogout }) {
 
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [view, writeFullscreenActive, lastNonSettingsView]);
+  }, [view, writeFullscreenActive, lastNonSettingsView, active]);
 
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
