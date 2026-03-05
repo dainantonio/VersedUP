@@ -2858,6 +2858,20 @@ Mood: ${devotional.mood || "hopeful"}`);
               </button>
             </div>
 
+            {compactMode && !isFullscreenCanvas ? (
+              <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey}
+                className="w-full rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 disabled:opacity-50">
+                Draft
+              </button>
+            ) : null}
+
+            {contentTab === "reflection" ? (
+              <button type="button" onClick={() => void doAgentStarterLine()} disabled={busy}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 disabled:opacity-50">
+                Start reflection with AI
+              </button>
+            ) : null}
+
             {/* CTA — clear next step name */}
             {!compactMode ? <div className="grid grid-cols-1 gap-2">
               <button
