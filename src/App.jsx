@@ -1496,21 +1496,18 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
     ? {
       tone: "bg-emerald-50 border-emerald-200 text-emerald-800",
       text: "🟢 Ready to post",
-      subtext: "Your latest entry is in strong shape. Open preview and share.",
-      ctaLabel: "Continue"
+      subtext: "Your latest entry is in strong shape. Open preview and share."
     }
     : latest
       ? {
         tone: "bg-amber-50 border-amber-200 text-amber-800",
         text: "🟡 In progress",
-        subtext: "Pick up where you left off with your most recent draft.",
-        ctaLabel: "Continue"
+        subtext: "Pick up where you left off with your most recent draft."
       }
       : {
         tone: "bg-sky-50 border-sky-200 text-sky-800",
         text: "🔵 Fresh start",
-        subtext: "Start from scratch or use today's verse to get moving fast.",
-        ctaLabel: "Start"
+        subtext: "Start from scratch or use today's verse to get moving fast."
       };
 
   return (
@@ -1546,48 +1543,32 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
         </RippleButton>
       </div>
 
-      <div className={`rounded-3xl border p-4 space-y-3 ${todaysAction.tone}`}>
+      <Card className={`border p-4 space-y-3 ${todaysAction.tone}`}>
         <div>
           <div className="text-[10px] font-black uppercase tracking-widest opacity-70">Your next step</div>
           <div className="mt-1 text-base font-black">{todaysAction.text}</div>
           <div className="mt-1 text-xs font-semibold opacity-90">{todaysAction.subtext}</div>
         </div>
-        <button
-          type="button"
+        <RippleButton
           onClick={() => {
             if (latestReady) return onOpenReadyToPost(latestReady.id);
             if (latest) return onOpen(latest.id);
             onContinue();
           }}
-          className="w-full rounded-2xl bg-slate-900 text-white py-3 text-xs font-extrabold"
+          className="w-full py-3.5 rounded-2xl bg-slate-900 text-white text-sm font-extrabold btn-spring flex items-center justify-center gap-2"
         >
-          {todaysAction.ctaLabel}
-        </button>
-      </div>
-
-      <Card className="border-slate-100">
-        <div className="space-y-3">
-          <div>
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Guided writing</div>
-            <div className="mt-1 text-sm font-semibold text-slate-700">Start quickly with one tap. Choose your flow and keep your momentum.</div>
-          </div>
-          <RippleButton
-            onClick={hasActive ? onContinue : onNew}
-            className="w-full py-3.5 rounded-2xl bg-emerald-600 text-white text-sm font-extrabold shadow-lg shadow-emerald-200 hover:bg-emerald-700 btn-spring flex items-center justify-center gap-2"
+          <PenTool className="w-4 h-4" />
+          {hasActive ? "Continue Writing" : "Start Today's Devotional"}
+        </RippleButton>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onQuickPost}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-extrabold text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors"
           >
-            <PenTool className="w-4 h-4" />
-            {hasActive ? "Continue Writing" : "Start Today's Devotional"}
-          </RippleButton>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={onQuickPost}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-extrabold text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors"
-            >
-              ⚡ Quick post
-            </button>
-            <button type="button" onClick={onReflectVerseOfDay} className="rounded-xl bg-slate-900 text-white px-3 py-2.5 text-xs font-extrabold">✨ Reflect with agent</button>
-          </div>
+            ⚡ Quick post
+          </button>
+          <button type="button" onClick={onReflectVerseOfDay} className="rounded-xl bg-slate-900 text-white px-3 py-2.5 text-xs font-extrabold">✨ Reflect with agent</button>
         </div>
       </Card>
 
