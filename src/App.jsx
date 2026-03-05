@@ -2141,7 +2141,6 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [workflowMode, setWorkflowMode] = useState("guided");
   const [agentBusy, setAgentBusy] = useState(false);
   const [agentSuggestions, setAgentSuggestions] = useState(null);
-  const [showVersionHistory, setShowVersionHistory] = useState(false);
 
   const igCardRef = useRef(null);
   const autoFetchTimer = useRef(null);
@@ -2497,44 +2496,70 @@ Mood: ${devotional.mood || "hopeful"}`);
     onUpdate({ versionHistory: [snapshot, ...history].slice(0, 25) });
   };
 
-  const applyAgentPatchWithPermission = (patch, label = "Agent update") => {
-    createVersionSnapshot(`Before ${label}`);
-    onUpdate(patch);
-    pushToast("Applied with snapshot saved.");
-  };
-
   const runAgentAssist = async () => {
     setAgentBusy(true);
     try {
-      const goal = `Prepare devotional for ${platform} and twitter, keep within limits, keep tone ${devotional.mood || "balanced"}, include soft CTA.`;
-      const prompt = `You are an assistant helping a Christian user write devotional content.
-User must retain final control. Do NOT assume you can overwrite existing user text.
-Return JSON only with this shape:
-{
-  "plan": ["..."],
-  "proposed": { "reflection": "...", "prayer": "...", "questions": "..." },
-  "variants": { "${platform}": "...", "twitter": "..." },
-  "validation": ["..."]
-}
+      const targets = Array.from(new Set([platform, "twitter"]));
+      const goal = `Publish a devotional to ${targets.join(" + ")} that stays under each limit, matches ${devotional.mood || "hopeful"} tone, and includes a soft CTA.`;
+      const constraints = [
+        "Respect platform character limits.",
+        "Keep scripture context present.",
+        "Include a gentle CTA.",
+      ];
 
-Constraints:
-- Keep proposed reflection <= ${PLATFORM_LIMITS[platform] || 2200} chars.
-- Keep twitter variant <= ${PLATFORM_LIMITS.twitter} chars.
-- Include scripture reference when available.
-- Include a gentle CTA.
+      const draft = await aiGuidedFill(settings, {
+        topicLabel: TOPIC_CHIPS.find((t) => t.id === selectedTopic)?.label || "",
+        verseRef: devotional.verseRef,
+        verseText: devotional.verseText,
+        mood: devotional.mood,
+      });
 
-Goal: ${goal}
-Verse reference: ${devotional.verseRef || "(none)"}
-Verse text: ${devotional.verseText || "(none)"}
-Current reflection: ${devotional.reflection || ""}
-Current prayer: ${devotional.prayer || ""}
-Current questions: ${devotional.questions || ""}`;
+      const working = {
+        ...devotional,
+        title: draft.title || devotional.title,
+        reflection: draft.reflection || devotional.reflection,
+        prayer: draft.prayer || devotional.prayer,
+        questions: draft.questions || devotional.questions,
+      };
 
-      const raw = await ai(settings, prompt);
-      const cleaned = String(raw || "").replace(/```json/gi, "").replace(/```/g, "").trim();
-      const parsed = safeParseJson(cleaned, null);
-      if (!parsed) throw new Error("Agent response parse failed.");
-      setAgentSuggestions(parsed);
+      const variants = {};
+      const validations = [];
+      let repairedCount = 0;
+
+      const hasSoftCta = (text) => /(save|share|encourage|pass this on|comment|pray)/i.test(String(text || ""));
+      for (const p of targets) {
+        const lim = PLATFORM_LIMITS[p] || 999999;
+        let text = compileForPlatform(p, working, settings);
+        if (!text.includes(devotional.verseRef || "") && devotional.verseRef) {
+          text = `${devotional.verseRef}\n\n${text}`.trim();
+          repairedCount += 1;
+        }
+        if (!hasSoftCta(text)) {
+          text = `${text}\n\nIf this encouraged you, save/share it with someone today.`.trim();
+          repairedCount += 1;
+        }
+        if (text.length > lim) {
+          text = trimToCharLimit(text, lim);
+          repairedCount += 1;
+        }
+        variants[p] = text;
+        validations.push(`${p}: ${text.length}/${lim}`);
+      }
+
+      createVersionSnapshot("Before agent mission");
+      onUpdate({
+        title: working.title,
+        reflection: working.reflection,
+        prayer: working.prayer,
+        questions: working.questions,
+        agentVariants: variants,
+      });
+      setPostText(variants[platform] || compileForPlatform(platform, working, settings));
+
+      setAgentSuggestions({ goal, constraints, plan: ["Plan", "Execute", "Validate", "Repair", "Present"], validations, variants, repairedCount });
+      if (repairedCount > 0) pushToast(`Agent fixed ${repairedCount} issue${repairedCount === 1 ? "" : "s"} automatically.`);
+      pushToast(`Ready to post for ${targets.join(" + ")}.`);
+      if (!targets.includes("email")) pushToast("I can also format this for email if you want.");
     } catch (e) {
       pushToast(e?.message || "Agent assist failed.");
     } finally {
@@ -2906,42 +2931,12 @@ Current questions: ${devotional.questions || ""}`;
               </div>
               {workflowMode === "agentic" ? (
                 <div className="space-y-2 animate-enter">
-                  <div className="text-xs text-slate-600 font-medium">Agent prepares options only. Your text is never overwritten unless you approve.</div>
+                  <div className="text-xs text-slate-600 font-medium">One action: agent plans, drafts, validates, repairs, then prepares post-ready output.</div>
                   <button type="button" onClick={() => void runAgentAssist()} disabled={agentBusy}
                     className="w-full rounded-xl bg-emerald-600 text-white py-2 text-xs font-extrabold disabled:opacity-50">
                     {agentBusy ? "Preparing…" : "Generate & prepare to post"}
                   </button>
-                  {agentSuggestions?.plan?.length ? (
-                    <div className="rounded-xl border border-slate-200 bg-white p-2">
-                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Agent plan</div>
-                      <ul className="text-xs text-slate-600 list-disc pl-4 space-y-1">
-                        {agentSuggestions.plan.slice(0, 4).map((item, idx) => <li key={`${item}-${idx}`}>{item}</li>)}
-                      </ul>
-                    </div>
-                  ) : null}
-                  {agentSuggestions?.proposed ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(agentSuggestions.proposed).map(([k, v]) => (
-                        v ? <button key={k} type="button" onClick={() => applyAgentPatchWithPermission({ [k]: String(v) }, `agent ${k}`)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700">Apply {k}</button> : null
-                      ))}
-                    </div>
-                  ) : null}
-                  <button type="button" onClick={() => setShowVersionHistory((v) => !v)} className="text-xs font-bold text-emerald-700 underline">
-                    {showVersionHistory ? "Hide" : "Show"} version history
-                  </button>
-                  {showVersionHistory ? (
-                    <div className="max-h-36 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 space-y-2">
-                      {(Array.isArray(devotional.versionHistory) ? devotional.versionHistory : []).length ? (Array.isArray(devotional.versionHistory) ? devotional.versionHistory : []).map((v) => (
-                        <div key={v.id} className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1 last:border-b-0">
-                          <div>
-                            <div className="text-[11px] font-bold text-slate-700">{v.label || "Snapshot"}</div>
-                            <div className="text-[10px] text-slate-400">{new Date(v.createdAt || Date.now()).toLocaleString()}</div>
-                          </div>
-                          <button type="button" onClick={() => onUpdate({ title: v.title || "", reflection: v.reflection || "", prayer: v.prayer || "", questions: v.questions || "" })} className="text-[10px] font-extrabold text-emerald-700">Restore</button>
-                        </div>
-                      )) : <div className="text-xs text-slate-400">No snapshots yet.</div>}
-                    </div>
-                  ) : null}
+                  {agentSuggestions?.validations?.length ? <div className="text-[11px] text-slate-500">Prepared and validated. Continue to post preview.</div> : null}
                 </div>
               ) : (
                 <div className="text-xs text-slate-500">Guided mode keeps full manual control with optional AI actions.</div>
