@@ -5405,6 +5405,9 @@ function AppInner({ session, starterMood, onLogout }) {
     }
   }, [view, writeFullscreenActive]);
 
+  const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
+  const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
+
   useEffect(() => {
     const onPopState = () => {
       if (writeFullscreenActive) {
@@ -5445,9 +5448,6 @@ function AppInner({ session, starterMood, onLogout }) {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, [view, writeFullscreenActive, lastNonSettingsView, active]);
-
-  const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
-  const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
 
   useEffect(() => {
     const allowed = new Set(["home", "write", "library", "settings"]);
