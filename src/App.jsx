@@ -39,6 +39,8 @@ import {
   Redo2,
   ArrowUpToLine,
   ArrowDownToLine,
+  Maximize2,
+  Minimize2,
   Bell,
   BellOff
 } from "lucide-react";
@@ -441,6 +443,7 @@ const STORAGE_STREAK = `${APP_ID}_streak`;
 const STORAGE_SESSION = `${APP_ID}_session`;
 const STORAGE_VIEW = `${APP_ID}_view`;
 const STORAGE_ACTIVE_ID = `${APP_ID}_active_id`;
+const STORAGE_WRITE_FULLSCREEN_PREF = `${APP_ID}_write_fullscreen_pref`;
 
 const PLATFORM_LIMITS = {
   tiktok: 2200,
@@ -2132,7 +2135,9 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [showOcrModal, setShowOcrModal] = useState(false);
   const [focusMode, setFocusMode] = useState(() => (typeof window !== "undefined" ? window.innerWidth < 768 : false));
   const [showMoreTools, setShowMoreTools] = useState(false);
-  const [canvasFullscreen, setCanvasFullscreen] = useState(false);
+  const [canvasFullscreen, setCanvasFullscreen] = useState(() => {
+    try { return localStorage.getItem(STORAGE_WRITE_FULLSCREEN_PREF) === "1"; } catch { return false; }
+  });
   const [workflowMode, setWorkflowMode] = useState("guided");
   const [agentBusy, setAgentBusy] = useState(false);
   const [agentSuggestions, setAgentSuggestions] = useState(null);
@@ -2428,10 +2433,15 @@ ${devotional.reflection}`, txt);
             <div className="text-[11px] font-black uppercase tracking-widest text-slate-500">Fullscreen editor</div>
             <button
               type="button"
-              onClick={() => setCanvasFullscreen(false)}
-              className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-600"
+              onClick={() => {
+                setCanvasFullscreen(false);
+                try { localStorage.setItem(STORAGE_WRITE_FULLSCREEN_PREF, "0"); } catch {}
+              }}
+              className="w-8 h-8 rounded-full border border-slate-300 bg-white text-slate-600 flex items-center justify-center"
+              title="Exit fullscreen"
+              aria-label="Exit fullscreen"
             >
-              Exit full
+              <Minimize2 className="w-4 h-4" />
             </button>
           </div>
           <div className="p-3">
@@ -2444,11 +2454,34 @@ ${devotional.reflection}`, txt);
     return <Card>{children}</Card>;
   };
 
-  const agentThread = [
-    { id: 1, text: `I found your verse${devotional.verseRef ? ` (${devotional.verseRef}).` : "."}` },
-    { id: 2, text: "I drafted your reflection. Want it more bold, shorter, or more personal?" },
-    { id: 3, text: "I prepared platform-ready options. Ready to post?" },
-  ];
+  const doAgentStarterLine = async () => {
+    const base = String(contentTab === "reflection" ? devotional.reflection : devotional.prayer || "");
+    setBusy(true);
+    try {
+      const out = await ai(settings, `Write one short pastoral opening line (max 22 words) for a devotional reflection.
+Start naturally from this scripture and tone. Return only one line, no quotes.
+
+Scripture reference: ${devotional.verseRef || "(none)"}
+Scripture text: ${devotional.verseText || "(none)"}
+Mood: ${devotional.mood || "hopeful"}`);
+      const line = String(out || "").split(/\n/).find(Boolean) || "As we reflect on today's verse, God's grace remains steady and near.";
+      const next = base.trim() ? `${line.trim()}\n\n${base}` : line.trim();
+      onUpdate({ [contentTab === "reflection" ? "reflection" : "prayer"]: next });
+      pushToast("Starter line added.");
+    } catch (e) {
+      pushToast(e?.message || "Could not add starter line.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    setCanvasFullscreen((v) => {
+      const next = !v;
+      try { localStorage.setItem(STORAGE_WRITE_FULLSCREEN_PREF, next ? "1" : "0"); } catch {}
+      return next;
+    });
+  };
 
   const createVersionSnapshot = (label = "Manual snapshot") => {
     const snapshot = {
@@ -2524,10 +2557,12 @@ Current questions: ${devotional.questions || ""}`;
       {step >= 2 && step <= 4 ? (
         <button
           type="button"
-          onClick={() => setCanvasFullscreen((v) => !v)}
-          className="fixed right-3 top-3 z-[80] rounded-full border border-slate-300 bg-white/95 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-600 shadow"
+          onClick={toggleFullscreen}
+          className="fixed right-3 top-3 z-[80] w-8 h-8 rounded-full border border-slate-300 bg-white/95 text-slate-600 shadow flex items-center justify-center"
+          title={isFullscreenCanvas ? "Exit fullscreen" : "Enter fullscreen"}
+          aria-label={isFullscreenCanvas ? "Exit fullscreen" : "Enter fullscreen"}
         >
-          {isFullscreenCanvas ? "Exit full" : "Full screen"}
+          {isFullscreenCanvas ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         </button>
       ) : null}
 
@@ -2560,16 +2595,6 @@ Current questions: ${devotional.questions || ""}`;
           )}
         </div>
 
-        {/* Progress bar — thick, prominent */}
-        <div className={cn("px-4", isFocusStep ? "pb-0" : "pb-1")}>
-          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-            <div
-              className="h-full bg-emerald-500 rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-
         {/* Tiny step chips */}
         <div className="flex items-center gap-1.5 px-4 pb-3 pt-2">
           {onboardingStyleSteps.map((item) => {
@@ -2593,26 +2618,6 @@ Current questions: ${devotional.questions || ""}`;
           })}
         </div>
       </div> : null}
-
-      {step >= 2 && !isFullscreenCanvas ? (
-        <Card className="border-emerald-100 bg-emerald-50/40">
-          <div className="space-y-2">
-            <div className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Agent Actions</div>
-            {agentThread.map((item) => (
-              <div key={item.id} className="flex items-start gap-2">
-                <div className={cn("mt-1 w-2 h-2 rounded-full", displayStep >= item.id + 1 ? "bg-emerald-500" : "bg-slate-300")} />
-                <div className="text-xs text-slate-700 font-medium">{item.text}</div>
-              </div>
-            ))}
-            <div className="flex flex-wrap gap-2 pt-1">
-              <SmallButton onClick={() => goToStep(2)}>Write</SmallButton>
-              <SmallButton onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey}>Draft</SmallButton>
-              <SmallButton onClick={() => void doLength("shorten")} disabled={busy}>Shorter</SmallButton>
-              <SmallButton onClick={() => goToStep(4)} disabled={!heartReady}>Ready to Post</SmallButton>
-            </div>
-          </div>
-        </Card>
-      ) : null}
 
       {step === 1 ? (() => {
         const isVotd = (devotional.scriptureSource || "verse_of_day") === "verse_of_day";
@@ -2808,6 +2813,10 @@ Current questions: ${devotional.questions || ""}`;
                   const patch = { [contentTab]: e.target.value };
                   onUpdate(patch);
                   pushHistory({ reflection: devotional.reflection, prayer: devotional.prayer, questions: devotional.questions, ...patch });
+                  if (step === 2 && e.target.value.trim() && !canvasFullscreen) {
+                    setCanvasFullscreen(true);
+                    try { localStorage.setItem(STORAGE_WRITE_FULLSCREEN_PREF, "1"); } catch {}
+                  }
                 }}
                 placeholder={
                   contentTab === "reflection"
@@ -2834,8 +2843,15 @@ Current questions: ${devotional.questions || ""}`;
 
             {compactMode && !isFullscreenCanvas ? (
               <button onClick={() => void doDraftForMe()} disabled={busy || aiNeedsKey}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 disabled:opacity-50">
+                className="w-full rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 disabled:opacity-50">
                 Draft
+              </button>
+            ) : null}
+
+            {contentTab === "reflection" ? (
+              <button type="button" onClick={() => void doAgentStarterLine()} disabled={busy}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600 disabled:opacity-50">
+                Start reflection with AI
               </button>
             ) : null}
 
@@ -3461,7 +3477,8 @@ ${draft.reflection || ""}` })} disabled={hasHook}>Draft Hook</SmallButton>
   );
 }
 
-function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted, onBack }) {
+function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted, onBack, onAgentCleanup }) {
+  const [cleanupBusy, setCleanupBusy] = useState(false);
   const [q, setQ] = useState("");
   const [sortOrder, setSortOrder] = useState("newest");
   const [filter, setFilter] = useState("all");
@@ -3534,10 +3551,24 @@ function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted,
               <div className="text-sm text-slate-500 mt-0.5 font-medium">{devotionals.length} {devotionals.length === 1 ? "entry" : "entries"}</div>
             </div>
           </div>
-          <button type="button" onClick={nextSort} className="flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors">
-            <ArrowUpDown className="w-3.5 h-3.5" />
-            {sortOrder === "newest" ? "Newest" : sortOrder === "oldest" ? "Oldest" : "Readiness"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                if (!onAgentCleanup || cleanupBusy) return;
+                setCleanupBusy(true);
+                try { await onAgentCleanup(); } finally { setCleanupBusy(false); }
+              }}
+              className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-extrabold text-emerald-700 disabled:opacity-50"
+              disabled={cleanupBusy}
+            >
+              {cleanupBusy ? "Cleaning…" : "Clean up"}
+            </button>
+            <button type="button" onClick={nextSort} className="flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:bg-slate-100 transition-colors">
+              <ArrowUpDown className="w-3.5 h-3.5" />
+              {sortOrder === "newest" ? "Newest" : sortOrder === "oldest" ? "Oldest" : "Readiness"}
+            </button>
+          </div>
         </div>
         <div className="mt-4 relative">
           <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -5572,6 +5603,55 @@ function AppInner({ session, starterMood, onLogout }) {
     pushToast(changed ? `Saved • 🔥 Streak: ${next.count} days` : "Saved");
   };
 
+  const runAgentLibraryCleanup = async () => {
+    const untitled = safeDevotionals.filter((d) => !String(d.title || "").trim()).slice(0, 25);
+    if (!untitled.length) {
+      pushToast("Library already looks clean.");
+      return;
+    }
+
+    const aiConfigured =
+      (settings.aiProvider === "openai" && settings.openaiKey) ||
+      (settings.aiProvider === "gemini" && settings.geminiKey);
+
+    let patches = [];
+    if (aiConfigured) {
+      try {
+        const payload = untitled.map((d) => ({
+          id: d.id,
+          verseRef: d.verseRef || "",
+          reflection: String(d.reflection || "").slice(0, 180),
+        }));
+        const raw = await ai(settings, `Create short devotional titles.
+Return JSON array only: [{"id":"...","title":"..."}]
+Constraints: title 3-7 words, faith-centered, no emojis.
+
+Entries:\n${JSON.stringify(payload, null, 2)}`);
+        const parsed = safeParseJson(String(raw || "").replace(/```json/gi, "").replace(/```/g, "").trim(), []);
+        if (Array.isArray(parsed)) {
+          patches = parsed
+            .map((x) => ({ id: String(x?.id || ""), title: String(x?.title || "").trim() }))
+            .filter((x) => x.id && x.title);
+        }
+      } catch {
+        patches = [];
+      }
+    }
+
+    if (!patches.length) {
+      patches = untitled.map((d) => ({ id: d.id, title: d.verseRef ? `Reflection on ${d.verseRef}` : "Devotional Reflection" }));
+    }
+
+    const patchMap = new Map(patches.map((p) => [p.id, p.title]));
+    let updated = 0;
+    setDevotionals((list) => (Array.isArray(list) ? list : []).map((d) => {
+      if (!patchMap.has(d.id) || String(d.title || "").trim()) return d;
+      updated += 1;
+      return { ...d, title: patchMap.get(d.id), updatedAt: nowIso() };
+    }));
+    pushToast(updated ? `Cleaned up ${updated} entr${updated === 1 ? "y" : "ies"}.` : "No changes needed.");
+  };
+
   return (
     <ToastContext.Provider value={{ pushToast }}>
       <GlobalStyles />
@@ -5638,7 +5718,7 @@ function AppInner({ session, starterMood, onLogout }) {
 
                 {/* CompileView removed — sharing unified into WriteView Step 4 */}
 
-        {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} onDuplicate={duplicateEntry} onMarkPosted={markPosted} onBack={() => setView("home")} /> : null}
+        {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} onDuplicate={duplicateEntry} onMarkPosted={markPosted} onBack={() => setView("home")} onAgentCleanup={runAgentLibraryCleanup} /> : null}
 
         {view === "settings" ? <SettingsView settings={settings} onUpdate={updateSettings} onReset={reset} onLogout={onLogout} devotionals={safeDevotionals} onBack={() => setView(lastNonSettingsView || "home")} /> : null}
         </PageTransition>
