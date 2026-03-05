@@ -1483,6 +1483,15 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
   const todayVerse = getVerseOfDay();
   const dailyPrompt = getDailyReflectionPrompt(todayVerse.verseRef, todayVerse.verseText);
 
+  useEffect(() => {
+    const today = todayKey(new Date());
+    if (localStorage.getItem(STORAGE_HOME_STREAK_TOAST_DAY) === today) return;
+    localStorage.setItem(STORAGE_HOME_STREAK_TOAST_DAY, today);
+    if (streak?.count > 0) {
+      pushToast(`🔥 ${streak.count}-day streak — welcome back.`);
+    }
+  }, [streak?.count, pushToast]);
+
   // Most recently edited entry (not just last in array)
   const latest = devotionals.length > 0
     ? [...devotionals].sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0]
