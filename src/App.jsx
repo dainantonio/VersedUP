@@ -1483,15 +1483,6 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
   const todayVerse = getVerseOfDay();
   const dailyPrompt = getDailyReflectionPrompt(todayVerse.verseRef, todayVerse.verseText);
 
-  useEffect(() => {
-    const today = todayKey(new Date());
-    if (localStorage.getItem(STORAGE_HOME_STREAK_TOAST_DAY) === today) return;
-    localStorage.setItem(STORAGE_HOME_STREAK_TOAST_DAY, today);
-    if (streak?.count > 0) {
-      pushToast(`🔥 ${streak.count}-day streak — welcome back.`);
-    }
-  }, [streak?.count, pushToast]);
-
   // Most recently edited entry (not just last in array)
   const latest = devotionals.length > 0
     ? [...devotionals].sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0]
@@ -2058,6 +2049,11 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [agentBusy, setAgentBusy] = useState(false);
   const [agentSuggestions, setAgentSuggestions] = useState(null);
 
+  const exitFullscreenCanvas = React.useCallback(() => {
+    setCanvasFullscreen(false);
+    try { localStorage.setItem(STORAGE_WRITE_FULLSCREEN_PREF, "0"); } catch {}
+  }, []);
+
   const igCardRef = useRef(null);
   const autoFetchTimer = useRef(null);
 
@@ -2105,6 +2101,10 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   }, [step]);
 
   useEffect(() => {
+    try { localStorage.setItem(STORAGE_WRITE_FULLSCREEN_PREF, canvasFullscreen ? "1" : "0"); } catch {}
+  }, [canvasFullscreen]);
+
+  useEffect(() => {
     if (canvasFullscreen && step >= 2 && step <= 4) setShowMoreTools(false);
   }, [canvasFullscreen, step]);
 
@@ -2120,11 +2120,11 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   useEffect(() => {
     if (!(canvasFullscreen && step >= 2 && step <= 4)) return;
     const onKeyDown = (e) => {
-      if (e.key === "Escape") setCanvasFullscreen(false);
+      if (e.key === "Escape") exitFullscreenCanvas();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [canvasFullscreen, step]);
+  }, [canvasFullscreen, step, exitFullscreenCanvas]);
 
   useEffect(() => {
     if (!onFullscreenChange) return;
@@ -2348,10 +2348,7 @@ ${devotional.reflection}`, txt);
             <div className="text-[11px] font-black uppercase tracking-widest text-slate-500">Fullscreen editor</div>
             <button
               type="button"
-              onClick={() => {
-                setCanvasFullscreen(false);
-                try { localStorage.setItem(STORAGE_WRITE_FULLSCREEN_PREF, "0"); } catch {}
-              }}
+              onClick={exitFullscreenCanvas}
               className="w-8 h-8 rounded-full border border-slate-300 bg-white text-slate-600 flex items-center justify-center"
               title="Exit fullscreen"
               aria-label="Exit fullscreen"
@@ -5281,6 +5278,9 @@ function AppInner({ session, starterMood, onLogout }) {
   const [customVerseRef, setCustomVerseRef] = useState("");
   const [customVerseText, setCustomVerseText] = useState("");
   const [hasUsedWriteFab, setHasUsedWriteFab] = useState(false);
+  const navStateKeyRef = useRef("");
+  const backArmedRef = useRef(false);
+
 
   useEffect(() => {
     const handler = (e) => {
@@ -5354,6 +5354,44 @@ function AppInner({ session, starterMood, onLogout }) {
     toastTimerRef.current = window.setTimeout(() => setToast(null), durationMs);
   };
 
+  useEffect(() => {
+    const nextKey = `${view}:${writeFullscreenActive ? "1" : "0"}`;
+    const nextState = { __versed: true, view, fullscreen: writeFullscreenActive };
+    if (!navStateKeyRef.current) {
+      window.history.replaceState(nextState, "");
+      window.history.pushState(nextState, "");
+      navStateKeyRef.current = nextKey;
+      return;
+    }
+    if (navStateKeyRef.current !== nextKey) {
+      window.history.pushState(nextState, "");
+      navStateKeyRef.current = nextKey;
+    }
+  }, [view, writeFullscreenActive]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      if (writeFullscreenActive) {
+        setWriteFullscreenActive(false);
+        return;
+      }
+
+      if (view !== "home") {
+        setView(view === "settings" ? (lastNonSettingsView || "home") : "home");
+        return;
+      }
+
+      if (!backArmedRef.current) {
+        backArmedRef.current = true;
+        pushToast("Press back again to exit");
+        window.setTimeout(() => { backArmedRef.current = false; }, 1200);
+        window.history.pushState({ __versed: true, view: "home", fullscreen: false }, "");
+      }
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [view, writeFullscreenActive, lastNonSettingsView]);
 
   const safeDevotionals = Array.isArray(devotionals) ? devotionals : [];
   const active = useMemo(() => safeDevotionals.find((d) => d.id === activeId) || null, [safeDevotionals, activeId]);
