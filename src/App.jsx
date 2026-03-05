@@ -2026,7 +2026,6 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
   const [canvasFullscreen, setCanvasFullscreen] = useState(() => {
     try { return localStorage.getItem(STORAGE_WRITE_FULLSCREEN_PREF) === "1"; } catch { return false; }
   });
-  const [workflowMode, setWorkflowMode] = useState("guided");
   const [agentBusy, setAgentBusy] = useState(false);
   const [agentSuggestions, setAgentSuggestions] = useState(null);
 
@@ -2816,25 +2815,13 @@ Mood: ${devotional.mood || "hopeful"}`);
             /> : null}
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Writing Mode</div>
-                <div className="flex rounded-full border border-slate-200 bg-white p-0.5">
-                  <button type="button" onClick={() => setWorkflowMode("guided")} className={cn("px-3 py-1 text-[11px] font-extrabold rounded-full", workflowMode === "guided" ? "bg-slate-900 text-white" : "text-slate-500")}>Guided</button>
-                  <button type="button" onClick={() => setWorkflowMode("agentic")} className={cn("px-3 py-1 text-[11px] font-extrabold rounded-full", workflowMode === "agentic" ? "bg-emerald-600 text-white" : "text-slate-500")}>Agentic</button>
-                </div>
-              </div>
-              {workflowMode === "agentic" ? (
-                <div className="space-y-2 animate-enter">
-                  <div className="text-xs text-slate-600 font-medium">One action: agent plans, drafts, validates, repairs, then prepares post-ready output.</div>
-                  <button type="button" onClick={() => void runAgentAssist()} disabled={agentBusy}
-                    className="w-full rounded-xl bg-emerald-600 text-white py-2 text-xs font-extrabold disabled:opacity-50">
-                    {agentBusy ? "Preparing…" : "Generate & prepare to post"}
-                  </button>
-                  {agentSuggestions?.validations?.length ? <div className="text-[11px] text-slate-500">Prepared and validated. Continue to post preview.</div> : null}
-                </div>
-              ) : (
-                <div className="text-xs text-slate-500">Guided mode keeps full manual control with optional AI actions.</div>
-              )}
+              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Agent Assist</div>
+              <div className="text-xs text-slate-600 font-medium">One tap: draft, validate, repair, and prepare post-ready output.</div>
+              <button type="button" onClick={() => void runAgentAssist()} disabled={agentBusy}
+                className="w-full rounded-xl bg-emerald-600 text-white py-2 text-xs font-extrabold disabled:opacity-50">
+                {agentBusy ? "Preparing…" : "Generate & prepare to post"}
+              </button>
+              {agentSuggestions?.validations?.length ? <div className="text-[11px] text-slate-500">Prepared and validated. Continue to post preview.</div> : null}
             </div>
 
             {/* Tabs ABOVE textarea */}
