@@ -1527,7 +1527,7 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
   };
 
   useEffect(() => {
-    const today = getDayKey(new Date());
+    const today = todayKey(new Date());
     if (localStorage.getItem(STORAGE_HOME_STREAK_TOAST_DAY) === today) return;
     localStorage.setItem(STORAGE_HOME_STREAK_TOAST_DAY, today);
     if (streak?.count > 0) {
