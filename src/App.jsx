@@ -1539,6 +1539,11 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
   const latest = devotionals.length > 0
     ? [...devotionals].sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0]
     : null;
+  const latestReady = devotionals.length > 0
+    ? [...devotionals]
+      .filter((d) => String(d.reflection || "").trim().length > 120)
+      .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0]
+    : null;
   const todaysAction = hasActive
     ? { tone: "bg-emerald-50 border-emerald-200 text-emerald-800", text: "🟢 You're ready to post — 1 entry draft waiting" }
     : latest
@@ -1564,9 +1569,25 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
         </div>
       </div>
 
-      <div className={`rounded-2xl border px-4 py-3 text-sm font-extrabold ${todaysAction.tone}`}>
+      <button
+        type="button"
+        onClick={() => {
+          if (latestReady) return onOpenReadyToPost(latestReady.id);
+          if (latest) return onOpen(latest.id);
+          onContinue();
+        }}
+        className={`w-full text-left rounded-2xl border px-4 py-3 text-sm font-extrabold ${todaysAction.tone}`}
+      >
         {todaysAction.text}
-      </div>
+      </button>
+
+      <Card className="border-slate-100">
+        <div className="space-y-2">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Agent</div>
+          <div className="text-sm font-semibold text-slate-700">I can start today's reflection from your verse and prepare post-ready versions when you're ready.</div>
+          <button type="button" onClick={onReflectVerseOfDay} className="w-full rounded-xl bg-slate-900 text-white py-2.5 text-xs font-extrabold">Start reflection with me</button>
+        </div>
+      </Card>
 
       <div className="bg-white rounded-[1.75rem] border border-slate-100 shadow-sm p-5 overflow-hidden relative scroll-card">
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/60 via-transparent to-sky-50/20 pointer-events-none" />
@@ -3453,7 +3474,7 @@ function PolishView({ devotional, settings, onUpdate, onBackToWrite, onLooksGood
               </div>
               <div className="rounded-xl border border-slate-200 p-3 flex items-center gap-2">
                 <div className="text-xs text-slate-700 flex-1">Strong hook missing — draft one?</div>
-                <SmallButton onClick={() => patch({ reflection: `POV: God met me right here today.
+                <SmallButton onClick={() => patch({ reflection: `Today I saw God meet me right where I am.
 
 ${draft.reflection || ""}` })} disabled={hasHook}>Draft Hook</SmallButton>
               </div>
@@ -4235,7 +4256,7 @@ function compileForPlatform(platform, d, settings) {
   };
 
   if (platform === "tiktok") {
-    const base = d.tiktokScript || `POV: You needed this today ✨${nl}${nl}${d.verseRef || ""}${nl}${nl}${body}${nl}${nl}Save this for later ❤️`;
+    const base = d.tiktokScript || `A quick word of encouragement ✨${nl}${nl}${d.verseRef || ""}${nl}${nl}${body}`;
     const baseTags = /#\w+/.test(base) ? "" : tags;
     const full = (base + baseTags).trim();
     return full.length <= 2200 ? full : full.slice(0, 2197) + "…";
