@@ -2123,6 +2123,18 @@ function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, on
     return () => onFullscreenChange(false);
   }, [canvasFullscreen, step, onFullscreenChange]);
 
+  const lastFullscreenToastState = useRef(null);
+  useEffect(() => {
+    const enabled = canvasFullscreen && step >= 2 && step <= 4;
+    if (lastFullscreenToastState.current == null) {
+      lastFullscreenToastState.current = enabled;
+      return;
+    }
+    if (lastFullscreenToastState.current !== enabled) {
+      pushToast(enabled ? "Focus mode enabled" : "Focus mode exited", 1200);
+      lastFullscreenToastState.current = enabled;
+    }
+  }, [canvasFullscreen, step, pushToast]);
 
   useEffect(() => {
     if (!ttOverlay) return;
@@ -2324,7 +2336,154 @@ ${devotional.reflection}`, txt);
     return false;
   };
   const goToStep = (nextStep) => {
-    if (canAccessStep(nextStep)) setStep(nextStep);
+    if (!canAccessStep(nextStep)) return;
+    if (nextStep === step) return;
+    setStep(nextStep);
+    pushToast(`Step ${nextStep}: ${stepTitles[nextStep - 1]}`, 1100);
+  };
+
+  const isFocusStep = focusMode && step >= 2 && step <= 4;
+  const isFullscreenCanvas = canvasFullscreen && step >= 2 && step <= 4;
+  const compactMode = isFocusStep || isFullscreenCanvas;
+
+  const renderStepSurface = (children) => {
+    if (isFullscreenCanvas && typeof document !== "undefined") {
+      return createPortal(
+        <div className="fixed inset-0 z-[70] bg-white overflow-y-auto">
+          <div className="sticky top-0 z-[75] bg-white/95 backdrop-blur border-b border-slate-200 px-3 py-2.5 flex items-center justify-between">
+            <div className="text-[11px] font-black uppercase tracking-widest text-slate-500">Fullscreen editor</div>
+            <button
+              type="button"
+              onClick={exitFullscreenCanvas}
+              className="w-8 h-8 rounded-full border border-slate-300 bg-white text-slate-600 flex items-center justify-center"
+              title="Exit fullscreen"
+              aria-label="Exit fullscreen"
+            >
+              <Minimize2 className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="p-3">
+            {children}
+          </div>
+        </div>,
+        document.body
+      );
+    }
+    return <Card>{children}</Card>;
+  };
+
+  const doAgentStarterLine = async () => {
+    const base = String(contentTab === "reflection" ? devotional.reflection : devotional.prayer || "");
+    setBusy(true);
+    try {
+      const out = await ai(settings, `Write one short pastoral opening line (max 22 words) for a devotional reflection.
+Start naturally from this scripture and tone. Return only one line, no quotes.
+
+Scripture reference: ${devotional.verseRef || "(none)"}
+Scripture text: ${devotional.verseText || "(none)"}
+Mood: ${devotional.mood || "hopeful"}`);
+      const line = String(out || "").split(/\n/).find(Boolean) || "As we reflect on today's verse, God's grace remains steady and near.";
+      const next = base.trim() ? `${line.trim()}\n\n${base}` : line.trim();
+      onUpdate({ [contentTab === "reflection" ? "reflection" : "prayer"]: next });
+      pushToast("Starter line added.");
+    } catch (e) {
+      pushToast(e?.message || "Could not add starter line.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    setCanvasFullscreen((v) => {
+      const next = !v;
+      try { localStorage.setItem(STORAGE_WRITE_FULLSCREEN_PREF, next ? "1" : "0"); } catch {}
+      return next;
+    });
+  };
+
+  const createVersionSnapshot = (label = "Manual snapshot") => {
+    const snapshot = {
+      id: `v_${Date.now()}`,
+      label,
+      createdAt: new Date().toISOString(),
+      reflection: devotional.reflection || "",
+      prayer: devotional.prayer || "",
+      questions: devotional.questions || "",
+      title: devotional.title || "",
+    };
+    const history = Array.isArray(devotional.versionHistory) ? devotional.versionHistory : [];
+    onUpdate({ versionHistory: [snapshot, ...history].slice(0, 25) });
+  };
+
+  const runAgentAssist = async () => {
+    setAgentBusy(true);
+    try {
+      const targets = Array.from(new Set([platform, "twitter"]));
+      const goal = `Publish a devotional to ${targets.join(" + ")} that stays under each limit, matches ${devotional.mood || "hopeful"} tone, and includes a soft CTA.`;
+      const constraints = [
+        "Respect platform character limits.",
+        "Keep scripture context present.",
+        "Include a gentle CTA.",
+      ];
+
+      const draft = await aiGuidedFill(settings, {
+        topicLabel: TOPIC_CHIPS.find((t) => t.id === selectedTopic)?.label || "",
+        verseRef: devotional.verseRef,
+        verseText: devotional.verseText,
+        mood: devotional.mood,
+      });
+
+      const working = {
+        ...devotional,
+        title: draft.title || devotional.title,
+        reflection: draft.reflection || devotional.reflection,
+        prayer: draft.prayer || devotional.prayer,
+        questions: draft.questions || devotional.questions,
+      };
+
+      const variants = {};
+      const validations = [];
+      let repairedCount = 0;
+
+      const hasSoftCta = (text) => /(save|share|encourage|pass this on|comment|pray)/i.test(String(text || ""));
+      for (const p of targets) {
+        const lim = PLATFORM_LIMITS[p] || 999999;
+        let text = compileForPlatform(p, working, settings);
+        if (!text.includes(devotional.verseRef || "") && devotional.verseRef) {
+          text = `${devotional.verseRef}\n\n${text}`.trim();
+          repairedCount += 1;
+        }
+        if (!hasSoftCta(text)) {
+          text = `${text}\n\nIf this encouraged you, save/share it with someone today.`.trim();
+          repairedCount += 1;
+        }
+        if (text.length > lim) {
+          text = trimToCharLimit(text, lim);
+          repairedCount += 1;
+        }
+        variants[p] = text;
+        validations.push(`${p}: ${text.length}/${lim}`);
+      }
+
+      createVersionSnapshot("Before agent mission");
+      onUpdate({
+        title: working.title,
+        reflection: working.reflection,
+        prayer: working.prayer,
+        questions: working.questions,
+        agentVariants: variants,
+      });
+      setPostText(variants[platform] || compileForPlatform(platform, working, settings));
+
+      setAgentSuggestions({ goal, constraints, plan: ["Plan", "Execute", "Validate", "Repair", "Present"], validations, variants, repairedCount });
+      if (repairedCount > 0) pushToast(`Agent fixed ${repairedCount} issue${repairedCount === 1 ? "" : "s"} automatically.`);
+      pushToast(`Ready to post for ${targets.join(" + ")}.`);
+      if (!targets.includes("email")) pushToast("I can also format this for email if you want.");
+    } catch (e) {
+      pushToast(e?.message || "Agent assist failed.");
+    } finally {
+      setAgentBusy(false);
+    }
   };
 
   const isFocusStep = focusMode && step >= 2 && step <= 4;
@@ -5259,6 +5418,7 @@ function AppInner({ session, starterMood, onLogout }) {
   const [hasUsedWriteFab, setHasUsedWriteFab] = useState(false);
   const navStateKeyRef = useRef("");
   const backArmedRef = useRef(false);
+  const viewStackRef = useRef(["home"]);
 
 
   useEffect(() => {
@@ -5292,6 +5452,14 @@ function AppInner({ session, starterMood, onLogout }) {
 
   useEffect(() => {
     if (view !== "settings") setLastNonSettingsView(view);
+  }, [view]);
+
+  useEffect(() => {
+    const stack = viewStackRef.current;
+    if (stack[stack.length - 1] !== view) {
+      stack.push(view);
+      if (stack.length > 40) stack.splice(0, stack.length - 40);
+    }
   }, [view]);
 
   useEffect(() => {
@@ -5368,7 +5536,10 @@ function AppInner({ session, starterMood, onLogout }) {
       }
 
       if (view !== "home") {
-        setView(view === "settings" ? (lastNonSettingsView || "home") : "home");
+        const stack = viewStackRef.current;
+        if (stack.length > 1) stack.pop();
+        const previous = stack[stack.length - 1] || "home";
+        setView(previous === "settings" ? (lastNonSettingsView || "home") : previous);
         return;
       }
 
