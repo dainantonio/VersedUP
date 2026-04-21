@@ -1,3 +1,4 @@
+import { toPng } from "html-to-image";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -102,14 +103,8 @@ function saveNotifPref(pref) {
   localStorage.setItem(STORAGE_NOTIF_PREF, JSON.stringify(pref));
 }
 
-/* --- Mocks & Global Styles for Preview --- */
 
-// Mock html-to-image since it's not available in this environment
-const toPng = async (node, options) => {
-  console.log("Mock export triggered. (html-to-image is not available in preview)");
-  alert("PNG Export is mocked in this preview environment.");
-  return ""; // Return empty string
-};
+/* --- Global Styles --- */
 
 const GlobalStyles = () => (
   <style>{`
@@ -4719,8 +4714,8 @@ function TikTokExportModal({ devotional, settings, onClose }) {
     if (!ref.current) return;
     setBusy(true);
     try {
-      // Mock usage for preview
-      await toPng(ref.current, { cacheBust: true, pixelRatio: 2 });
+      const dataUrl = await toPng(ref.current, { cacheBust: true, pixelRatio: 2 });
+      download(dataUrl);
       onClose();
     } catch {
       pushToast("Export failed. Try again.");
@@ -4947,7 +4942,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
   });
   const [notifTime, setNotifTime] = useState("08:00");
   const [notifBusy, setNotifBusy] = useState(false);
-  const totalSlides = 5;
+  const totalSlides = 4;
 
   const DEMO_PLATFORMS = [
     { id: "tiktok", label: "TikTok", emoji: "🎵" },
@@ -5028,7 +5023,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
                 className="w-full rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold text-base py-4 shadow-lg shadow-emerald-200 hover:shadow-xl hover:scale-[1.01] transition-all active:scale-[0.99]">
                 Get started
               </button>
-              <button type="button" onClick={() => setSlide(4)}
+              <button type="button" onClick={() => setSlide(3)}
                 className="w-full text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors py-1">
                 Skip setup
               </button>
@@ -5040,7 +5035,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
         {slide === 1 ? (
           <div className="flex-1 flex flex-col animate-enter space-y-6">
             <div>
-              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 1 of 4</div>
+              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 1 of 3</div>
               <h2 className="text-3xl font-black text-slate-900 mt-2 leading-tight">What should<br/>we call you?</h2>
             </div>
             <input
@@ -5069,7 +5064,7 @@ function OnboardingWizard({ authDraft, onFinish }) {
         {slide === 2 ? (
           <div className="flex-1 flex flex-col animate-enter space-y-5">
             <div>
-              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 2 of 4</div>
+              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 2 of 3</div>
               <h2 className="text-3xl font-black text-slate-900 mt-2 leading-tight">Where do you<br/>share your faith?</h2>
               <p className="text-sm text-slate-500 mt-2 font-medium">Pick all that apply. We'll optimize your caption for each platform.</p>
             </div>
@@ -5104,71 +5099,10 @@ function OnboardingWizard({ authDraft, onFinish }) {
           </div>
         ) : null}
 
-        {/* ── SLIDE 3: Notifications ── */}
+        {/* ── SLIDE 3 (was 4): Notifications removed — wired via Settings instead ── */}
+
+        {/* ── SLIDE 3: Bible version + Finish ── */}
         {slide === 3 ? (
-          <div className="flex-1 flex flex-col animate-enter space-y-5">
-            <div>
-              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 3 of 4</div>
-              <h2 className="text-3xl font-black text-slate-900 mt-2 leading-tight">Daily reminders<br/>keep you rooted.</h2>
-              <p className="text-sm text-slate-500 mt-2 font-medium">Get a gentle nudge each morning to write and share your faith.</p>
-            </div>
-
-            <div className="rounded-[1.75rem] border border-slate-100 bg-white p-5 shadow-sm space-y-4">
-              {notifStatus === "granted" ? (
-                <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 border border-emerald-200 p-4">
-                  <Bell className="w-6 h-6 text-emerald-600 shrink-0" />
-                  <div>
-                    <div className="text-sm font-extrabold text-emerald-800">Reminders are on ✓</div>
-                    <div className="text-xs text-emerald-600 mt-0.5">We'll notify you at {notifTime} each day.</div>
-                  </div>
-                </div>
-              ) : notifStatus === "denied" ? (
-                <div className="flex items-center gap-3 rounded-2xl bg-amber-50 border border-amber-200 p-4">
-                  <BellOff className="w-6 h-6 text-amber-600 shrink-0" />
-                  <div>
-                    <div className="text-sm font-extrabold text-amber-800">Notifications blocked</div>
-                    <div className="text-xs text-amber-600 mt-0.5">You can enable them anytime in your browser settings.</div>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0">
-                      <Bell className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-extrabold text-slate-900">Morning devotional reminder</div>
-                      <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">A gentle push each day to write, reflect, and share. No spam — just one nudge.</div>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Preferred time</label>
-                    <input type="time" value={notifTime} onChange={(e) => setNotifTime(e.target.value)}
-                      className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-extrabold bg-white outline-none focus:ring-2 focus:ring-emerald-200" />
-                  </div>
-                  <button type="button" onClick={handleRequestNotif} disabled={notifBusy}
-                    className="w-full rounded-2xl bg-emerald-600 text-white py-3.5 font-extrabold flex items-center justify-center gap-2 disabled:opacity-60 hover:bg-emerald-700 transition-colors">
-                    {notifBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
-                    {notifBusy ? "Requesting…" : "Turn on reminders"}
-                  </button>
-                </>
-              )}
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button type="button" onClick={back} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">
-                <ChevronLeft className="w-4 h-4" /> Back
-              </button>
-              <button type="button" onClick={next}
-                className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3.5 shadow-md hover:shadow-lg transition-all">
-                {notifStatus === "granted" ? "Continue →" : "Skip for now →"}
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {/* ── SLIDE 4: Bible version + Finish ── */}
-        {slide === 4 ? (
           <div className="flex-1 flex flex-col animate-enter space-y-5">
             <div>
               <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Last step</div>
