@@ -1576,16 +1576,19 @@ function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPo
           <PenTool className="w-4 h-4" />
           {hasActive ? "Continue Writing" : "Start Today's Devotional"}
         </RippleButton>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={onQuickPost}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-extrabold text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors"
-          >
-            ⚡ Quick post
-          </button>
-          <button type="button" onClick={onReflectVerseOfDay} className="rounded-xl bg-slate-900 text-white px-3 py-2.5 text-xs font-extrabold">✨ Reflect with agent</button>
-        </div>
+        {/* Quick post / Reflect with agent — only shown once user has at least one draft */}
+        {devotionals.length > 0 ? (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={onQuickPost}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-extrabold text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors"
+            >
+              ⚡ Quick post
+            </button>
+            <button type="button" onClick={onReflectVerseOfDay} className="rounded-xl bg-slate-900 text-white px-3 py-2.5 text-xs font-extrabold">✨ Reflect with agent</button>
+          </div>
+        ) : null}
       </Card>
 
       {latest ? (() => {
@@ -4930,210 +4933,84 @@ function AuthView({ onBack, onContinue }) {
 }
 
 function OnboardingWizard({ authDraft, onFinish }) {
-  const [slide, setSlide] = useState(0);
   const [name, setName] = useState(authDraft?.name || "");
-  const [version, setVersion] = useState("KJV");
-  const [platforms, setPlatforms] = useState(["instagram", "tiktok"]);
-  const [notifStatus, setNotifStatus] = useState(() => {
-    const p = loadNotifPref();
-    if (Notification?.permission === "granted") return "granted";
-    if (Notification?.permission === "denied") return "denied";
-    return p?.enabled ? "granted" : "idle";
-  });
-  const [notifTime, setNotifTime] = useState("08:00");
-  const [notifBusy, setNotifBusy] = useState(false);
-  const totalSlides = 4;
+  const [version] = useState("KJV");
+  const [platforms] = useState(["instagram", "tiktok"]);
+  // Google users who already have a name: call finish immediately on mount
+  const hasGoogleName = Boolean(authDraft?.mode === "google" && authDraft?.name);
 
-  const DEMO_PLATFORMS = [
-    { id: "tiktok", label: "TikTok", emoji: "🎵" },
-    { id: "instagram", label: "Instagram", emoji: "📸" },
-    { id: "twitter", label: "X / Twitter", emoji: "🐦" },
-    { id: "facebook", label: "Facebook", emoji: "👥" },
-    { id: "email", label: "Email / Newsletter", emoji: "✉️" },
-  ];
-
-  const togglePlatform = (id) => {
-    setPlatforms(prev =>
-      prev.includes(id) ? (prev.length > 1 ? prev.filter(p => p !== id) : prev) : [...prev, id]
-    );
-  };
-
-  const handleRequestNotif = async () => {
-    setNotifBusy(true);
-    try {
-      const { status } = await requestNotificationPermission();
-      if (status === "granted") {
-        const token = await getFCMToken();
-        saveNotifPref({ enabled: true, time: notifTime, token });
-        if (token) localStorage.setItem(STORAGE_FCM_TOKEN, token);
-        setNotifStatus("granted");
-      } else {
-        setNotifStatus(status);
-      }
-    } finally {
-      setNotifBusy(false);
-    }
-  };
-
-  const finish = () => {
+  const finish = React.useCallback((overrideName) => {
+    const resolvedName = (overrideName ?? name).trim() || (authDraft?.mode === "guest" ? "Guest" : "Friend");
     onFinish({
       mode: authDraft?.mode || "guest",
-      name: name.trim() || (authDraft?.mode === "guest" ? "Guest" : "Friend"),
+      name: resolvedName,
       settingsPatch: {
-        username: name.trim(),
+        username: resolvedName,
         defaultBibleVersion: version,
         myPlatforms: platforms,
         onboardingComplete: true,
       },
       starterMood: "hopeful",
     });
-  };
+  }, [name, version, platforms, authDraft, onFinish]);
 
-  const next = () => setSlide(s => Math.min(s + 1, totalSlides - 1));
-  const back = () => setSlide(s => Math.max(s - 1, 0));
+  // Auto-finish for Google users who already provided a name
+  React.useEffect(() => {
+    if (hasGoogleName) finish(authDraft.name);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasGoogleName]);
+
+  // Google auto-finish: show spinner while useEffect fires
+  if (hasGoogleName) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-b from-emerald-50 via-white to-sky-50">
+        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-emerald-50 via-white to-sky-50 px-4 py-8 animate-enter">
-      <div className="max-w-md mx-auto w-full flex flex-col flex-1">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-emerald-50 via-white to-sky-50 px-5 animate-enter">
+      <div className="max-w-md mx-auto w-full flex flex-col flex-1 items-center justify-center gap-7">
 
-        {/* Progress dots */}
-        {slide > 0 ? (
-          <div className="flex justify-center gap-2 mb-8">
-            {Array.from({ length: totalSlides }).map((_, i) => (
-              <div key={i} className={`transition-all duration-300 rounded-full ${
-                i === slide ? "w-6 h-2 bg-emerald-500" : i < slide ? "w-2 h-2 bg-emerald-400" : "w-2 h-2 bg-slate-200"
-              }`} />
-            ))}
-          </div>
-        ) : <div className="mb-8" />}
+        <BrandLogo className="h-28 w-auto object-contain drop-shadow-xl" />
 
-        {/* ── SLIDE 0: Welcome ── */}
-        {slide === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6 animate-enter">
-            <BrandLogo className="h-32 w-auto object-contain drop-shadow-xl" />
-            <div>
-              <div className="text-4xl font-black text-slate-900 tracking-tight">VersedUP</div>
-              <div className="text-lg font-bold text-emerald-600 mt-1">Write. Reflect. Share.</div>
-            </div>
-            <div className="text-base text-slate-500 font-medium max-w-xs leading-relaxed">
-              A daily space to capture God's word, write your heart, and share your faith — in one flowing motion.
-            </div>
-            <div className="w-full pt-4 space-y-3">
-              <button type="button" onClick={next}
-                className="w-full rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold text-base py-4 shadow-lg shadow-emerald-200 hover:shadow-xl hover:scale-[1.01] transition-all active:scale-[0.99]">
-                Get started
-              </button>
-              <button type="button" onClick={() => setSlide(3)}
-                className="w-full text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors py-1">
-                Skip setup
-              </button>
-            </div>
-          </div>
-        ) : null}
+        <div className="text-center">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Welcome to VersedUP</h1>
+          <p className="text-base text-slate-500 font-medium mt-2 leading-relaxed">
+            Write. Reflect. Share your faith — every day.
+          </p>
+        </div>
 
-        {/* ── SLIDE 1: Name ── */}
-        {slide === 1 ? (
-          <div className="flex-1 flex flex-col animate-enter space-y-6">
-            <div>
-              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 1 of 3</div>
-              <h2 className="text-3xl font-black text-slate-900 mt-2 leading-tight">What should<br/>we call you?</h2>
-            </div>
+        <div className="w-full space-y-4">
+          <div>
+            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-2">
+              What should we call you?{" "}
+              <span className="text-slate-300 font-medium normal-case">(optional)</span>
+            </label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name or @handle"
               autoFocus
-              onKeyDown={(e) => e.key === "Enter" && next()}
+              onKeyDown={(e) => e.key === "Enter" && finish()}
               className="w-full rounded-2xl border border-slate-200 px-5 py-4 text-lg font-semibold outline-none focus:ring-4 focus:ring-emerald-100 focus:border-emerald-300 bg-white transition-all"
             />
-            <div className="text-sm text-slate-400 font-medium">This appears on your shares and in the app greeting.</div>
-            <div className="flex-1" />
-            <div className="flex gap-3">
-              <button type="button" onClick={back} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">
-                <ChevronLeft className="w-4 h-4" /> Back
-              </button>
-              <button type="button" onClick={next}
-                className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3.5 shadow-md hover:shadow-lg transition-all">
-                {name.trim() ? "Continue" : "Skip for now"} →
-              </button>
-            </div>
+            <p className="text-xs text-slate-400 font-medium mt-1.5 pl-1">
+              Appears on your shares. Change anytime in Settings.
+            </p>
           </div>
-        ) : null}
 
-        {/* ── SLIDE 2: Platforms ── */}
-        {slide === 2 ? (
-          <div className="flex-1 flex flex-col animate-enter space-y-5">
-            <div>
-              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Step 2 of 3</div>
-              <h2 className="text-3xl font-black text-slate-900 mt-2 leading-tight">Where do you<br/>share your faith?</h2>
-              <p className="text-sm text-slate-500 mt-2 font-medium">Pick all that apply. We'll optimize your caption for each platform.</p>
-            </div>
-            <div className="space-y-2">
-              {DEMO_PLATFORMS.map((p) => {
-                const selected = platforms.includes(p.id);
-                return (
-                  <button key={p.id} type="button" onClick={() => togglePlatform(p.id)}
-                    className={`w-full flex items-center gap-4 rounded-2xl border px-4 py-3.5 text-left transition-all ${
-                      selected ? "border-emerald-400 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300"
-                    }`}>
-                    <span className="text-2xl">{p.emoji}</span>
-                    <span className={`text-sm font-extrabold flex-1 ${selected ? "text-emerald-800" : "text-slate-700"}`}>{p.label}</span>
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                      selected ? "border-emerald-500 bg-emerald-500" : "border-slate-300"
-                    }`}>
-                      {selected ? <Check className="w-3 h-3 text-white" /> : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button type="button" onClick={back} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">
-                <ChevronLeft className="w-4 h-4" /> Back
-              </button>
-              <button type="button" onClick={next}
-                className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold py-3.5 shadow-md hover:shadow-lg transition-all">
-                Continue →
-              </button>
-            </div>
-          </div>
-        ) : null}
+          <button
+            type="button"
+            onClick={() => finish()}
+            className="w-full rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold text-base py-4 shadow-lg shadow-emerald-200 hover:shadow-xl hover:scale-[1.01] transition-all active:scale-[0.99]"
+          >
+            🙏 Start Writing
+          </button>
+        </div>
 
-        {/* ── SLIDE 3 (was 4): Notifications removed — wired via Settings instead ── */}
-
-        {/* ── SLIDE 3: Bible version + Finish ── */}
-        {slide === 3 ? (
-          <div className="flex-1 flex flex-col animate-enter space-y-5">
-            <div>
-              <div className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Last step</div>
-              <h2 className="text-3xl font-black text-slate-900 mt-2 leading-tight">Choose your<br/>Bible version.</h2>
-              <p className="text-sm text-slate-500 mt-2 font-medium">Used when we look up your verse automatically. Change anytime in Settings.</p>
-            </div>
-
-            <div className="space-y-2">
-              {BIBLE_VERSIONS.map((v) => (
-                <button key={v} type="button" onClick={() => setVersion(v)}
-                  className={`w-full flex items-center justify-between rounded-2xl border px-5 py-3.5 text-left transition-all ${
-                    version === v ? "border-emerald-400 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300"
-                  }`}>
-                  <span className={`text-sm font-extrabold ${version === v ? "text-emerald-800" : "text-slate-700"}`}>{v}</span>
-                  {version === v ? <Check className="w-4 h-4 text-emerald-600" /> : null}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button type="button" onClick={back} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">
-                <ChevronLeft className="w-4 h-4" /> Back
-              </button>
-              <button type="button" onClick={finish}
-                className="flex-1 rounded-[1.75rem] bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold text-base py-4 shadow-lg shadow-emerald-200 hover:shadow-xl hover:scale-[1.01] transition-all active:scale-[0.99]">
-                🙏 Start Writing
-              </button>
-            </div>
-          </div>
-        ) : null}
-
+        <p className="text-xs text-slate-300 text-center">Your data stays on your device.</p>
       </div>
     </div>
   );
@@ -5234,6 +5111,13 @@ function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, onContinueWr
         <span className="text-[9px] font-black uppercase tracking-wider">Library</span>
       </button>
 
+      {/* Settings */}
+      <button type="button" onClick={() => handleNav("settings", onSettings)}
+        className={cn("flex flex-col items-center gap-1 transition-colors min-w-[48px]", view === "settings" ? "text-emerald-600" : "text-slate-400 hover:text-slate-700")}
+        title="Settings">
+        <Settings className={cn("w-6 h-6", bouncing === "settings" ? "nav-bounce" : "")} />
+        <span className="text-[9px] font-black uppercase tracking-wider">Settings</span>
+      </button>
 
     </div>
     </>
@@ -5714,7 +5598,14 @@ Entries:\n${JSON.stringify(payload, null, 2)}`);
             settings={settings}
             onUpdate={updateDevotional}
             onGoCompile={() => {}}
-            onGoPolish={() => {}}
+            onGoPolish={() => {
+              // Navigate to step 4 (Share) of the write flow
+              if (active) {
+                const stepKey = `${APP_ID}_wizard_step_${active.id}`;
+                localStorage.setItem(stepKey, "4");
+                window.dispatchEvent(new CustomEvent("versed:navigate-step", { detail: { id: active.id, step: 4 } }));
+              }
+            }}
             onSaved={onSaved}
             onFullscreenChange={setWriteFullscreenActive}
           />

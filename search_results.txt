@@ -1,0 +1,411 @@
+﻿17	  Settings,
+54	//       Project Settings → Cloud Messaging → Web Push certificates
+57	async function requestNotificationPermission() {
+65	async function getFCMToken() {
+68	  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return null;
+70	    const reg = await navigator.serviceWorker.ready;
+89	function urlBase64ToUint8Array(base64String) {
+99	function loadNotifPref() {
+102	function saveNotifPref(pref) {
+148	    /* Nav icon bounce on tap */
+149	    @keyframes navBounce {
+201	    /* Nav icon bounce */
+202	    .nav-bounce { animation: navBounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+312	  nav: Object.freeze({
+321	function useToast() {
+325	function ToastTicker({ toast }) {
+339	function PageTransition({ children, className }) {
+345	function useCountUp(target, duration = 800) {
+363	function RippleButton({ onClick, className, children, style, type = "button", disabled, title, "aria-label": ariaLabel }) {
+435	const STORAGE_SETTINGS = `${APP_ID}_settings`;
+588	const DEFAULT_SETTINGS = {
+602	  onboardingComplete: false,
+639	function getPublicBaseUrl() {
+662	function assetUrl(path) {
+668	function cn(...classes) {
+672	function safeParseJson(value, fallback) {
+681	function nowIso() {
+684	function getDisplayName(session, settings) {
+685	  const raw = String(settings?.username || session?.name || "").trim();
+690	function getTimeGreeting(name) {
+697	function loadSession() {
+704	function persistSession(session) {
+712	function todayKey(date = new Date()) {
+719	function trackEvent(name, meta = {}) {
+732	function addDaysKey(dateKey, days) {
+739	function createDevotional(settings) {
+746	    bibleVersion: settings?.defaultBibleVersion || "KJV",
+750	    reflection: "",
+760	function BrandLogo({ className = "h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105" }) {
+776	function getEntryQueueStatus(d) {
+778	  const hasReflection = Boolean(String(d?.reflection || "").trim());
+780	  const hasAny = hasVerse || hasReflection || hasScript || Boolean(String(d?.title || "").trim()) || Boolean(String(d?.prayer || "").trim()) || Boolean(String(d?.questions || "").trim());
+782	  if (hasVerse && hasReflection && hasScript) return { id: "ready", label: "Ready", tone: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "🟢" };
+790	function canFetchDirect(version) {
+794	function bibleGatewayUrl(passage, version = "KJV") {
+799	function normalizeVerseReferenceInput(value) {
+843	async function fetchVerseFromBibleApi(passage, version = "KJV") {
+859	function insertAtCursor(textareaEl, currentValue, insertText) {
+887	function templateGuidedFill({ topicLabel, verseRef, mood }) {
+890	  const reflection = [
+913	  return { title, reflection, prayer, questions };
+955	                    localStorage.removeItem(STORAGE_SETTINGS);
+975	function buildMoodHint(mood) {
+986	async function openAiResponseText({ apiKey, prompt }) {
+1008	async function geminiGenerate({ apiKey, prompt }) {
+1028	async function ai(settings, prompt, _inputText = null) {
+1029	  const provider = settings.aiProvider;
+1031	  if (provider === "openai" && settings.openaiKey) {
+1033	      return await openAiResponseText({ apiKey: settings.openaiKey, prompt });
+1037	      return ai({ ...settings, aiProvider: "mock" }, prompt, _inputText);
+1041	  if (provider === "gemini" && settings.geminiKey) {
+1043	      return await geminiGenerate({ apiKey: settings.geminiKey, prompt });
+1047	      return ai({ ...settings, aiProvider: "mock" }, prompt, _inputText);
+1059	async function aiFixGrammar(settings, { text, mood }) {
+1061	  return ai(settings, prompt, text);
+1064	async function aiStructure(settings, { verseRef, verseText, reflection, mood }) {
+1067	- Reflection (improved)
+1069	- 2-3 Reflection Questions
+1076	User reflection:
+1077	${reflection}
+1082	  "reflection": "...",
+1086	  const raw = await ai(settings, prompt);
+1089	  if (!parsed) return { title: "", reflection: raw, prayer: "", questions: "" };
+1092	    reflection: String(parsed.reflection || ""),
+1098	async function aiGuidedFill(settings, { topicLabel, verseRef, verseText, mood }) {
+1101	Goal: produce ALL four sections: Title, Reflection, Prayer, Questions.
+1103	- Keep Reflection 120-220 words.
+1107	- Use the topic as the lens for the reflection.
+1120	  "reflection": "...",
+1124	  const raw = await ai(settings, prompt);
+1133	    reflection: String(parsed.reflection || ""),
+1139	function trimToCharLimit(text, limit) {
+1146	async function aiRewriteLength(settings, { text, mood, direction, limit, targetLength }) {
+1156	  const rewritten = await ai(settings, prompt, text);
+1163	async function aiTikTokScript(settings, { verseRef, verseText, reflection, mood, baseScript, mode }) {
+1169	      : `Source content:\nVerse: ${verseRef}\nVerse text:\n${verseText}\nReflection:\n${reflection}`;
+1171	  return ai(settings, prompt);
+1176	function readFileAsBase64(file) {
+1189	async function callOcr(endpoint, file) {
+1201	function normalizeOcrText(t) {
+1209	function detectVerseRef(text) {
+1231	function splitSectionsFromOcr(text) {
+1242	  const questionsIdx = lines.findIndex((l) => /^(questions|reflection questions)[:\s]/i.test(l));
+1253	  let reflection = lines.slice(startBodyIdx, endBodyIdx).join("\n").trim();
+1271	  if (reflection === title) reflection = "";
+1277	    reflection,
+1285	function Card({ children, className }) {
+1299	function PrimaryButton({ children, onClick, disabled, icon: Icon }) {
+1318	function Chip({ active, onClick, children }) {
+1336	function SmallButton({ children, onClick, disabled, icon: Icon, tone = "neutral", type = "button" }) {
+1357	function Modal({ title, onClose, children, footer }) {
+1375	function ApplySectionCard({ k, label, value, checked, onToggle, onChange }) {
+1393	        rows={k === "reflection" ? 5 : k === "verseText" ? 4 : 3}
+1405	function loadStreak() {
+1414	function saveStreak(streak) {
+1418	function bumpStreakOnSave() {
+1442	/* ── Daily Inspiration: AI Image + Reflection Prompt ── */
+1444	function getDailyReflectionPrompt(verseRef, verseText) {
+1458	function buildImagePrompt(verseRef, verseText) {
+1467	    [/peace|still|rest|quiet/, "a still misty lake at dawn surrounded by ancient trees, perfect mirror reflection, tranquil"],
+1481	function HomeView({ onNew, onLibrary, onContinue, onReflectVerseOfDay, onQuickPost, hasActive, streak, displayName, devotionals, onOpen, onOpenReadyToPost, showInstallBanner, onInstall, onDismissInstall }) {
+1493	  const dailyPrompt = getDailyReflectionPrompt(todayVerse.verseRef, todayVerse.verseText);
+1501	      .filter((d) => String(d.reflection || "").trim().length > 120)
+1550	        <RippleButton onClick={onReflectVerseOfDay} className="mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 text-xs font-bold backdrop-blur-md btn-spring flex items-center gap-2 border border-white/10 relative z-10">
+1551	          Reflect on this
+1582	            onClick={onQuickPost}
+1585	            ⚡ Quick post
+1587	          <button type="button" onClick={onReflectVerseOfDay} className="rounded-xl bg-slate-900 text-white px-3 py-2.5 text-xs font-extrabold">✨ Reflect with agent</button>
+1593	        const preview = (last.reflection || last.aiDraft || "").slice(0, 120).trim();
+1602	        const statusReady = Boolean(last.reflection && (last.reflection || "").length > 120);
+1635	        <div className="text-[10px] font-black uppercase tracking-widest text-amber-600">Reflect today</div>
+1637	        <button type="button" onClick={onReflectVerseOfDay} className="mt-3 rounded-xl bg-white border border-amber-200 px-3 py-2 text-xs font-extrabold text-amber-700">Open guided reflection</button>
+1644	function OcrScanModal({ settings, mood, onClose, onApplyToDevotional }) {
+1657	    reflection: "",
+1664	    reflection: "",
+1673	    reflection: true,
+1680	    reflection: true,
+1692	  const canRun = Boolean(settings.ocrEndpoint?.trim());
+1698	    const reflection = String(src.reflection || "").trim();
+1700	    if (!verseRef && !reflection && !verseText) {
+1707	      const out = await aiStructure(settings, { verseRef, verseText, reflection, mood });
+1709	      setApplyStructured({ title: true, reflection: true, prayer: true, questions: true });
+1720	      pushToast("Set OCR Endpoint in Settings first (Vercel /api/ocr).");
+1729	      const text = await callOcr(settings.ocrEndpoint.trim(), file);
+1738	        reflection: Boolean(p.reflection),
+1744	      if (settings.ocrAutoStructure) {
+1764	      if (applyStructured.reflection) patch.reflection = structured.reflection;
+1765	      else if (applyParsed.reflection) patch.reflection = parsed.reflection;
+1774	      if (applyParsed.reflection) patch.reflection = parsed.reflection;
+1828	            <SmallButton onClick={() => void generateStructure({ fromParsed: true })} disabled={aiBusy || (!parsed.reflection && !rawText)} icon={Wand2}>
+1835	              OCR is not connected yet. Go to <b>Settings</b> → paste your Vercel OCR URL.
+1898	                    k="reflection"
+1899	                    label="Reflection"
+1900	                    value={parsed.reflection}
+1901	                    checked={applyParsed.reflection}
+1902	                    onToggle={(v) => setApplyParsed((s) => ({ ...s, reflection: v }))}
+1903	                    onChange={(v) => setParsed((p) => ({ ...p, reflection: v }))}
+1933	                    k="reflection"
+1934	                    label="Reflection (AI)"
+1935	                    value={structured.reflection}
+1936	                    checked={applyStructured.reflection}
+1937	                    onToggle={(v) => setApplyStructured((s) => ({ ...s, reflection: v }))}
+1938	                    onChange={(v) => setStructured((p) => ({ ...p, reflection: v }))}
+1966	function VersePill({ verseRef, verseText }) {
+1992	function WriteView({ devotional, settings, onUpdate, onGoCompile, onGoPolish, onSaved, onFullscreenChange }) {
+1999	  // Undo/redo history for reflection, prayer, questions
+2026	  const [contentTab, setContentTab] = useState("reflection");
+2027	  const [platform, setPlatform] = useState(() => (settings.myPlatforms && settings.myPlatforms[0]) || "tiktok");
+2059	  const version = devotional.bibleVersion || settings.defaultBibleVersion || "KJV";
+2066	  const guidedMode = Boolean(settings.guidedMode);
+2068	    (settings.aiProvider === "openai" && !settings.openaiKey) ||
+2069	    (settings.aiProvider === "gemini" && !settings.geminiKey);
+2083	    const onStepNav = (event) => {
+2089	    window.addEventListener("versed:navigate-step", onStepNav);
+2090	    return () => window.removeEventListener("versed:navigate-step", onStepNav);
+2096	  }, [devotional.verseRef, devotional.verseText, devotional.title, devotional.reflection, devotional.prayer, devotional.questions, devotional.tiktokScript, devotional.mood]);
+2099	    setPostText(compileForPlatform(platform, devotional, settings));
+2100	  }, [platform, devotional, settings]);
+2218	      const out = await aiGuidedFill(settings, {
+2226	        reflection: out.reflection || devotional.reflection,
+2243	      const out = await aiFixGrammar(settings, { text: txt, mood: devotional.mood });
+2259	      const out = await aiRewriteLength(settings, {
+2274	    if (!devotional.reflection?.trim()) return;
+2277	      const out = await ai(settings, `Rewrite this in a ${tone} tone while keeping the same meaning. Return only the rewritten text.
+2279	${devotional.reflection}`, txt);
+2280	      onUpdate({ reflection: out });
+2286	  const count = String(contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions || "").length;
+2292	    try { await navigator.clipboard.writeText(postText); } catch {}
+2337	  const onboardingStyleSteps = [
+2346	  const heartReady = Boolean(String(devotional.reflection || "").trim() || String(devotional.prayer || "").trim() || String(devotional.questions || "").trim());
+2357	    if (nextStep === 4 && !heartReady) return "Add at least one reflection, prayer, or question in Step 2.";
+2404	    const base = String(contentTab === "reflection" ? devotional.reflection : devotional.prayer || "");
+2407	      const out = await ai(settings, `Write one short pastoral opening line (max 22 words) for a devotional reflection.
+2413	      const line = String(out || "").split(/\n/).find(Boolean) || "As we reflect on today's verse, God's grace remains steady and near.";
+2415	      onUpdate({ [contentTab === "reflection" ? "reflection" : "prayer"]: next });
+2437	      reflection: devotional.reflection || "",
+2465	      const draft = await aiGuidedFill(settings, {
+2475	        reflection: draft.reflection || devotional.reflection,
+2487	        let text = compileForPlatform(p, working, settings);
+2507	        reflection: working.reflection,
+2512	      setPostText(variants[platform] || compileForPlatform(platform, working, settings));
+2582	          {onboardingStyleSteps.map((item) => {
+2617	                {settings.ocrEndpoint?.trim() ? (
+2740	              <div className="text-2xl font-black text-slate-900 leading-tight">Write your reflection</div>
+2765	                  { k: "reflection", label: "Reflection" },
+2772	                    {k !== "reflection" && devotional[k]?.trim() ? (
+2793	                value={contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions}
+2797	                  pushHistory({ reflection: devotional.reflection, prayer: devotional.prayer, questions: devotional.questions, ...patch });
+2804	                  contentTab === "reflection"
+2817	                {String(contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions || "").trim().split(/\s+/).filter(Boolean).length} words
+2833	            {contentTab === "reflection" ? (
+2836	                Start reflection with AI
+2842	              <div className="text-xs text-emerald-800 font-medium">One tap: draft polish + validate + prep for posting.</div>
+2863	            {contentTab === "reflection" ? (
+2866	                Start reflection with AI
+2890	              <div className="text-xs text-center text-slate-400 -mt-2">Add a reflection, prayer, or question to continue.</div>
+2903	                <div className="text-2xl font-black text-slate-900">Polish your writing</div>
+2936	                  { k: "reflection", label: "Reflection" },
+2943	                    {k !== "reflection" && devotional[k]?.trim() ? (
+3006	              {!compactMode && !devotional.reflection && !devotional.prayer && !devotional.questions && contentTab === "reflection" ? (
+3008	                  💡 No reflection yet — go back to Step 2 to write, or use <strong>AI Draft</strong> above to generate a starting point.
+3012	              {/* Textarea — same editing surface, clearly labeled as the polishing area */}
+3014	                value={contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions}
+3018	                  pushHistory({ reflection: devotional.reflection, prayer: devotional.prayer, questions: devotional.questions, ...patch });
+3021	                  contentTab === "reflection" ? "Your reflection…"
+3030	                  {String(contentTab === "reflection" ? devotional.reflection : contentTab === "prayer" ? devotional.prayer : devotional.questions || "").trim().split(/\s+/).filter(Boolean).length} words
+3047	                {(settings.myPlatforms && settings.myPlatforms.length ? settings.myPlatforms : ["tiktok","instagram","twitter","facebook","email"]).map((p) => {
+3145	            <SocialPreview platform={platform} devotional={devotional} settings={settings} text={postText} />
+3163	                      <div className="flex justify-between text-xs font-bold"><span>{devotional.verseRef || "Scripture"}</span><span>{settings.username || "@yourname"}</span></div>
+3203	                  {typeof navigator !== "undefined" && navigator.share ? (
+3204	                    <button type="button" onClick={async () => { try { await navigator.share({ title: devotional.title || devotional.verseRef || "Devotional", text: postText }); setSharedConfirm(true); } catch {} }} className="w-full rounded-2xl bg-emerald-600 text-white py-3 font-extrabold">Share via…</button>
+3239	                Polish & Preview
+3326	          settings={settings}
+3337	          settings={settings}
+3347	          settings={settings}
+3355	function PolishView({ devotional, settings, onUpdate, onBackToWrite, onLooksGood, onGoShare }) {
+3360	    reflection: devotional.reflection || "",
+3369	      reflection: devotional.reflection || "",
+3373	  }, [devotional.id, devotional.verseRef, devotional.verseText, devotional.reflection, devotional.prayer, devotional.questions]);
+3381	  const caption = compileForPlatform("tiktok", merged, settings);
+3382	  const words = String(draft.reflection || "").trim().split(/\s+/).filter(Boolean).length;
+3389	      const out = await aiRewriteLength(settings, { text: draft.reflection || "", mood: devotional.mood, direction: "shorten" });
+3390	      patch({ reflection: out });
+3392	      patch({ reflection: String(draft.reflection || "").split(/\s+/).slice(0, 120).join(" ") });
+3407	            {[{k:"verseRef",l:"Scripture Ref",rows:1},{k:"verseText",l:"Scripture Text",rows:4},{k:"reflection",l:"Reflection",rows:8},{k:"prayer",l:"Prayer",rows:4},{k:"questions",l:"Questions",rows:4}].map(({k,l,rows}) => (
+3431	                <div className="text-xs text-slate-700 flex-1">Your reflection is {words} words — TikTok captions perform best under 150. Shorten?</div>
+3436	                <SmallButton onClick={() => patch({ reflection: `${draft.reflection || ""}
+3442	                <SmallButton onClick={() => patch({ reflection: `Today I saw God meet me right where I am.
+3444	${draft.reflection || ""}` })} disabled={hasHook}>Draft Hook</SmallButton>
+3461	function LibraryView({ devotionals, onOpen, onDelete, onDuplicate, onMarkPosted, onBack, onAgentCleanup }) {
+3475	        const hay = `${d.title} ${d.verseRef} ${d.reflection}`.toLowerCase();
+3606	                          {d.reflection ? <div className="px-4 pb-3 text-xs text-slate-400 line-clamp-2 leading-relaxed">{d.reflection}</div> : null}
+3700	function AiKeyTestButton({ provider, apiKey }) {
+3741	function NotificationSettingsCard() {
+3765	        if (s === "denied") pushToast("Notifications blocked — enable in browser settings.");
+3801	          Notifications are blocked. Open your browser's site settings to allow them.
+3805	          <div className="text-xs text-slate-500 leading-relaxed">Get a daily nudge to write, reflect, and post your faith.</div>
+3822	function SettingsView({ settings, onUpdate, onReset, onLogout, devotionals, onBack }) {
+3827	    (settings.aiProvider === "openai" && !settings.openaiKey) ||
+3828	    (settings.aiProvider === "gemini" && !settings.geminiKey);
+3859	  const aiSummary = settings.aiProvider === "mock"
+3861	    : settings.aiProvider === "openai"
+3862	      ? `AI: OpenAI (${settings.openaiKey ? "key set" : "missing key"})`
+3863	      : `AI: Gemini (${settings.geminiKey ? "key set" : "missing key"})`;
+3873	  const selectedPlatforms = Array.isArray(settings.myPlatforms) && settings.myPlatforms.length ? settings.myPlatforms : ["tiktok"];
+3891	        <div className="text-2xl font-black text-slate-900">Settings</div>
+3899	          value={settings.username || ""}
+3956	                settings.aiProvider === mode.id
+3964	                  settings.aiProvider === mode.id ? "border-emerald-500" : "border-slate-300"
+3966	                  {settings.aiProvider === mode.id && (
+3976	              {mode.link && settings.aiProvider === mode.id ? (
+3992	        {settings.aiProvider === "openai" ? (
+4008	              value={settings.openaiKey}
+4014	            <AiKeyTestButton provider="openai" apiKey={settings.openaiKey} />
+4018	        {settings.aiProvider === "gemini" ? (
+4034	              value={settings.geminiKey}
+4040	            <AiKeyTestButton provider="gemini" apiKey={settings.geminiKey} />
+4044	        {settings.aiProvider === "mock" ? (
+4059	            value={settings.ocrEndpoint || ""}
+4065	            {settings.ocrEndpoint?.trim()
+4080	          value={settings.defaultBibleVersion}
+4095	            <CompactToggleRow title="Auto-fill on topic tap" desc="Fill Title / Prayer / Questions when empty." checked={Boolean(settings.autoFillEmptyOnTopicTap)} onChange={(e) => onUpdate({ autoFillEmptyOnTopicTap: e.target.checked })} />
+4096	            <CompactToggleRow title="Auto-generate TikTok script" desc="Auto-generates in Draft for Me flow." checked={Boolean(settings.guidedAutoGenerateTikTok)} onChange={(e) => onUpdate({ guidedAutoGenerateTikTok: e.target.checked })} />
+4097	            <CompactToggleRow title="Include watermark" desc="Adds VersedUP branding on shares." checked={Boolean(settings.includeWatermark !== false)} onChange={(e) => onUpdate({ includeWatermark: e.target.checked })} />
+4113	                settings.theme === t.id ? "border-slate-900 shadow-md scale-[1.04]" : "border-slate-200 hover:border-slate-300"
+4118	              <span className={cn("text-[10px] font-bold leading-none", settings.theme === t.id ? "text-slate-900" : "text-slate-500")}>{t.label}</span>
+4163	        <NotificationSettingsCard />
+4192	function compileForPlatform(platform, d, settings) {
+4196	  const body = d.reflection || "";
+4224	    const base = d.tiktokScript || `A quick word of encouragement ✨${nl}${nl}${d.verseRef || ""}${nl}${nl}${body}`;
+4236	    return `Subject: ${d.verseRef || "Encouragement"}${nl}${nl}Hi friend,${nl}${nl}${verseLine}${body}${prayer}${nl}${nl}Blessings,${nl}${settings.username || ""}`.trim();
+4242	function CompileView({ devotional, settings, onUpdate, onBackToWrite }) {
+4244	  const [platform, setPlatform] = useState(() => (settings.myPlatforms && settings.myPlatforms[0]) || "tiktok");
+4255	    setText(compileForPlatform(platform, devotional, settings));
+4256	  }, [platform, devotional, settings]);
+4277	      await navigator.clipboard.writeText(text);
+4287	      if (navigator.share) {
+4288	        await navigator.share({ title: devotional.title || devotional.verseRef || "Devotional", text, url: window.location.href });
+4336	      const out = await aiRewriteLength(settings, { text, mood: devotional.mood, direction: "shorten" });
+4346	      const out = await aiTikTokScript(settings, {
+4349	        reflection: devotional.reflection,
+4429	        <SocialPreview platform={platform} devotional={devotional} settings={settings} text={text} />
+4483	              <span>{settings.username || "@yourname"}</span>
+4520	function SocialPreview({ platform, devotional, settings, text }) {
+4528	              <div className="text-sm font-extrabold text-slate-900">{settings.username || "yourprofile"}</div>
+4544	            <div className="text-sm font-extrabold text-slate-900 mt-1">To: {settings.username || "you@example.com"}</div>
+4591	            <span>{settings.username || "@yourname"}</span>
+4601	function TikTokScriptModal({ devotional, settings, onClose, onUpdate }) {
+4613	      const out = await aiTikTokScript(settings, {
+4616	        reflection: devotional.reflection,
+4632	      const out = await aiRewriteLength(settings, { text: script, mood: devotional.mood, direction: "shorten" });
+4643	    if (saveBack) patch.reflection = script;
+4656	            Save back to reflection
+4694	function TikTokExportModal({ devotional, settings, onClose }) {
+4699	  const prefs = settings.exportPrefs || DEFAULT_SETTINGS.exportPrefs;
+4703	  const includeUsername = prefs.includeUsername && settings.username;
+4763	                        {devotional.bibleVersion || settings.defaultBibleVersion || "KJV"}
+4773	                  {devotional.tiktokScript || compileForPlatform("tiktok", devotional, settings)}
+4778	                <div className="text-3xl font-bold text-slate-500">{includeUsername ? settings.username : ""}</div>
+4795	function loadGoogleScript() {
+4808	function parseJwt(token) {
+4817	function GoogleSignInButton({ onSuccess, onError }) {
+4876	function LandingView({ onGetStarted, onViewDemo, onGoogleSuccess }) {
+4887	          <p className="mt-4 text-base text-slate-600 text-center leading-relaxed font-medium">Create devotionals, polish your reflection, and share your faith.</p>
+4908	function AuthView({ onBack, onContinue }) {
+4932	function OnboardingWizard({ authDraft, onFinish }) {
+4982	      settingsPatch: {
+4986	        onboardingComplete: true,
+5016	              <div className="text-lg font-bold text-emerald-600 mt-1">Write. Reflect. Share.</div>
+5102	        {/* ── SLIDE 3 (was 4): Notifications removed — wired via Settings instead ── */}
+5110	              <p className="text-sm text-slate-500 mt-2 font-medium">Used when we look up your verse automatically. Change anytime in Settings.</p>
+5145	function BottomNav({ view, onWriteFromYourVerse, onHome, onLibrary, onContinueWrite, showWriteHint, onSettings, hasActiveDraft }) {
+5148	  const handleNav = (target, fn) => {
+5196	      <button type="button" onClick={() => handleNav("home", onHome)}
+5199	        <BookOpen className={cn("w-6 h-6", bouncing === "home" ? "nav-bounce" : "")} />
+5230	      <button type="button" onClick={() => handleNav("library", onLibrary)}
+5233	        <Library className={cn("w-6 h-6", bouncing === "library" ? "nav-bounce" : "")} />
+5243	function FABOption({ icon: Icon, label, onClick, active }) {
+5264	function AppInner({ session, starterMood, onLogout }) {
+5265	  const [settings, setSettings] = useState(() => {
+5266	    const raw = localStorage.getItem(STORAGE_SETTINGS);
+5267	    const parsed = safeParseJson(raw, DEFAULT_SETTINGS);
+5268	    const next = parsed && typeof parsed === "object" ? { ...DEFAULT_SETTINGS, ...parsed } : DEFAULT_SETTINGS;
+5285	  const [view, setView] = useState(() => String(localStorage.getItem(STORAGE_VIEW) || "home"));
+5286	  const [lastNonSettingsView, setLastNonSettingsView] = useState(() => String(localStorage.getItem(`${STORAGE_VIEW}_last`) || "home"));
+5293	  const navStateKeyRef = useRef("");
+5325	 // home | write | library | settings
+5328	    if (view !== "settings") setLastNonSettingsView(view);
+5344	    localStorage.setItem(`${STORAGE_VIEW}_last`, lastNonSettingsView || "home");
+5345	  }, [lastNonSettingsView]);
+5363	  const openSettings = () => {
+5364	    setView("settings");
+5381	    if (!navStateKeyRef.current) {
+5384	      navStateKeyRef.current = nextKey;
+5387	    if (navStateKeyRef.current !== nextKey) {
+5389	      navStateKeyRef.current = nextKey;
+5410	          window.dispatchEvent(new CustomEvent("versed:navigate-step", { detail: { id: active.id, step: nextStep } }));
+5421	        setView(previous === "settings" ? (lastNonSettingsView || "home") : previous);
+5435	  }, [view, writeFullscreenActive, lastNonSettingsView, active]);
+5438	    const allowed = new Set(["home", "write", "library", "settings"]);
+5440	      setView("home");
+5444	      setView(safeDevotionals.length ? "library" : "home");
+5451	    const d = createDevotional(settings);
+5454	    d.reflection = "I can begin from this mood, but I don’t have to stay here alone. Jesus meets me here.";
+5460	    localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(settings));
+5461	  }, [settings]);
+5467	  const updateSettings = (patch) => {
+5484	    setSettings((s) => ({ ...s, ...patch }));
+5506	    const d = createDevotional(settings);
+5509	    setView("write");
+5512	  const quickPost = () => {
+5513	    const d = createDevotional(settings);
+5514	    // Start blank — no pre-filled title or reflection
+5517	    setView("write");
+5522	    const d = createDevotional(settings);
+5528	    setView("write");
+5531	  const reflectVerseOfDay = () => {
+5532	    const d = createDevotional(settings);
+5537	    d.reflection = `Today I reflect on ${_votd.verseRef}. Lord, help me trust Your shepherding in every step.`;
+5541	    setView("write");
+5546	    setView(targetView);
+5551	      setView("home");
+5556	    const inferredStep = String(active.reflection || "").trim().length > 120
+5563	    setView("write");
+5570	      setView("home");
+5585	    setView("write");
+5591	    localStorage.removeItem(STORAGE_SETTINGS);
+5594	    setSettings(DEFAULT_SETTINGS);
+5598	    setView("home");
+5618	      (settings.aiProvider === "openai" && settings.openaiKey) ||
+5619	      (settings.aiProvider === "gemini" && settings.geminiKey);
+5627	          reflection: String(d.reflection || "").slice(0, 180),
+5629	        const raw = await ai(settings, `Create short devotional titles.
+5646	      patches = untitled.map((d) => ({ id: d.id, title: d.verseRef ? `Reflection on ${d.verseRef}` : "Devotional Reflection" }));
+5662	      <div className={cn("min-h-screen bg-gradient-to-b selection:bg-emerald-100", THEME_STYLES[settings.theme] || THEME_STYLES.light || THEME_STYLES.light)}>
+5673	              <div className="text-[13px] font-semibold text-slate-400">{getTimeGreeting(getDisplayName(session, settings))}</div>
+5678	            onClick={() => setView(v => v === "settings" ? (lastNonSettingsView || "home") : "settings")}
+5681	              view === "settings" ? "bg-emerald-100 text-emerald-700" : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+5683	            title="Settings"
+5685	            <Settings className="w-5 h-5" />
+5695	            onLibrary={() => setView("library")}
+5697	            onReflectVerseOfDay={reflectVerseOfDay}
+5698	            onQuickPost={quickPost}
+5701	            displayName={getDisplayName(session, settings)}
+5714	            settings={settings}
+5717	            onGoPolish={() => {}}
+5725	        {view === "library" ? <LibraryView devotionals={safeDevotionals} onOpen={openEntry} onDelete={deleteEntry} onDuplicate={duplicateEntry} onMarkPosted={markPosted} onBack={() => setView("home")} onAgentCleanup={runAgentLibraryCleanup} /> : null}
+5727	        {view === "settings" ? <SettingsView settings={settings} onUpdate={updateSettings} onReset={reset} onLogout={onLogout} devotionals={safeDevotionals} onBack={() => setView(lastNonSettingsView || "home")} /> : null}
+5731	      {/* ── Bottom Nav Bar ── */}
+5732	      {!writeFullscreenActive ? <BottomNav view={view} onHome={() => setView("home")} onWriteFromYourVerse={writeFromYourVerse} onContinueWrite={continueActiveFlow} onLibrary={() => setView("library")} onSettings={() => setView("settings")} showWriteHint={!hasUsedWriteFab && !customVerseRef} hasActiveDraft={Boolean(active)} /> : null}
+5738	export default function App() {
+5759	  // Google OAuth success — skip onboarding name step, go straight to onboarding slides
+5763	    setStage("onboarding");
+5767	    const existing = safeParseJson(localStorage.getItem(STORAGE_SETTINGS), {});
+5768	    const patched = { ...DEFAULT_SETTINGS, ...(existing || {}), onboardingComplete: true, username: "Guest" };
+5769	    localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(patched));
+5779	    setStage("onboarding");
+5782	  const handleFinishOnboarding = ({ mode, name, settingsPatch, starterMood: mood }) => {
+5783	    const existing = safeParseJson(localStorage.getItem(STORAGE_SETTINGS), {});
+5784	    localStorage.setItem(STORAGE_SETTINGS, JSON.stringify({ ...DEFAULT_SETTINGS, ...(existing || {}), ...settingsPatch }));
+5806	      {stage === "onboarding" ? <OnboardingWizard authDraft={authDraft} onFinish={handleFinishOnboarding} /> : null}
